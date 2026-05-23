@@ -48,6 +48,16 @@ model Company {
 
   templateApplied String?  // last industry template applied (for audit / re-apply)
 
+  // Accounting defaults (Section 6.5) — control accounts referenced by AR/AP
+  // posting. All optional; set per company once the CoA is in place.
+  defaultArAccountId             String?
+  defaultApAccountId             String?
+  defaultCashAccountId           String?
+  defaultTaxPayableAccountId     String?
+  defaultTaxRecoverableAccountId String?
+  defaultRevenueAccountId        String?
+  defaultExpenseAccountId        String?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -62,8 +72,31 @@ model Company {
   inventoryItems   InventoryItem[]
   orders           Order[]
   invoices         Invoice[]
-  subscription     Subscription?
-  billingInvoices  BillingInvoice[]
+  subscription        Subscription?
+  billingInvoices     BillingInvoice[]
+  workflowDefinitions WorkflowDefinition[]
+  workflowInstances   WorkflowInstance[]
+  webhookEndpoints    WebhookEndpoint[]
+  folders             Folder[]
+  documents           Document[]
+  positions           Position[]
+  leaveTypes          LeaveType[]
+  leaveRequests       LeaveRequest[]
+  shifts              Shift[]
+  attendanceEntries   AttendanceEntry[]
+  onboardingTemplates OnboardingTemplate[]
+  onboardingInstances OnboardingInstance[]
+  accounts            Account[]
+  fiscalPeriods       FiscalPeriod[]
+  journalEntries      JournalEntry[]
+  exchangeRates       ExchangeRate[]
+  customers           Customer[]
+  vendors             Vendor[]
+  paymentTerms        PaymentTerms[]
+  arInvoices          ARInvoice[]
+  arPayments          ARPayment[]
+  apBills             APBill[]
+  apPayments          APPayment[]
 
   @@map("companies")
 }
@@ -86,6 +119,8 @@ model Branch {
   manager     User?        @relation("BranchManager", fields: [managerId], references: [id])
   users       User[]       @relation("UserBranch")
   departments Department[]
+  employees   Employee[]   @relation("EmployeeBranch")
+  positions   Position[]   @relation("PositionBranch")
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -145,14 +180,16 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  company        Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department     Department?    @relation(fields: [departmentId], references: [id])
-  branch         Branch?        @relation("UserBranch", fields: [branchId], references: [id])
-  managedBranches Branch[]      @relation("BranchManager")
-  userRoles      UserRole[]
-  userModules    UserModule[]
-  refreshTokens  RefreshToken[]
-  authEvents     AuthEvent[]
+  company               Company?                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department            Department?              @relation(fields: [departmentId], references: [id])
+  branch                Branch?                  @relation("UserBranch", fields: [branchId], references: [id])
+  managedBranches       Branch[]                 @relation("BranchManager")
+  userRoles             UserRole[]
+  userModules           UserModule[]
+  refreshTokens         RefreshToken[]
+  authEvents            AuthEvent[]
+  notifications         Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@unique([email, companyId])
   @@index([companyId])
@@ -397,6 +434,7 @@ model Department {
   branch    Branch?    @relation(fields: [branchId], references: [id])
   employees Employee[]
   users     User[]
+  positions Position[]
 
   @@unique([name, companyId])
   @@index([companyId])
@@ -404,25 +442,375 @@ model Department {
   @@map("departments")
 }
 
-// ─── EMPLOYEES ────────────────────────────────────────────────────────────────
-model Employee {
-  id           String    @id @default(uuid())
-  companyId    String
-  name         String
-  email        String?
-  departmentId String?
-  position     String?
-  salary       Decimal?  @db.Decimal(12, 2)
-  hireDate     DateTime?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+// ─── EMPLOYEES (Section 6.3) ──────────────────────────────────────────────────
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+  RETIRED
+  SUSPENDED
+}
 
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department Department? @relation(fields: [departmentId], references: [id])
+model Employee {
+  id              String         @id @default(uuid())
+  companyId       String
+  // Optional link to a User account — populated when the employee has system
+  // login. Field workers, retirees, etc. may have an Employee row but no User.
+  userId          String?        @unique
+  employeeNumber  String?
+  name            String
+  email           String?
+  phone           String?
+  departmentId    String?
+  branchId        String?
+  positionId      String?
+  managerId       String?        // self-ref for org chart
+  hireDate        DateTime?
+  terminationDate DateTime?
+  status          EmployeeStatus @default(ACTIVE)
+  customFields    Json?
+  // Legacy quick-access salary — superseded by EmploymentContract.salaryAmountMinor.
+  // Kept for back-compat with the skeletal scaffold; new code should write
+  // contracts and read `currentContract` instead.
+  salary          Decimal?       @db.Decimal(12, 2)
+  // Mirror legacy position string for back-compat; positionId is canonical.
+  position        String?
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department          Department?          @relation(fields: [departmentId], references: [id])
+  branch              Branch?              @relation("EmployeeBranch", fields: [branchId], references: [id])
+  positionRef         Position?            @relation(fields: [positionId], references: [id])
+  manager             Employee?            @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports             Employee[]           @relation("EmployeeManager")
+  contracts           EmploymentContract[]
+  attendance          AttendanceEntry[]
+  leaveBalances       LeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  shiftAssignments    EmployeeShift[]
+  onboardingInstances OnboardingInstance[]
 
   @@index([companyId])
+  @@index([branchId])
+  @@index([managerId])
+  @@index([positionId])
   @@map("employees")
+}
+
+// ─── POSITIONS ────────────────────────────────────────────────────────────────
+// Per-company job catalog. Employees can hold one position at a time.
+model Position {
+  id           String   @id @default(uuid())
+  companyId    String
+  title        String
+  code         String?
+  description  String?
+  level        Int?
+  departmentId String?
+  branchId     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department?          @relation(fields: [departmentId], references: [id])
+  branch     Branch?              @relation("PositionBranch", fields: [branchId], references: [id])
+  employees  Employee[]
+  contracts  EmploymentContract[]
+
+  @@unique([companyId, title])
+  @@index([companyId])
+  @@map("positions")
+}
+
+// ─── EMPLOYMENT CONTRACTS ─────────────────────────────────────────────────────
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+  TEMPORARY
+  CONSULTANT
+}
+
+model EmploymentContract {
+  id                String         @id @default(uuid())
+  employeeId        String
+  positionId        String?
+  type              EmploymentType
+  startDate         DateTime
+  endDate           DateTime?
+  // Monetary fields use integer minor units + currency code (Section 14.1).
+  salaryAmountMinor Int?
+  salaryCurrency    String?        @default("USD")
+  // "MONTHLY" | "ANNUAL" | "HOURLY" | "DAILY" — kept as string to allow custom.
+  salaryFrequency   String?
+  workHoursPerWeek  Int?
+  notes             String?
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  employee Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  position Position? @relation(fields: [positionId], references: [id])
+
+  @@index([employeeId])
+  @@map("employment_contracts")
+}
+
+// ─── LEAVE TYPES + BALANCES + REQUESTS ────────────────────────────────────────
+enum LeaveAccrualMode {
+  NONE
+  PERIODIC
+}
+
+model LeaveType {
+  id               String           @id @default(uuid())
+  companyId        String
+  code             String           // "ANNUAL" | "SICK" | "UNPAID" | …
+  name             String
+  description      String?
+  accrualMode      LeaveAccrualMode @default(NONE)
+  // Days accrued per period (when accrualMode = PERIODIC).
+  accrualDays      Decimal?         @db.Decimal(6, 2)
+  // "MONTHLY" | "YEARLY" | "PAY_PERIOD" — interpreted by the accrual runner.
+  accrualPeriod    String?
+  maxBalance       Decimal?         @db.Decimal(6, 2)
+  paid             Boolean          @default(true)
+  requiresApproval Boolean          @default(true)
+  workflowKey      String?          // workflow definition key (default "leave_request")
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  balances LeaveBalance[]
+  requests LeaveRequest[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("leave_types")
+}
+
+// Running balance for an employee × leaveType × period (e.g. "2026").
+model LeaveBalance {
+  id            String   @id @default(uuid())
+  employeeId    String
+  leaveTypeId   String
+  periodKey     String
+  accruedDays   Decimal  @db.Decimal(6, 2) @default(0)
+  usedDays      Decimal  @db.Decimal(6, 2) @default(0)
+  pendingDays   Decimal  @db.Decimal(6, 2) @default(0)
+  carryOverDays Decimal  @db.Decimal(6, 2) @default(0)
+  updatedAt     DateTime @updatedAt
+
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, leaveTypeId, periodKey])
+  @@index([employeeId])
+  @@map("leave_balances")
+}
+
+enum LeaveRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  TAKEN
+}
+
+model LeaveRequest {
+  id                 String             @id @default(uuid())
+  companyId          String
+  employeeId         String
+  leaveTypeId        String
+  startDate          DateTime
+  endDate            DateTime
+  // Fractional days for half-day support.
+  days               Decimal            @db.Decimal(6, 2)
+  reason             String?
+  status             LeaveRequestStatus @default(PENDING)
+  workflowInstanceId String?
+  approvedById       String?
+  approvedAt         DateTime?
+  rejectedReason     String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([companyId])
+  @@index([employeeId, status])
+  @@map("leave_requests")
+}
+
+// ─── SHIFTS + ATTENDANCE ──────────────────────────────────────────────────────
+model Shift {
+  id           String   @id @default(uuid())
+  companyId    String
+  code         String
+  name         String
+  // 24-hour HH:MM strings, interpreted in the company timezone.
+  startTime    String
+  endTime      String
+  isOvernight  Boolean  @default(false)
+  breakMinutes Int      @default(0)
+  // 0=Sunday … 6=Saturday
+  workDays     Int[]
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignments EmployeeShift[]
+
+  @@unique([companyId, code])
+  @@map("shifts")
+}
+
+model EmployeeShift {
+  id            String    @id @default(uuid())
+  employeeId    String
+  shiftId       String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift    Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_shifts")
+}
+
+enum AttendanceSource {
+  WEB
+  DESKTOP
+  MOBILE
+  DEVICE
+  MANUAL
+}
+
+enum AttendanceStatus {
+  CHECKED_IN
+  CHECKED_OUT
+  AUTO_CLOSED
+  MISSED
+}
+
+// One entry per (employee, date). Late clock-ins update an existing row;
+// the daily-summary job auto-closes any open CHECKED_IN rows.
+model AttendanceEntry {
+  id            String           @id @default(uuid())
+  companyId     String
+  employeeId    String
+  date          DateTime         @db.Date
+  checkIn       DateTime?
+  checkOut      DateTime?
+  source        AttendanceSource @default(WEB)
+  status        AttendanceStatus @default(CHECKED_IN)
+  workedMinutes Int?
+  shiftId       String?
+  notes         String?
+  ip            String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([companyId, date])
+  @@map("attendance_entries")
+}
+
+// ─── ONBOARDING ───────────────────────────────────────────────────────────────
+enum OnboardingItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+model OnboardingTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  // Optional auto-apply: when an employee with this position is created.
+  positionId  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     OnboardingTemplateItem[]
+  instances OnboardingInstance[]
+
+  @@unique([companyId, name])
+  @@map("onboarding_templates")
+}
+
+model OnboardingTemplateItem {
+  id            String   @id @default(uuid())
+  templateId    String
+  title         String
+  description   String?
+  // "documents" | "equipment" | "training" | "system_access" | …
+  category      String?
+  // "manager" | "hr" | "it" | "employee" — resolved when an instance is spawned.
+  assigneeRole  String?
+  daysFromStart Int?     // SLA relative to hire date
+  ordering      Int      @default(0)
+
+  template OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("onboarding_template_items")
+}
+
+model OnboardingInstance {
+  id          String    @id @default(uuid())
+  companyId   String
+  employeeId  String
+  templateId  String?
+  startedAt   DateTime  @default(now())
+  targetEndAt DateTime?
+  completedAt DateTime?
+
+  company  Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  template OnboardingTemplate?      @relation(fields: [templateId], references: [id])
+  items    OnboardingInstanceItem[]
+
+  @@index([employeeId])
+  @@map("onboarding_instances")
+}
+
+model OnboardingInstanceItem {
+  id            String               @id @default(uuid())
+  instanceId    String
+  title         String
+  description   String?
+  category      String?
+  assigneeId    String?              // userId
+  status        OnboardingItemStatus @default(PENDING)
+  dueAt         DateTime?
+  completedAt   DateTime?
+  completedById String?
+  notes         String?
+
+  instance OnboardingInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@index([assigneeId, status])
+  @@map("onboarding_instance_items")
 }
 
 // ─── PRODUCTS ─────────────────────────────────────────────────────────────────
@@ -756,4 +1144,785 @@ model BillingPayment {
 
   @@index([invoiceId])
   @@map("billing_payments")
+}
+
+// ─── WORKFLOW ENGINE (Sections 6.10 + 9) ──────────────────────────────────────
+//
+// Definitions are versioned, declarative step graphs (stored as JSON). System
+// templates have companyId = null + isSystem = true and can be cloned into a
+// company's own version. Instances reference the immutable (definitionId,
+// version) pair so a running instance never sees an unexpected step rewrite.
+
+enum WorkflowStatus {
+  PENDING
+  RUNNING
+  AWAITING_APPROVAL
+  WAITING
+  COMPLETED
+  REJECTED
+  CANCELLED
+  ERRORED
+}
+
+enum WorkflowStepType {
+  APPROVAL
+  AUTOMATED_ACTION
+  CONDITIONAL_BRANCH
+  WAIT
+  ESCALATION
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalSemantics {
+  FIRST_RESPONSE
+  UNANIMOUS
+  MAJORITY
+}
+
+model WorkflowDefinition {
+  id          String   @id @default(uuid())
+  companyId   String?  // null = system template
+  key         String   // domain-stable identifier (e.g. "leave_request")
+  name        String
+  description String?
+  entityType  String?  // optional — what kind of entity this workflow operates on
+  version     Int      @default(1)
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false)
+  steps       Json     // serialized step graph (typed in TS)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company?           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  instances WorkflowInstance[]
+
+  @@unique([companyId, key, version])
+  @@index([companyId])
+  @@map("workflow_definitions")
+}
+
+model WorkflowInstance {
+  id            String         @id @default(uuid())
+  definitionId  String
+  companyId     String
+  initiatorId   String?
+  refType       String?
+  refId         String?
+  status        WorkflowStatus @default(PENDING)
+  currentStepKey String?
+  context       Json?
+  resumeAt      DateTime?      // for WAIT steps
+  startedAt     DateTime       @default(now())
+  completedAt   DateTime?
+
+  definition WorkflowDefinition     @relation(fields: [definitionId], references: [id])
+  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  history    WorkflowHistoryEntry[]
+  approvals  WorkflowApproval[]
+
+  @@index([companyId, status])
+  @@index([definitionId])
+  @@index([refType, refId])
+  @@index([resumeAt])
+  @@map("workflow_instances")
+}
+
+model WorkflowHistoryEntry {
+  id         String   @id @default(uuid())
+  instanceId String
+  stepKey    String
+  stepType   WorkflowStepType
+  status     String   // entered | completed | errored | rejected | approved | cancelled
+  actorId    String?
+  message    String?
+  metadata   Json?
+  occurredAt DateTime @default(now())
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@map("workflow_history")
+}
+
+model WorkflowApproval {
+  id         String            @id @default(uuid())
+  instanceId String
+  stepKey    String
+  approverId String
+  decision   ApprovalDecision?
+  comment    String?
+  decidedAt  DateTime?
+  createdAt  DateTime          @default(now())
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@unique([instanceId, stepKey, approverId])
+  @@index([approverId, decision])
+  @@map("workflow_approvals")
+}
+
+// ─── NOTIFICATIONS (Section 6.10) ─────────────────────────────────────────────
+//
+// In-app is always available; other channels gate on per-user prefs and
+// per-channel adapter configuration. The `category` field is a stable string
+// taxonomy (e.g. "workflow.approval", "billing.invoice_issued") that drives
+// both per-channel routing and webhook filtering.
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+  DESKTOP_TOAST
+}
+
+enum NotificationDigest {
+  IMMEDIATE
+  HOURLY
+  DAILY
+  WEEKLY
+  OFF
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
+  DISMISSED
+}
+
+model Notification {
+  id            String              @id @default(uuid())
+  companyId     String?
+  userId        String
+  channel       NotificationChannel
+  category      String              // "workflow.approval", "auth.login_alert", …
+  subject       String?
+  body          String
+  data          Json?               // deep-link payload, refIds, etc.
+  refType       String?
+  refId         String?
+  status        NotificationStatus  @default(PENDING)
+  sentAt        DateTime?
+  readAt        DateTime?
+  dismissedAt   DateTime?
+  failureReason String?
+  createdAt     DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([companyId])
+  @@index([category])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// Per-user × category × channel preference. `category = "*"` is the fallback
+// applied when no more specific preference matches.
+model NotificationPreference {
+  id       String              @id @default(uuid())
+  userId   String
+  category String              @default("*")
+  channel  NotificationChannel
+  enabled  Boolean             @default(true)
+  digest   NotificationDigest  @default(IMMEDIATE)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category, channel])
+  @@map("notification_preferences")
+}
+
+// ─── WEBHOOKS (outbound event bus — Section 6.10) ─────────────────────────────
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  RETRYING
+}
+
+model WebhookEndpoint {
+  id           String   @id @default(uuid())
+  companyId    String
+  name         String
+  url          String
+  secret       String   // shared secret for HMAC-SHA256 signature
+  eventFilters String[] // glob-ish patterns; empty = all events
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([companyId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id              String                @id @default(uuid())
+  endpointId      String
+  eventKey        String                // mirrors Notification.category style
+  payload         Json
+  status          WebhookDeliveryStatus @default(PENDING)
+  attempts        Int                   @default(0)
+  responseStatus  Int?
+  responseBody    String?
+  errorMessage    String?
+  lastAttemptedAt DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime              @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, status])
+  @@index([eventKey])
+  @@map("webhook_deliveries")
+}
+
+// ─── DOCUMENT MANAGEMENT (Section 6.9) ────────────────────────────────────────
+//
+// Folder hierarchy is per-company; folder names are unique within their
+// parent. Documents live in (at most) one folder and point to an immutable
+// chain of DocumentVersions stored in object storage.
+//
+// Cross-tenant isolation is enforced at two levels:
+//   • Every query is scoped by companyId via TenantContext.
+//   • Storage keys live under a `companies/{companyId}/...` prefix so a
+//     misrouted SDK call can't reach another tenant's bytes.
+
+model Folder {
+  id          String   @id @default(uuid())
+  companyId   String
+  parentId    String?
+  name        String
+  description String?
+  createdById String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent    Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children  Folder[]   @relation("FolderHierarchy")
+  documents Document[]
+
+  @@unique([companyId, parentId, name])
+  @@index([companyId])
+  @@index([parentId])
+  @@map("folders")
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+model Document {
+  id               String         @id @default(uuid())
+  companyId        String
+  folderId         String?
+  name             String
+  description      String?
+  mimeType         String
+  size             Int            // bytes — mirrors currentVersion.size for fast list queries
+  status           DocumentStatus @default(ACTIVE)
+  currentVersionId String?        @unique
+  ownerId          String?
+  refType          String?        // optional polymorphic link (e.g. "hr.employee", "finance.invoice")
+  refId            String?
+  tags             String[]
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder         Folder?             @relation(fields: [folderId], references: [id])
+  versions       DocumentVersion[]   @relation("DocumentVersions")
+  currentVersion DocumentVersion?    @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id])
+  accessLogs     DocumentAccessLog[]
+  shareLinks     ShareLink[]
+
+  @@index([companyId, status])
+  @@index([folderId])
+  @@index([refType, refId])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  documentId    String
+  versionNumber Int
+  storageKey    String   // pointer into object storage
+  size          Int
+  checksum      String   // SHA-256 hex
+  mimeType      String
+  uploadedById  String?
+  uploadedAt    DateTime @default(now())
+  notes         String?
+
+  document      Document  @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  currentOf     Document? @relation("DocumentCurrentVersion")
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+enum DocumentAccessType {
+  VIEWED
+  DOWNLOADED
+  PREVIEWED
+  SHARED_LINK_OPENED
+}
+
+model DocumentAccessLog {
+  id          String             @id @default(uuid())
+  documentId  String
+  userId      String?            // null for external share-link opens
+  accessType  DocumentAccessType
+  shareLinkId String?
+  ip          String?
+  userAgent   String?
+  at          DateTime           @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, at])
+  @@map("document_access_logs")
+}
+
+model ShareLink {
+  id           String    @id @default(uuid())
+  documentId   String
+  token        String    @unique // URL-safe random; carried in /share/:token
+  passwordHash String?            // bcrypt — optional
+  expiresAt    DateTime?
+  maxAccesses  Int?
+  accessCount  Int       @default(0)
+  createdById  String?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("share_links")
+}
+
+// ─── FINANCE & ACCOUNTING (Section 6.5) ───────────────────────────────────────
+//
+// General-ledger backbone: hierarchical Chart of Accounts, fiscal periods
+// with an OPEN→CLOSED→LOCKED state machine, and immutable double-entry
+// JournalEntries posted only when debits == credits. AR and APr layer on top:
+// every invoice/bill/payment posts a JournalEntry, with the posted entry id
+// kept on the source record so audits can walk source → GL.
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum AccountSubtype {
+  CASH
+  BANK
+  ACCOUNTS_RECEIVABLE
+  ACCOUNTS_PAYABLE
+  INVENTORY
+  FIXED_ASSET
+  CURRENT_LIABILITY
+  LONG_TERM_LIABILITY
+  TAX_PAYABLE
+  TAX_RECOVERABLE
+  SHARE_CAPITAL
+  RETAINED_EARNINGS
+  REVENUE
+  COST_OF_GOODS_SOLD
+  OPERATING_EXPENSE
+  OTHER_INCOME
+  OTHER_EXPENSE
+}
+
+model Account {
+  id          String          @id @default(uuid())
+  companyId   String
+  code        String           // user-defined account code, e.g. "1000", "4100-01"
+  name        String
+  type        AccountType
+  subtype     AccountSubtype?
+  parentId    String?
+  currency    String           @default("USD")
+  isActive    Boolean          @default(true)
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children Account[]     @relation("AccountHierarchy")
+  lines    JournalLine[]
+  arInvoiceLines ARInvoiceLine[]
+  apBillLines    APBillLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+  @@index([parentId])
+  @@map("accounts")
+}
+
+enum FiscalPeriodStatus {
+  OPEN
+  CLOSING
+  CLOSED
+  LOCKED
+}
+
+model FiscalPeriod {
+  id         String             @id @default(uuid())
+  companyId  String
+  name       String              // "2026-01", "FY2026-Q1", etc.
+  startDate  DateTime
+  endDate    DateTime
+  status     FiscalPeriodStatus @default(OPEN)
+  closedAt   DateTime?
+  closedById String?
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journals JournalEntry[]
+
+  @@unique([companyId, name])
+  @@index([companyId, status])
+  @@index([companyId, startDate, endDate])
+  @@map("fiscal_periods")
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+model JournalEntry {
+  id           String             @id @default(uuid())
+  companyId    String
+  periodId     String
+  number       String              // unique per company; auto-generated
+  date         DateTime
+  description  String?
+  reference    String?             // external (e.g. source invoice number)
+  status       JournalEntryStatus  @default(DRAFT)
+  postedAt     DateTime?
+  postedById   String?
+  reversalOfId String?             // points at the original being reversed
+  currency     String              @default("USD")
+  totalDebit   Decimal             @db.Decimal(15, 2) @default(0)
+  totalCredit  Decimal             @db.Decimal(15, 2) @default(0)
+  source       String?             // "ar_invoice" | "ap_bill" | "ar_payment" | "ap_payment" | "manual"
+  sourceId     String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period     FiscalPeriod  @relation(fields: [periodId], references: [id])
+  lines      JournalLine[]
+  reversalOf JournalEntry? @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversal   JournalEntry? @relation("JournalReversal")
+
+  arInvoice  ARInvoice?
+  arPayment  ARPayment?
+  apBill     APBill?
+  apPayment  APPayment?
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([periodId])
+  @@index([source, sourceId])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id          String   @id @default(uuid())
+  entryId     String
+  accountId   String
+  debit       Decimal  @db.Decimal(15, 2) @default(0)
+  credit      Decimal  @db.Decimal(15, 2) @default(0)
+  description String?
+  ordering    Int      @default(0)
+
+  entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account Account      @relation(fields: [accountId], references: [id])
+
+  @@index([entryId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+// Daily exchange rates per company (base → target). The latest-on-or-before
+// row for a (base, target, date) is used at posting time.
+model ExchangeRate {
+  id             String   @id @default(uuid())
+  companyId      String
+  baseCurrency   String   @default("USD")
+  targetCurrency String
+  rate           Decimal  @db.Decimal(15, 6)
+  date           DateTime @db.Date
+  source         String?  // "manual" | "ECB" | "openexchangerates" | …
+  createdAt      DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, baseCurrency, targetCurrency, date])
+  @@index([companyId, date])
+  @@map("exchange_rates")
+}
+
+// ─── PAYMENT TERMS ────────────────────────────────────────────────────────────
+model PaymentTerms {
+  id              String   @id @default(uuid())
+  companyId       String
+  code            String
+  name            String
+  netDays         Int       // e.g. 30 for NET30
+  discountDays    Int?      // for "2/10 Net 30" patterns
+  discountPercent Decimal?  @db.Decimal(5, 2)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers Customer[]
+  vendors   Vendor[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("payment_terms")
+}
+
+// ─── CUSTOMERS & VENDORS ──────────────────────────────────────────────────────
+model Customer {
+  id              String   @id @default(uuid())
+  companyId       String
+  name            String
+  code            String?
+  email           String?
+  phone           String?
+  taxId           String?
+  address         Json?
+  paymentTermsId  String?
+  defaultCurrency String   @default("USD")
+  notes           String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  paymentTerms PaymentTerms? @relation(fields: [paymentTermsId], references: [id])
+  arInvoices   ARInvoice[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("customers")
+}
+
+model Vendor {
+  id              String   @id @default(uuid())
+  companyId       String
+  name            String
+  code            String?
+  email           String?
+  phone           String?
+  taxId           String?
+  address         Json?
+  paymentTermsId  String?
+  defaultCurrency String   @default("USD")
+  notes           String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  paymentTerms PaymentTerms? @relation(fields: [paymentTermsId], references: [id])
+  apBills      APBill[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("vendors")
+}
+
+// ─── ACCOUNTS RECEIVABLE ──────────────────────────────────────────────────────
+enum ARInvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+  WRITTEN_OFF
+}
+
+model ARInvoice {
+  id             String          @id @default(uuid())
+  companyId      String
+  customerId     String
+  number         String          // unique per company; auto-generated
+  issueDate      DateTime
+  dueDate        DateTime?
+  currency       String          @default("USD")
+  subtotalMinor  Int             @default(0)
+  taxMinor       Int             @default(0)
+  totalMinor     Int             @default(0)
+  paidMinor      Int             @default(0)
+  status         ARInvoiceStatus @default(DRAFT)
+  paymentTermsId String?
+  notes          String?
+  journalEntryId String?         @unique
+  voidedAt       DateTime?
+  voidedById     String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer     Customer        @relation(fields: [customerId], references: [id])
+  paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
+  lines        ARInvoiceLine[]
+  payments     ARPayment[]
+  journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("ar_invoices")
+}
+
+model ARInvoiceLine {
+  id             String   @id @default(uuid())
+  invoiceId      String
+  description    String
+  quantity       Decimal  @db.Decimal(15, 4) @default(1)
+  unitPriceMinor Int
+  lineTotalMinor Int
+  taxPercent     Decimal? @db.Decimal(5, 2)
+  taxMinor       Int      @default(0)
+  accountId      String?
+
+  invoice ARInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  account Account?  @relation(fields: [accountId], references: [id])
+
+  @@index([invoiceId])
+  @@map("ar_invoice_lines")
+}
+
+model ARPayment {
+  id             String   @id @default(uuid())
+  companyId      String
+  invoiceId      String
+  amountMinor    Int
+  currency       String   @default("USD")
+  method         String?  // "manual" | "wire" | "stripe" | …
+  reference      String?
+  receivedAt     DateTime
+  journalEntryId String?  @unique
+  createdAt      DateTime @default(now())
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice      ARInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@index([invoiceId])
+  @@map("ar_payments")
+}
+
+// ─── ACCOUNTS PAYABLE ─────────────────────────────────────────────────────────
+enum APBillStatus {
+  DRAFT
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+  ON_HOLD
+}
+
+model APBill {
+  id             String       @id @default(uuid())
+  companyId      String
+  vendorId       String
+  number         String        // vendor's invoice number — not auto-generated
+  issueDate      DateTime
+  dueDate        DateTime?
+  currency       String        @default("USD")
+  subtotalMinor  Int           @default(0)
+  taxMinor       Int           @default(0)
+  totalMinor     Int           @default(0)
+  paidMinor      Int           @default(0)
+  status         APBillStatus  @default(DRAFT)
+  paymentTermsId String?
+  notes          String?
+  journalEntryId String?       @unique
+  voidedAt       DateTime?
+  voidedById     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vendor       Vendor         @relation(fields: [vendorId], references: [id])
+  paymentTerms PaymentTerms?  @relation(fields: [paymentTermsId], references: [id])
+  lines        APBillLine[]
+  payments     APPayment[]
+  journalEntry JournalEntry?  @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([companyId, vendorId, number])
+  @@index([companyId, status])
+  @@index([vendorId])
+  @@map("ap_bills")
+}
+
+model APBillLine {
+  id             String   @id @default(uuid())
+  billId         String
+  description    String
+  quantity       Decimal  @db.Decimal(15, 4) @default(1)
+  unitPriceMinor Int
+  lineTotalMinor Int
+  taxPercent     Decimal? @db.Decimal(5, 2)
+  taxMinor       Int      @default(0)
+  accountId      String?
+
+  bill    APBill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id])
+
+  @@index([billId])
+  @@map("ap_bill_lines")
+}
+
+model APPayment {
+  id             String   @id @default(uuid())
+  companyId      String
+  billId         String
+  amountMinor    Int
+  currency       String   @default("USD")
+  method         String?
+  reference      String?
+  paidAt         DateTime
+  journalEntryId String?  @unique
+  createdAt      DateTime @default(now())
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill         APBill        @relation(fields: [billId], references: [id], onDelete: Cascade)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@index([billId])
+  @@map("ap_payments")
 }

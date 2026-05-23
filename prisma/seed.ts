@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PERMISSION_CATALOG, SYSTEM_PERMISSION_SETS } from '../src/modules/permissions/permission-catalog';
+import { SYSTEM_WORKFLOW_TEMPLATES } from '../src/modules/workflows/system-templates';
 
 const prisma = new PrismaClient();
 
@@ -94,6 +95,38 @@ async function main() {
     });
   }
   console.log(`✅ ${RETENTION_DEFAULTS.length} retention policies seeded`);
+
+  // ── System Workflow Templates ──────────────────────────────────────────────
+  for (const tpl of SYSTEM_WORKFLOW_TEMPLATES) {
+    const existing = await prisma.workflowDefinition.findFirst({
+      where: { companyId: null, isSystem: true, key: tpl.key, version: tpl.version },
+    });
+    if (existing) {
+      await prisma.workflowDefinition.update({
+        where: { id: existing.id },
+        data: {
+          name: tpl.name,
+          description: tpl.description,
+          entityType: tpl.entityType,
+          steps: tpl.steps as any,
+        },
+      });
+    } else {
+      await prisma.workflowDefinition.create({
+        data: {
+          companyId: null,
+          isSystem: true,
+          key: tpl.key,
+          name: tpl.name,
+          description: tpl.description,
+          entityType: tpl.entityType,
+          version: tpl.version,
+          steps: tpl.steps as any,
+        },
+      });
+    }
+  }
+  console.log(`✅ ${SYSTEM_WORKFLOW_TEMPLATES.length} system workflow templates seeded`);
 
   // ── Super Admin ────────────────────────────────────────────────────────────
   const superAdminHash = await bcrypt.hash('admin123', 12);

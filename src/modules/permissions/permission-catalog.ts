@@ -113,6 +113,41 @@ const FINE_GRAINED: PermissionDef[] = [
   { key: 'billing.invoice.create',        resource: 'billing.invoice',      action: 'create',   moduleSlug: 'administration', description: 'Issue billing invoices' },
   { key: 'billing.invoice.record_payment', resource: 'billing.invoice',     action: 'record_payment', moduleSlug: 'administration', description: 'Record payments against billing invoices' },
 
+  // HR sub-resources (Section 6.3)
+  { key: 'hr.position.view',     resource: 'hr.position',     action: 'view',    moduleSlug: 'hr', description: 'View positions catalog' },
+  { key: 'hr.position.manage',   resource: 'hr.position',     action: 'manage',  moduleSlug: 'hr', description: 'Create, edit, deactivate positions' },
+  { key: 'hr.contract.view',     resource: 'hr.contract',     action: 'view',    moduleSlug: 'hr', description: 'View employment contracts' },
+  { key: 'hr.contract.manage',   resource: 'hr.contract',     action: 'manage',  moduleSlug: 'hr', description: 'Create / update employment contracts' },
+  { key: 'hr.employee.hire',     resource: 'hr.employee',     action: 'hire',    moduleSlug: 'hr', description: 'Hire new employees (full workforce flow)' },
+  { key: 'hr.employee.terminate', resource: 'hr.employee',    action: 'terminate', moduleSlug: 'hr', description: 'Terminate or retire employees' },
+  { key: 'hr.leave_type.manage', resource: 'hr.leave_type',   action: 'manage',  moduleSlug: 'hr-payroll', description: 'Configure leave types & accrual rules' },
+  { key: 'hr.leave.manage_all',  resource: 'hr.leave',        action: 'manage_all', moduleSlug: 'hr', description: 'View & manage leave requests across all employees' },
+  { key: 'hr.attendance.view_all', resource: 'hr.attendance', action: 'view_all', moduleSlug: 'hr-attendance', description: 'View attendance for all employees' },
+  { key: 'hr.attendance.edit',   resource: 'hr.attendance',   action: 'edit',    moduleSlug: 'hr-attendance', description: 'Edit attendance entries (HR-only)' },
+  { key: 'hr.shift.manage',      resource: 'hr.shift',        action: 'manage',  moduleSlug: 'hr-attendance', description: 'Manage shift catalog and assignments' },
+  { key: 'hr.onboarding.manage', resource: 'hr.onboarding',   action: 'manage',  moduleSlug: 'hr', description: 'Manage onboarding templates and instances' },
+
+  // Document Management (Section 6.9)
+  { key: 'documents.view',   resource: 'documents', action: 'view',   moduleSlug: 'administration', description: 'View documents and folders' },
+  { key: 'documents.create', resource: 'documents', action: 'create', moduleSlug: 'administration', description: 'Upload new documents and versions' },
+  { key: 'documents.update', resource: 'documents', action: 'update', moduleSlug: 'administration', description: 'Rename, move, retag documents' },
+  { key: 'documents.delete', resource: 'documents', action: 'delete', moduleSlug: 'administration', description: 'Soft-delete or restore documents' },
+  { key: 'documents.share',  resource: 'documents', action: 'share',  moduleSlug: 'administration', description: 'Create and revoke external share links' },
+  { key: 'folders.manage',   resource: 'folders',   action: 'manage', moduleSlug: 'administration', description: 'Create, rename, move, delete folders' },
+
+  // Notifications & Webhooks (Section 6.10)
+  { key: 'notifications.preferences.update', resource: 'notifications.preferences', action: 'update', moduleSlug: 'administration', description: 'Update own notification preferences (granted by default)' },
+  { key: 'webhooks.endpoint.view',           resource: 'webhooks.endpoint',          action: 'view',   moduleSlug: 'administration', description: 'View webhook endpoints' },
+  { key: 'webhooks.endpoint.manage',         resource: 'webhooks.endpoint',          action: 'manage', moduleSlug: 'administration', description: 'Create, edit, delete webhook endpoints' },
+  { key: 'webhooks.delivery.view',           resource: 'webhooks.delivery',          action: 'view',   moduleSlug: 'administration', description: 'View webhook delivery history' },
+
+  // Workflow Engine (Sections 6.10 + 9)
+  { key: 'workflow.definition.view',    resource: 'workflow.definition',  action: 'view',    moduleSlug: 'administration', description: 'View workflow definitions' },
+  { key: 'workflow.definition.manage',  resource: 'workflow.definition',  action: 'manage',  moduleSlug: 'administration', description: 'Create, clone, edit, delete workflow definitions' },
+  { key: 'workflow.instance.view',      resource: 'workflow.instance',    action: 'view',    moduleSlug: 'administration', description: 'View workflow instances' },
+  { key: 'workflow.instance.start',     resource: 'workflow.instance',    action: 'start',   moduleSlug: 'administration', description: 'Start workflow instances' },
+  { key: 'workflow.instance.cancel',    resource: 'workflow.instance',    action: 'cancel',  moduleSlug: 'administration', description: 'Cancel running workflow instances' },
+
   // Audit & Compliance (Section 6.12)
   { key: 'system.audit.export',         resource: 'system.audit',         action: 'export',  moduleSlug: 'administration', description: 'Export audit-trail bundle for external auditors' },
   { key: 'system.retention.manage',     resource: 'system.retention',     action: 'manage',  moduleSlug: 'administration', description: 'Configure retention policies and trigger enforcement' },

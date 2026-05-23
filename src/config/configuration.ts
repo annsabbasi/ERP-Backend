@@ -32,4 +32,43 @@ export default () => ({
   cors: {
     origin: process.env.CORS_ORIGIN || '*',
   },
+
+  // Notifications (Section 6.10).
+  notifications: {
+    // SMTP — leave SMTP_HOST blank to disable email delivery (will log instead).
+    smtp: {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+      secure: (process.env.SMTP_SECURE ?? 'false') === 'true',
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+      from: process.env.SMTP_FROM || 'noreply@erp.local',
+    },
+    // Webhook delivery: max retries (with exponential backoff per attempt).
+    webhooks: {
+      maxAttempts: parseInt(process.env.WEBHOOK_MAX_ATTEMPTS ?? '5', 10),
+      timeoutMs: parseInt(process.env.WEBHOOK_TIMEOUT_MS ?? '5000', 10),
+    },
+  },
+
+  // Object storage (Section 6.9).
+  storage: {
+    driver: (process.env.STORAGE_DRIVER || 'local') as 'local' | 's3',
+    local: {
+      // Base directory for the filesystem adapter. Resolved relative to CWD.
+      basePath: process.env.STORAGE_LOCAL_PATH || './storage',
+    },
+    s3: {
+      bucket: process.env.STORAGE_S3_BUCKET,
+      region: process.env.STORAGE_S3_REGION,
+      endpoint: process.env.STORAGE_S3_ENDPOINT,
+      accessKeyId: process.env.STORAGE_S3_ACCESS_KEY_ID,
+      secretAccessKey: process.env.STORAGE_S3_SECRET_ACCESS_KEY,
+    },
+    // Upload size cap. Multer enforces this at request-parse time.
+    maxUploadBytes: parseInt(
+      process.env.STORAGE_MAX_UPLOAD_BYTES ?? String(50 * 1024 * 1024),
+      10,
+    ),
+  },
 });

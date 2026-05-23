@@ -13,6 +13,15 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 // Audit (global so any module can inject AuditService)
 import { AuditModule } from './modules/audit/audit.module';
 
+// Workflow engine (global so any module can start workflows)
+import { WorkflowsModule } from './modules/workflows/workflows.module';
+
+// Notifications (global; depends on WorkflowsModule's action registry)
+import { NotificationsModule } from './modules/notifications/notifications.module';
+
+// Document Management
+import { DocumentsModule } from './modules/documents/documents.module';
+
 // Infrastructure
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
@@ -48,6 +57,8 @@ import { HrModule } from './modules/hr/hr.module';
     // Common (global)
     TenantContextModule,
     AuditModule,
+    WorkflowsModule,
+    NotificationsModule,
 
     // Infrastructure (global — available everywhere)
     PrismaModule,
@@ -67,6 +78,7 @@ import { HrModule } from './modules/hr/hr.module';
     SystemModulesModule,
     RolesModule,
     BillingModule,
+    DocumentsModule,
 
     // Domain
     EmployeesModule,
