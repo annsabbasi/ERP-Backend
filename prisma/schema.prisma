@@ -1625,7 +1625,7 @@ model JournalEntry {
   status       JournalEntryStatus  @default(DRAFT)
   postedAt     DateTime?
   postedById   String?
-  reversalOfId String?             // points at the original being reversed
+  reversalOfId String?   @unique   // points at the original being reversed; unique = each entry reversed at most once
   currency     String              @default("USD")
   totalDebit   Decimal             @db.Decimal(15, 2) @default(0)
   totalCredit  Decimal             @db.Decimal(15, 2) @default(0)
@@ -1701,9 +1701,11 @@ model PaymentTerms {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customers Customer[]
-  vendors   Vendor[]
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers  Customer[]
+  vendors    Vendor[]
+  arInvoices ARInvoice[]
+  apBills    APBill[]
 
   @@unique([companyId, code])
   @@index([companyId])
