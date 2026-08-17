@@ -83,45 +83,53 @@ export class FiscalPeriodsService extends TenantCrudService {
 
     const spans = buildSpans(yearStart, subPeriodType, startMonth, fiscalYear);
 
-    return this.prisma.$transaction(async (tx) => {
-      const parent = await tx.fiscalPeriod.create({
-        data: {
-          companyId: cid,
-          name: String(fiscalYear),
-          displayName: dto.displayName ?? `Fiscal Year ${fiscalYear}`,
-          fiscalYear,
-          subPeriodType: SubPeriodType.YEAR,
-          startDate: yearStart,
-          endDate: yearEnd,
-          activeFrom: yearStart,
-          activeTo: yearEnd,
-        },
-      });
-
-      for (const s of spans) {
-        await tx.fiscalPeriod.create({
+    return this.prisma.$transaction(
+      async (tx) => {
+        const parent = await tx.fiscalPeriod.create({
           data: {
             companyId: cid,
-            parentId: parent.id,
-            name: s.name,
-            displayName: s.label,
+            name: String(fiscalYear),
+            displayName: dto.displayName ?? `Fiscal Year ${fiscalYear}`,
             fiscalYear,
-            subPeriodType,
-            startDate: s.start,
-            endDate: s.end,
-            activeFrom: s.start,
-            activeTo: s.end,
-            dueDateFrom: s.start,
-            dueDateTo: s.end,
+            subPeriodType: SubPeriodType.YEAR,
+            startDate: yearStart,
+            endDate: yearEnd,
+            activeFrom: yearStart,
+            activeTo: yearEnd,
           },
         });
-      }
 
-      return tx.fiscalPeriod.findFirst({
-        where: { id: parent.id },
-        include: { children: { orderBy: { startDate: 'asc' } } },
-      });
-    });
+        // One insert for all sub-periods rather than a create per span. Twelve
+        // sequential round-trips to a cross-region database overran Prisma's
+        // 5s interactive-transaction budget when running from a serverless
+        // host, which surfaced as an opaque 500.
+        if (spans.length) {
+          await tx.fiscalPeriod.createMany({
+            data: spans.map((s) => ({
+              companyId: cid,
+              parentId: parent.id,
+              name: s.name,
+              displayName: s.label,
+              fiscalYear,
+              subPeriodType,
+              startDate: s.start,
+              endDate: s.end,
+              activeFrom: s.start,
+              activeTo: s.end,
+              dueDateFrom: s.start,
+              dueDateTo: s.end,
+            })),
+          });
+        }
+
+        return tx.fiscalPeriod.findFirst({
+          where: { id: parent.id },
+          include: { children: { orderBy: { startDate: 'asc' } } },
+        });
+      },
+      // Headroom for cross-region latency; the work itself is now three queries.
+      { maxWait: 10_000, timeout: 20_000 },
+    );
   }
 
   /**

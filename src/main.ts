@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 
@@ -26,7 +26,9 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalFilters(new HttpExceptionFilter());
+  // Catch-all: HttpExceptions keep their shape, Prisma errors get a meaningful
+  // status, and anything unexpected is logged with a reference the caller sees.
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new RequestIdInterceptor(), new ResponseInterceptor());
 
   app.enableCors({

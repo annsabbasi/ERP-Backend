@@ -20,6 +20,16 @@ import { ListQuery } from '../../../common/crud/tenant-crud.service';
 const D = (v: unknown) => new Prisma.Decimal((v as number | string) ?? 0);
 const ZERO = new Prisma.Decimal(0);
 
+/**
+ * Prisma's default interactive-transaction budget is 5s, measured from when the
+ * callback starts. On a serverless host the first request after a cold start
+ * pays connection setup on top of cross-region round-trips, which pushed
+ * posting past that limit and surfaced as an opaque 500 on roughly the first
+ * call and never again. Posting must not be the operation that fails on a cold
+ * invocation, so these give it real headroom.
+ */
+const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
+
 const DETAIL_INCLUDE = {
   lines: {
     orderBy: { ordering: 'asc' as const },
@@ -159,7 +169,7 @@ export class JournalEntriesService {
         },
         include: DETAIL_INCLUDE,
       });
-    });
+    }, TX_OPTIONS);
   }
 
   // ── Update (drafts only) ───────────────────────────────────────────────────
@@ -225,7 +235,7 @@ export class JournalEntriesService {
         },
         include: DETAIL_INCLUDE,
       });
-    });
+    }, TX_OPTIONS);
   }
 
   // ── Post ───────────────────────────────────────────────────────────────────
@@ -332,7 +342,7 @@ export class JournalEntriesService {
       });
 
       return reversal;
-    });
+    }, TX_OPTIONS);
   }
 
   // ── Delete (drafts only) ───────────────────────────────────────────────────

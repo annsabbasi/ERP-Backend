@@ -383,7 +383,20 @@ async function main() {
     const existing = await prisma.user.findFirst({
       where: { email: opts.email, companyId: demoCompany.id },
     });
-    if (existing) return existing;
+    if (existing) {
+      // Reconcile rather than return as-is. A seed has to converge on the state
+      // it declares, otherwise re-running it against an existing database
+      // silently leaves users on a stale roleType — which is exactly what
+      // happened after the UserRoleType migration remapped everyone to EMPLOYEE
+      // and left the demo company admin unable to reach any module.
+      if (existing.roleType !== opts.roleType) {
+        return prisma.user.update({
+          where: { id: existing.id },
+          data: { roleType: opts.roleType },
+        });
+      }
+      return existing;
+    }
     const passwordHash = await bcrypt.hash(opts.password, 12);
     return prisma.user.create({
       data: {
@@ -421,6 +434,22 @@ async function main() {
     update: {},
     create: { userId: viewerUser.id, roleId: viewerRole.id },
   });
+
+  // Modules control which areas a user can reach at all; the Viewer role already
+  // limits them to `.view` permissions. Without any module grant an EMPLOYEE
+  // resolves to zero modules and every @RequireModule route 403s, which makes
+  // the demo viewer look broken rather than read-only.
+  const companyModules = await prisma.companyModule.findMany({
+    where: { companyId: demoCompany.id, isEnabled: true },
+    select: { moduleId: true },
+  });
+  for (const cm of companyModules) {
+    await prisma.userModule.upsert({
+      where: { userId_moduleId: { userId: viewerUser.id, moduleId: cm.moduleId } },
+      update: {},
+      create: { userId: viewerUser.id, moduleId: cm.moduleId },
+    });
+  }
   console.log('✅ Viewer         →  viewer@demo.com / password123');
 
   const hrAdminUser = await ensureUser({
