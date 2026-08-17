@@ -255,7 +255,10 @@ export class AuthService {
   }
 
   private async signAccessToken(userId: string) {
-    const u = await this.prisma.user.findUnique({ where: { id: userId } });
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { userModules: { include: { module: { select: { slug: true } } } } },
+    });
     if (!u) throw new UnauthorizedException('User not found');
 
     const resolved = await this.permissions.resolveForUser(userId);
@@ -270,6 +273,7 @@ export class AuthService {
       departmentId: u.departmentId ?? null,
       branchId: u.branchId ?? null,
       permissions,
+      enabledModuleSlugs: await this.resolveEnabledModuleSlugs(u),
       type: 'access',
     };
 

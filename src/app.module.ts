@@ -41,6 +41,11 @@ import { PlansModule } from './modules/plans/plans.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { BillingModule } from './modules/billing/billing.module';
 
+// Administration, Financials & CRM
+import { AdministrationModule } from './modules/administration/administration.module';
+import { FinancialsModule } from './modules/financials/financials.module';
+import { CrmModule } from './modules/crm/crm.module';
+
 // Domain modules
 import { EmployeesModule } from './modules/employees/employees.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
@@ -79,6 +84,13 @@ import { HrModule } from './modules/hr/hr.module';
     RolesModule,
     BillingModule,
     DocumentsModule,
+
+    // Administration, Financials & CRM.
+    // AdministrationModule is listed first because it owns the shared document
+    // number allocator that the other two import.
+    AdministrationModule,
+    FinancialsModule,
+    CrmModule,
 
     // Domain
     EmployeesModule,

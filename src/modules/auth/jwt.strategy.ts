@@ -29,7 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       departmentId: payload.departmentId,
       branchId: payload.branchId ?? null,
       permissions: payload.permissions,
-      enabledModuleSlugs: payload ?? [],
+      enabledModuleSlugs: payload.enabledModuleSlugs ?? [],
     };
   }
 }

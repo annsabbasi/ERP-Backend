@@ -9,6 +9,8 @@ export type AccessTokenPayload = {
   departmentId: string | null;
   branchId: string | null;
   permissions: string[];
+  /** Module slugs this user may reach — consumed by ModuleAccessGuard. */
+  enabledModuleSlugs: string[];
   type: 'access';
 };
 

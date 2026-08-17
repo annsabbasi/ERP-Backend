@@ -1,4 +1,9 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  // `prisma` must be excluded: seed.ts is a standalone ts-node script, and
+  // including it widens the inferred rootDir from `src` to the project root,
+  // which emits dist/src/main.js instead of dist/main.js. index.js and the
+  // `start` script both resolve dist/main.js, so leaving it in silently breaks
+  // every deployment.
+  "exclude": ["node_modules", "test", "dist", "prisma", "**/*spec.ts"]
 }

@@ -153,6 +153,61 @@ const FINE_GRAINED: PermissionDef[] = [
   { key: 'system.retention.manage',     resource: 'system.retention',     action: 'manage',  moduleSlug: 'administration', description: 'Configure retention policies and trigger enforcement' },
   { key: 'system.privacy.export',       resource: 'system.privacy',       action: 'export',  moduleSlug: 'administration', description: 'Export a data subject\'s personal data (GDPR-style)' },
   { key: 'system.privacy.erase',        resource: 'system.privacy',       action: 'erase',   moduleSlug: 'administration', description: 'Erase / anonymize a data subject\'s personal data' },
+
+  // ── Administration: System Initialization & Setup (Section 6.13) ──
+  ...standardSet('administration', 'administration.numbering', 'document numbering series'),
+  ...standardSet('administration', 'administration.predefined_text', 'predefined texts'),
+  ...standardSet('administration', 'administration.country', 'countries and regions'),
+  ...standardSet('administration', 'administration.user_group', 'user groups'),
+  ...standardSet('administration', 'administration.user_defaults', 'user defaults groups'),
+  ...standardSet('administration', 'administration.alert', 'alerts'),
+
+  // Approvals split submit/decide from manage: raising a document for approval
+  // and approving one are different privileges from designing the process.
+  { key: 'administration.approval.view',   resource: 'administration.approval', action: 'view',   moduleSlug: 'administration', description: 'View approval stages, templates and requests' },
+  { key: 'administration.approval.manage', resource: 'administration.approval', action: 'manage', moduleSlug: 'administration', description: 'Create and edit approval stages and templates' },
+  { key: 'administration.approval.submit', resource: 'administration.approval', action: 'submit', moduleSlug: 'administration', description: 'Submit documents for approval and withdraw own requests' },
+  { key: 'administration.approval.decide', resource: 'administration.approval', action: 'decide', moduleSlug: 'administration', description: 'Approve or reject documents at an assigned stage' },
+  { key: 'administration.approval.create', resource: 'administration.approval', action: 'create', moduleSlug: 'administration', description: 'Create substitute-authorizer assignments' },
+  { key: 'administration.approval.update', resource: 'administration.approval', action: 'update', moduleSlug: 'administration', description: 'Update substitute-authorizer assignments' },
+  { key: 'administration.approval.delete', resource: 'administration.approval', action: 'delete', moduleSlug: 'administration', description: 'Delete substitute-authorizer assignments' },
+
+  // ── Financials: General Ledger (Section 6.5) ──
+  ...standardSet('financials', 'financials.account', 'chart of accounts'),
+  ...standardSet('financials', 'financials.period', 'posting periods'),
+  ...standardSet('financials', 'financials.journal', 'journal entries'),
+  ...standardSet('financials', 'financials.report', 'financial reports'),
+
+  // ── Financials: setup catalogs (Section 6.15) ──
+  ...standardSet('financials', 'financials.currency', 'currencies'),
+  ...standardSet('financials', 'financials.exchange_rate', 'exchange rates'),
+  ...standardSet('financials', 'financials.payment_terms', 'payment terms'),
+  ...standardSet('financials', 'financials.project', 'financial projects'),
+  ...standardSet('financials', 'financials.transaction_code', 'transaction codes'),
+  ...standardSet('financials', 'financials.tax_code', 'tax codes'),
+  ...standardSet('financials', 'financials.cash_flow_item', 'cash flow line items'),
+  ...standardSet('financials', 'financials.account_determination', 'G/L account determination'),
+  ...standardSet('financials', 'financials.posting_template', 'posting templates'),
+  ...standardSet('financials', 'financials.recurring_posting', 'recurring postings'),
+  ...standardSet('financials', 'financials.dimension', 'cost accounting dimensions'),
+  ...standardSet('financials', 'financials.cost_center', 'cost centers'),
+  ...standardSet('financials', 'financials.distribution_rule', 'distribution rules'),
+  ...standardSet('financials', 'financials.budget', 'budgets and scenarios'),
+  ...standardSet('financials', 'financials.fixed_asset', 'fixed assets'),
+  ...standardSet('banking', 'financials.bank', 'banks'),
+  ...standardSet('banking', 'financials.house_bank_account', 'house bank accounts'),
+  ...standardSet('banking', 'financials.payment_method', 'payment methods'),
+  ...standardSet('financials', 'financials.dunning_term', 'dunning terms'),
+
+  // ── CRM (Section 6.14) ──
+  ...standardSet('crm', 'crm.business_partner', 'business partner master data'),
+  ...standardSet('crm', 'crm.bp_group', 'business partner groups and relationships'),
+  ...standardSet('crm', 'crm.activity', 'CRM activities'),
+  ...standardSet('crm', 'crm.opportunity', 'opportunities and their setup'),
+  ...standardSet('crm', 'crm.campaign', 'marketing campaigns'),
+  ...standardSet('crm', 'crm.territory', 'sales territories'),
+  ...standardSet('crm', 'crm.sales_employee', 'sales employees and buyers'),
+  ...standardSet('crm', 'crm.commission_group', 'commission groups'),
 ];
 
 export const PERMISSION_CATALOG: PermissionDef[] = [...MODULE_LEVEL, ...FINE_GRAINED];

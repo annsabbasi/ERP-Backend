@@ -90,13 +90,63 @@ model Company {
   fiscalPeriods       FiscalPeriod[]
   journalEntries      JournalEntry[]
   exchangeRates       ExchangeRate[]
-  customers           Customer[]
-  vendors             Vendor[]
+  businessPartners    BusinessPartner[]
   paymentTerms        PaymentTerms[]
   arInvoices          ARInvoice[]
   arPayments          ARPayment[]
   apBills             APBill[]
   apPayments          APPayment[]
+
+  // ── Administration (Section 6.13) ──
+  settings              CompanySetting[]
+  numberingSeries       NumberingSeries[]
+  documentSettings      DocumentSetting[]
+  userGroups            UserGroup[]
+  userDefaultsGroups    UserDefaultsGroup[]
+  predefinedTexts       PredefinedText[]
+  countries             Country[]
+  alertDefinitions      AlertDefinition[]
+  approvalStages        ApprovalStage[]
+  approvalTemplates     ApprovalTemplate[]
+  approvalRequests      ApprovalRequest[]
+  substituteAuthorizers SubstituteAuthorizer[]
+
+  // ── CRM (Section 6.14) ──
+  bpGroups              BusinessPartnerGroup[]
+  territories           Territory[]
+  salesEmployees        SalesEmployee[]
+  commissionGroups      CommissionGroup[]
+  activities            Activity[]
+  opportunities         Opportunity[]
+  opportunityStageDefs  OpportunityStageDef[]
+  competitors           Competitor[]
+  crmPartners           CrmPartner[]
+  informationSources    InformationSource[]
+  campaigns             Campaign[]
+  bpRelationships       BpRelationshipType[]
+
+  // ── Financials setup & cost accounting (Section 6.15) ──
+  accountDeterminations AccountDetermination[]
+  postingTemplates      PostingTemplate[]
+  recurringPostings     RecurringPosting[]
+  financeProjects       FinanceProject[]
+  transactionCodes      TransactionCode[]
+  taxCodes              TaxCode[]
+  dimensions            Dimension[]
+  costCenters           CostCenter[]
+  distributionRules     DistributionRule[]
+  budgetScenarios       BudgetScenario[]
+  budgetDistributions   BudgetDistributionMethod[]
+  budgetLines           BudgetLine[]
+  cashFlowLineItems     CashFlowLineItem[]
+  currencies            Currency[]
+  dunningTerms          DunningTerm[]
+  paymentMethods        PaymentMethod[]
+  banks                 Bank[]
+  houseBankAccounts     HouseBankAccount[]
+  fixedAssets           FixedAsset[]
+  internalReconciliations InternalReconciliation[]
+  attachments           Attachment[]
 
   @@map("companies")
 }
@@ -168,6 +218,10 @@ model User {
   isSuperAdmin Boolean   @default(false)
   isActive     Boolean   @default(true)
 
+  // Administration → Setup → General → User Defaults. A defaults group seeds
+  // per-user preferences (default warehouse, series, print prefs, …).
+  userDefaultsGroupId String?
+
   // Auth lifecycle (Section 6.1 — IAM)
   mfaEnabled            Boolean   @default(false)
   mfaSecret             String?   // TOTP secret; populated when MFA is enrolled
@@ -190,6 +244,21 @@ model User {
   authEvents            AuthEvent[]
   notifications         Notification[]
   notificationPreferences NotificationPreference[]
+
+  userDefaultsGroup     UserDefaultsGroup?       @relation(fields: [userDefaultsGroupId], references: [id])
+  userGroupMemberships  UserGroupMember[]
+  salesEmployee         SalesEmployee?
+  ownedActivities       Activity[]               @relation("ActivityOwner")
+  assignedActivities    Activity[]               @relation("ActivityAssignee")
+  approvalStageMemberships ApprovalStageApprover[]
+  approvalTemplateOriginations ApprovalTemplateOriginator[]
+  approvalRequestsRaised ApprovalRequest[]       @relation("ApprovalOriginator")
+  approvalDecisions     DocumentApprovalDecision[]
+  substitutedFor        SubstituteAuthorizer[]   @relation("SubstituteOriginal")
+  substituting          SubstituteAuthorizer[]   @relation("SubstituteStandIn")
+  alertSubscriptions    AlertSubscription[]
+  alertInstances        AlertInstance[]
+  uploadedAttachments   Attachment[]
 
   @@unique([email, companyId])
   @@index([companyId])
@@ -492,6 +561,7 @@ model Employee {
   leaveRequests       LeaveRequest[]
   shiftAssignments    EmployeeShift[]
   onboardingInstances OnboardingInstance[]
+  salesEmployee       SalesEmployee?
 
   @@index([companyId])
   @@index([branchId])
@@ -1569,12 +1639,32 @@ model Account {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  // "Title" accounts are grouping nodes and cannot be posted to; only
+  // "Active" leaf accounts accept journal lines. SAP calls this Title/Active.
+  isTitle     Boolean          @default(false)
+  // Control accounts are owned by a subledger (AR/AP) and only accept postings
+  // that carry a bpId, keeping the subledger and GL reconciled.
+  isControl   Boolean          @default(false)
+  level       Int              @default(1)
+  cashFlowLineItemId String?
+
   company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   parent   Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
   children Account[]     @relation("AccountHierarchy")
   lines    JournalLine[]
   arInvoiceLines ARInvoiceLine[]
   apBillLines    APBillLine[]
+
+  cashFlowLineItem     CashFlowLineItem?      @relation(fields: [cashFlowLineItemId], references: [id])
+  accountDeterminations AccountDetermination[]
+  postingTemplateLines PostingTemplateLine[]
+  recurringPostingLines RecurringPostingLine[]
+  budgetLines          BudgetLine[]
+  houseBankAccounts    HouseBankAccount[]
+  taxCodes             TaxCode[]
+  assetsCost           FixedAsset[]           @relation("AssetCostAccount")
+  assetsDepreciation   FixedAsset[]           @relation("AssetDepreciationAccount")
+  assetsAccumulated    FixedAsset[]           @relation("AssetAccumulatedAccount")
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -1589,23 +1679,53 @@ enum FiscalPeriodStatus {
   LOCKED
 }
 
+// Backs the "Posting Periods" window. `name` is the SAP "Period Code";
+// sub-periods (months/quarters) are children of a year-level row via parentId,
+// so a fiscal year and its 12 months live in one table.
 model FiscalPeriod {
   id         String             @id @default(uuid())
   companyId  String
-  name       String              // "2026-01", "FY2026-Q1", etc.
+  name       String              // Period code: "2026", "2026-01", "FY2026-Q1"
+  displayName String?            // SAP "Period Name" — free text
+  parentId   String?             // year-level parent for a sub-period
+  fiscalYear Int?
+  subPeriodType SubPeriodType    @default(MONTHS)
   startDate  DateTime
   endDate    DateTime
+  // "Active" and "Due Date" ranges are independent of the posting range in SAP.
+  activeFrom DateTime?
+  activeTo   DateTime?
+  dueDateFrom DateTime?
+  dueDateTo   DateTime?
   status     FiscalPeriodStatus @default(OPEN)
+  // Per-area locks: a period can be closed for Sales but still open for General.
+  salesStatus      FiscalPeriodStatus @default(OPEN)
+  purchasingStatus FiscalPeriodStatus @default(OPEN)
+  generalStatus    FiscalPeriodStatus @default(OPEN)
+  inventoryStatus  FiscalPeriodStatus @default(OPEN)
   closedAt   DateTime?
   closedById String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
   company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   FiscalPeriod?  @relation("PeriodHierarchy", fields: [parentId], references: [id])
+  children FiscalPeriod[] @relation("PeriodHierarchy")
   journals JournalEntry[]
+  budgetLines BudgetLine[]
 
   @@unique([companyId, name])
   @@index([companyId, status])
   @@index([companyId, startDate, endDate])
+  @@index([parentId])
   @@map("fiscal_periods")
+}
+
+enum SubPeriodType {
+  YEAR
+  MONTHS
+  QUARTERS
+  DAYS
 }
 
 enum JournalEntryStatus {
@@ -1634,11 +1754,32 @@ model JournalEntry {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
+  // ── Journal Entry window fields ──
+  seriesId          String?         // NumberingSeries used to allocate `number`
+  docDate           DateTime?       // "Doc. Date" — distinct from posting date
+  dueDate           DateTime?
+  transactionCodeId String?
+  projectId         String?
+  templateId        String?         // PostingTemplate this entry was built from
+  indicator         String?
+  ref1              String?
+  ref2              String?
+  ref3              String?
+  isAdjustment      Boolean         @default(false)  // "Adj. Trans. (Period 13)"
+  autoReverseDate   DateTime?       // "Reverse" checkbox → scheduled auto-reversal
+  createdById       String?
+
   company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   period     FiscalPeriod  @relation(fields: [periodId], references: [id])
   lines      JournalLine[]
   reversalOf JournalEntry? @relation("JournalReversal", fields: [reversalOfId], references: [id])
   reversal   JournalEntry? @relation("JournalReversal")
+
+  series          NumberingSeries? @relation(fields: [seriesId], references: [id])
+  transactionCode TransactionCode? @relation(fields: [transactionCodeId], references: [id])
+  project         FinanceProject?  @relation(fields: [projectId], references: [id])
+  template        PostingTemplate? @relation(fields: [templateId], references: [id])
+  reconciliationLines InternalReconciliationLine[]
 
   arInvoice  ARInvoice?
   arPayment  ARPayment?
@@ -1661,11 +1802,34 @@ model JournalLine {
   description String?
   ordering    Int      @default(0)
 
+  // A GL line may be posted against a business partner control account
+  // (subledger) instead of a plain G/L account — SAP's "G/L Acct/BP Code".
+  bpId               String?
+  // Cost accounting: up to five dimensions, each resolved to a cost center or
+  // a distribution rule that fans the amount across cost centers.
+  costCenterId       String?
+  distributionRuleId String?
+  projectId          String?
+  taxCodeId          String?
+  taxAmount          Decimal? @db.Decimal(15, 2)
+  dueDate            DateTime?
+  ref1               String?
+  ref2               String?
+  ref3               String?
+
   entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   account Account      @relation(fields: [accountId], references: [id])
 
+  bp               BusinessPartner?  @relation(fields: [bpId], references: [id])
+  costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id])
+  distributionRule DistributionRule? @relation(fields: [distributionRuleId], references: [id])
+  project          FinanceProject?   @relation(fields: [projectId], references: [id])
+  taxCode          TaxCode?          @relation(fields: [taxCodeId], references: [id])
+
   @@index([entryId])
   @@index([accountId])
+  @@index([bpId])
+  @@index([costCenterId])
   @@map("journal_lines")
 }
 
@@ -1701,67 +1865,21 @@ model PaymentTerms {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customers  Customer[]
-  vendors    Vendor[]
-  arInvoices ARInvoice[]
-  apBills    APBill[]
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  businessPartners BusinessPartner[]
+  arInvoices       ARInvoice[]
+  apBills          APBill[]
 
   @@unique([companyId, code])
   @@index([companyId])
   @@map("payment_terms")
 }
 
-// ─── CUSTOMERS & VENDORS ──────────────────────────────────────────────────────
-model Customer {
-  id              String   @id @default(uuid())
-  companyId       String
-  name            String
-  code            String?
-  email           String?
-  phone           String?
-  taxId           String?
-  address         Json?
-  paymentTermsId  String?
-  defaultCurrency String   @default("USD")
-  notes           String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  paymentTerms PaymentTerms? @relation(fields: [paymentTermsId], references: [id])
-  arInvoices   ARInvoice[]
-
-  @@unique([companyId, code])
-  @@index([companyId])
-  @@map("customers")
-}
-
-model Vendor {
-  id              String   @id @default(uuid())
-  companyId       String
-  name            String
-  code            String?
-  email           String?
-  phone           String?
-  taxId           String?
-  address         Json?
-  paymentTermsId  String?
-  defaultCurrency String   @default("USD")
-  notes           String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  paymentTerms PaymentTerms? @relation(fields: [paymentTermsId], references: [id])
-  apBills      APBill[]
-
-  @@unique([companyId, code])
-  @@index([companyId])
-  @@map("vendors")
-}
+// Customers and Vendors are unified into the single BusinessPartner master
+// (see the CRM section below) — cardType discriminates C / V / L, matching the
+// "Business Partner Master Data" window. AR points at a CUSTOMER-or-LEAD
+// partner, AP at a VENDOR partner; both sides share addresses, contacts and
+// bank accounts instead of duplicating them per side.
 
 // ─── ACCOUNTS RECEIVABLE ──────────────────────────────────────────────────────
 enum ARInvoiceStatus {
@@ -1777,7 +1895,7 @@ enum ARInvoiceStatus {
 model ARInvoice {
   id             String          @id @default(uuid())
   companyId      String
-  customerId     String
+  bpId           String          // BusinessPartner with cardType CUSTOMER or LEAD
   number         String          // unique per company; auto-generated
   issueDate      DateTime
   dueDate        DateTime?
@@ -1796,7 +1914,7 @@ model ARInvoice {
   updatedAt      DateTime        @updatedAt
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer     Customer        @relation(fields: [customerId], references: [id])
+  bp           BusinessPartner @relation("BpArInvoices", fields: [bpId], references: [id])
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        ARInvoiceLine[]
   payments     ARPayment[]
@@ -1804,7 +1922,7 @@ model ARInvoice {
 
   @@unique([companyId, number])
   @@index([companyId, status])
-  @@index([customerId])
+  @@index([bpId])
   @@map("ar_invoices")
 }
 
@@ -1860,7 +1978,7 @@ enum APBillStatus {
 model APBill {
   id             String       @id @default(uuid())
   companyId      String
-  vendorId       String
+  bpId           String        // BusinessPartner with cardType VENDOR
   number         String        // vendor's invoice number — not auto-generated
   issueDate      DateTime
   dueDate        DateTime?
@@ -1878,16 +1996,16 @@ model APBill {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  vendor       Vendor         @relation(fields: [vendorId], references: [id])
-  paymentTerms PaymentTerms?  @relation(fields: [paymentTermsId], references: [id])
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bp           BusinessPartner @relation("BpApBills", fields: [bpId], references: [id])
+  paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        APBillLine[]
   payments     APPayment[]
-  journalEntry JournalEntry?  @relation(fields: [journalEntryId], references: [id])
+  journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
-  @@unique([companyId, vendorId, number])
+  @@unique([companyId, bpId, number])
   @@index([companyId, status])
-  @@index([vendorId])
+  @@index([bpId])
   @@map("ap_bills")
 }
 
@@ -1927,4 +2045,1605 @@ model APPayment {
 
   @@index([billId])
   @@map("ap_payments")
+}
+
+// ─── SHARED: ATTACHMENTS ──────────────────────────────────────────────────────
+// Every SAP-style window carries an "Attachments" tab. Rather than a join table
+// per document type, attachments are polymorphic on (entityType, entityId).
+// `entityType` is the module-qualified name, e.g. "crm.activity",
+// "financials.journal_entry".
+model Attachment {
+  id           String   @id @default(uuid())
+  companyId    String
+  entityType   String
+  entityId     String
+  fileName     String
+  fileExtension String?
+  fileSizeBytes Int      @default(0)
+  targetPath   String?
+  storageKey   String?  // key in the storage adapter (local FS or S3)
+  freeText     String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@map("attachments")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMINISTRATION (Section 6.13)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Backs "General Settings" and the other System Initialization windows. Rather
+// than a column per checkbox (the window has ~200), settings are stored as
+// (group, key) → JSON. `group` mirrors the window's tab: "general", "display",
+// "bp", "budget", "services", "inventory", "purchasing", "path", "cash_flow",
+// "font_background", "pricing".
+model CompanySetting {
+  id        String   @id @default(uuid())
+  companyId String
+  group     String
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedById String?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, group, key])
+  @@index([companyId, group])
+  @@map("company_settings")
+}
+
+// Document Numbering. Each document type may have several series; exactly one
+// per (company, documentType) is the default. `nextNumber` is allocated inside
+// the same transaction as the document to keep numbering gap-free.
+model NumberingSeries {
+  id             String   @id @default(uuid())
+  companyId      String
+  documentType   String    // "journal_entry" | "ar_invoice" | "activity" | …
+  name           String
+  prefix         String?
+  suffix         String?
+  firstNumber    Int       @default(1)
+  nextNumber     Int       @default(1)
+  lastNumber     Int?
+  digits         Int       @default(0)   // zero-pad width; 0 = no padding
+  isDefault      Boolean   @default(false)
+  isLocked       Boolean   @default(false)
+  periodIndicator String?
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  remarks        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+
+  @@unique([companyId, documentType, name])
+  @@index([companyId, documentType])
+  @@map("numbering_series")
+}
+
+// "Document Settings" — per-document-type behaviour flags. A row with
+// documentType = null holds the General tab that applies to all documents.
+model DocumentSetting {
+  id           String   @id @default(uuid())
+  companyId    String
+  documentType String?
+  settings     Json
+  updatedAt    DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, documentType])
+  @@map("document_settings")
+}
+
+model UserGroup {
+  id          String   @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  members UserGroupMember[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("user_groups")
+}
+
+model UserGroupMember {
+  id      String @id @default(uuid())
+  groupId String
+  userId  String
+
+  group UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@map("user_group_members")
+}
+
+model UserDefaultsGroup {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  // Grouped per the window's tabs: general, documents, bp, path, services,
+  // inventory, purchasing, print.
+  defaults  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users   User[]
+
+  @@unique([companyId, code])
+  @@map("user_defaults_groups")
+}
+
+model PredefinedText {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String?
+  text      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@map("predefined_texts")
+}
+
+model Country {
+  id           String   @id @default(uuid())
+  companyId    String
+  code         String    // ISO-3166 alpha-2
+  name         String
+  addressFormat String?  // template key used to render addresses
+  isActive     Boolean  @default(true)
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  regions StateRegion[]
+
+  @@unique([companyId, code])
+  @@map("countries")
+}
+
+model StateRegion {
+  id        String  @id @default(uuid())
+  countryId String
+  code      String
+  name      String
+  isActive  Boolean @default(true)
+
+  country Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  @@unique([countryId, code])
+  @@map("state_regions")
+}
+
+// ─── ALERTS MANAGEMENT ────────────────────────────────────────────────────────
+enum AlertPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum AlertFrequency {
+  ON_EVENT
+  MINUTES
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model AlertDefinition {
+  id          String         @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  priority    AlertPriority  @default(NORMAL)
+  frequency   AlertFrequency @default(ON_EVENT)
+  frequencyValue Int?        // e.g. every N minutes when frequency = MINUTES
+  // Either an event key the platform emits, or a saved query evaluated on a
+  // schedule. Exactly one is normally set.
+  eventKey    String?
+  savedQuery  String?
+  isActive    Boolean        @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptions AlertSubscription[]
+  instances     AlertInstance[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+  @@map("alert_definitions")
+}
+
+model AlertSubscription {
+  id       String  @id @default(uuid())
+  alertId  String
+  userId   String
+  internal Boolean @default(true)
+  email    Boolean @default(false)
+  sms      Boolean @default(false)
+
+  alert AlertDefinition @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, userId])
+  @@index([userId])
+  @@map("alert_subscriptions")
+}
+
+model AlertInstance {
+  id        String    @id @default(uuid())
+  alertId   String
+  userId    String
+  subject   String
+  payload   Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  alert AlertDefinition @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("alert_instances")
+}
+
+// ─── APPROVAL PROCESS ─────────────────────────────────────────────────────────
+// This is the document-approval layer that sits in front of the generic
+// WorkflowEngine: a template matches (documentType, originator, terms), and
+// each of its ordered stages must be satisfied before the document posts.
+
+enum ApprovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  GENERATED   // document was created after full approval
+}
+
+model ApprovalStage {
+  id            String   @id @default(uuid())
+  companyId     String
+  name          String
+  description   String?
+  // How many of the assigned approvers must approve for the stage to pass.
+  requiredApprovals Int  @default(1)
+  remarks       String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company        Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approvers      ApprovalStageApprover[]
+  templateStages ApprovalTemplateStage[]
+  requestStages  ApprovalRequestStage[]
+
+  @@unique([companyId, name])
+  @@map("approval_stages")
+}
+
+model ApprovalStageApprover {
+  id      String @id @default(uuid())
+  stageId String
+  userId  String
+
+  stage ApprovalStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, userId])
+  @@map("approval_stage_approvers")
+}
+
+model ApprovalTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  // Document types this template guards, e.g. ["ar_invoice","purchase_order"].
+  documentTypes String[]
+  // Declarative trigger terms evaluated against the document:
+  // { "always": false, "conditions": [{ "field": "totalMinor", "op": "gt", "value": 500000 }] }
+  terms       Json     @default("{}")
+  validFrom   DateTime?
+  validTo     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  originators ApprovalTemplateOriginator[]
+  stages      ApprovalTemplateStage[]
+  requests    ApprovalRequest[]
+  substitutes SubstituteAuthorizer[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+  @@map("approval_templates")
+}
+
+model ApprovalTemplateOriginator {
+  id         String @id @default(uuid())
+  templateId String
+  userId     String
+
+  template ApprovalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, userId])
+  @@map("approval_template_originators")
+}
+
+model ApprovalTemplateStage {
+  id         String @id @default(uuid())
+  templateId String
+  stageId    String
+  ordering   Int    @default(0)
+
+  template ApprovalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stage    ApprovalStage    @relation(fields: [stageId], references: [id])
+
+  @@unique([templateId, stageId])
+  @@index([templateId, ordering])
+  @@map("approval_template_stages")
+}
+
+model ApprovalRequest {
+  id           String                @id @default(uuid())
+  companyId    String
+  templateId   String
+  documentType String
+  documentId   String?               // null while the draft is still unsaved
+  documentNumber String?
+  originatorId String
+  status       ApprovalRequestStatus @default(PENDING)
+  currentStageOrder Int              @default(0)
+  remarks      String?
+  // Snapshot of the document at submission, so approvers see what they approved
+  // even if the draft is edited afterwards.
+  documentSnapshot Json?
+  resolvedAt   DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  company    Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template   ApprovalTemplate      @relation(fields: [templateId], references: [id])
+  originator User                  @relation("ApprovalOriginator", fields: [originatorId], references: [id])
+  stages     ApprovalRequestStage[]
+  decisions  DocumentApprovalDecision[]
+
+  @@index([companyId, status])
+  @@index([documentType, documentId])
+  @@map("approval_requests")
+}
+
+model ApprovalRequestStage {
+  id        String                @id @default(uuid())
+  requestId String
+  stageId   String
+  ordering  Int                   @default(0)
+  status    ApprovalRequestStatus @default(PENDING)
+  resolvedAt DateTime?
+
+  request   ApprovalRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  stage     ApprovalStage      @relation(fields: [stageId], references: [id])
+  decisions DocumentApprovalDecision[]
+
+  @@unique([requestId, stageId])
+  @@index([requestId, ordering])
+  @@map("approval_request_stages")
+}
+
+// Reuses the workflow engine's ApprovalDecision enum (APPROVED | REJECTED);
+// the model is prefixed to avoid colliding with that enum's name.
+model DocumentApprovalDecision {
+  id             String           @id @default(uuid())
+  requestId      String
+  requestStageId String
+  approverId     String
+  decision       ApprovalDecision
+  remarks        String?
+  decidedAt      DateTime         @default(now())
+  // Set when the decision was cast by a stand-in rather than the named approver.
+  onBehalfOfId   String?
+
+  request      ApprovalRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestStage ApprovalRequestStage @relation(fields: [requestStageId], references: [id], onDelete: Cascade)
+  approver     User                 @relation(fields: [approverId], references: [id])
+
+  @@unique([requestStageId, approverId])
+  @@index([requestId])
+  @@map("document_approval_decisions")
+}
+
+model SubstituteAuthorizer {
+  id             String   @id @default(uuid())
+  companyId      String
+  templateId     String?  // null = applies to every template
+  originalUserId String
+  substituteUserId String
+  validFrom      DateTime
+  validTo        DateTime
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template   ApprovalTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  original   User              @relation("SubstituteOriginal", fields: [originalUserId], references: [id])
+  substitute User              @relation("SubstituteStandIn", fields: [substituteUserId], references: [id])
+
+  @@index([companyId, isActive])
+  @@index([originalUserId])
+  @@map("substitute_authorizers")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CRM & BUSINESS PARTNERS (Section 6.14)
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum BpCardType {
+  CUSTOMER
+  VENDOR
+  LEAD
+}
+
+model BusinessPartnerGroup {
+  id        String     @id @default(uuid())
+  companyId String
+  type      BpCardType
+  code      String
+  name      String
+  isActive  Boolean    @default(true)
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  partners BusinessPartner[]
+
+  @@unique([companyId, type, code])
+  @@map("bp_groups")
+}
+
+model BusinessPartner {
+  id        String     @id @default(uuid())
+  companyId String
+  cardCode  String      // "C10001" / "V20001" — unique per company
+  cardName  String
+  cardType  BpCardType  @default(CUSTOMER)
+  foreignName String?
+  groupId   String?
+  currency  String      @default("USD")
+  federalTaxId String?
+  // ── General tab ──
+  phone1    String?
+  phone2    String?
+  mobile    String?
+  fax       String?
+  email     String?
+  website   String?
+  shippingType String?
+  // ── Sales ownership ──
+  territoryId      String?
+  salesEmployeeId  String?
+  // ── Payment terms tab ──
+  paymentTermsId   String?
+  paymentMethodId  String?
+  dunningTermId    String?
+  creditLimit      Decimal? @db.Decimal(15, 2)
+  commitmentLimit  Decimal? @db.Decimal(15, 2)
+  discountPercent  Decimal? @db.Decimal(5, 2)
+  interestOnArrears Decimal? @db.Decimal(5, 2)
+  priceListId      String?
+  // ── Accounting tab: control accounts overriding the company defaults ──
+  controlAccountId String?
+  downPaymentAccountId String?
+  // ── Running balances, maintained by AR/AP posting ──
+  accountBalance      Decimal @db.Decimal(15, 2) @default(0)
+  ordersBalance       Decimal @db.Decimal(15, 2) @default(0)
+  deliveriesBalance   Decimal @db.Decimal(15, 2) @default(0)
+  opportunitiesAmount Decimal @db.Decimal(15, 2) @default(0)
+  // ── Properties tab: 64 named boolean slots in SAP; stored as a JSON set ──
+  properties Json?
+  industry   String?
+  businessType String?
+  priority   String?
+  blockDunning Boolean @default(false)
+  isActive   Boolean  @default(true)
+  validFrom  DateTime?
+  validTo    DateTime?
+  remarks    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company        Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  group          BusinessPartnerGroup? @relation(fields: [groupId], references: [id])
+  territory      Territory?            @relation(fields: [territoryId], references: [id])
+  salesEmployee  SalesEmployee?        @relation(fields: [salesEmployeeId], references: [id])
+  paymentTerms   PaymentTerms?         @relation(fields: [paymentTermsId], references: [id])
+  paymentMethod  PaymentMethod?        @relation(fields: [paymentMethodId], references: [id])
+  dunningTerm    DunningTerm?          @relation(fields: [dunningTermId], references: [id])
+
+  contacts     BpContactPerson[]
+  addresses    BpAddress[]
+  bankAccounts BpBankAccount[]
+  activities   Activity[]
+  opportunities Opportunity[]
+  journalLines JournalLine[]
+  campaignTargets CampaignTarget[]
+  relationsFrom BpRelationship[] @relation("RelationFrom")
+  relationsTo   BpRelationship[] @relation("RelationTo")
+  arInvoices   ARInvoice[]       @relation("BpArInvoices")
+  apBills      APBill[]          @relation("BpApBills")
+  internalReconciliations InternalReconciliation[]
+
+  @@unique([companyId, cardCode])
+  @@index([companyId, cardType])
+  @@index([companyId, cardName])
+  @@map("business_partners")
+}
+
+model BpContactPerson {
+  id         String   @id @default(uuid())
+  bpId       String
+  name       String
+  position   String?
+  title      String?
+  address    String?
+  phone1     String?
+  phone2     String?
+  mobile     String?
+  fax        String?
+  email      String?
+  pager      String?
+  profession String?
+  birthDate  DateTime?
+  gender     String?
+  remarks1   String?
+  remarks2   String?
+  isDefault  Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  bp         BusinessPartner @relation(fields: [bpId], references: [id], onDelete: Cascade)
+  activities Activity[]
+  opportunities Opportunity[]
+  campaignTargets CampaignTarget[]
+
+  @@index([bpId])
+  @@map("bp_contact_persons")
+}
+
+enum BpAddressType {
+  BILL_TO
+  SHIP_TO
+}
+
+model BpAddress {
+  id          String        @id @default(uuid())
+  bpId        String
+  addressName String
+  addressType BpAddressType @default(BILL_TO)
+  street      String?
+  streetNo    String?
+  block       String?
+  building    String?
+  city        String?
+  zipCode     String?
+  county      String?
+  state       String?
+  country     String?
+  gln         String?
+  taxCode     String?
+  isDefault   Boolean       @default(false)
+
+  bp BusinessPartner @relation(fields: [bpId], references: [id], onDelete: Cascade)
+
+  @@unique([bpId, addressType, addressName])
+  @@index([bpId])
+  @@map("bp_addresses")
+}
+
+model BpBankAccount {
+  id          String  @id @default(uuid())
+  bpId        String
+  bankCode    String?
+  bankName    String?
+  branch      String?
+  accountNo   String?
+  accountName String?
+  iban        String?
+  swift       String?
+  controlKey  String?
+  isDefault   Boolean @default(false)
+
+  bp BusinessPartner @relation(fields: [bpId], references: [id], onDelete: Cascade)
+
+  @@index([bpId])
+  @@map("bp_bank_accounts")
+}
+
+model BpRelationshipType {
+  id        String @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  relationships BpRelationship[]
+
+  @@unique([companyId, code])
+  @@map("bp_relationship_types")
+}
+
+model BpRelationship {
+  id       String  @id @default(uuid())
+  fromBpId String
+  toBpId   String
+  typeId   String
+  remarks  String?
+
+  fromBp BusinessPartner    @relation("RelationFrom", fields: [fromBpId], references: [id], onDelete: Cascade)
+  toBp   BusinessPartner    @relation("RelationTo", fields: [toBpId], references: [id], onDelete: Cascade)
+  type   BpRelationshipType @relation(fields: [typeId], references: [id])
+
+  @@unique([fromBpId, toBpId, typeId])
+  @@map("bp_relationships")
+}
+
+// ─── SALES ORGANISATION ───────────────────────────────────────────────────────
+model Territory {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  parentId  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   Territory?  @relation("TerritoryHierarchy", fields: [parentId], references: [id])
+  children Territory[] @relation("TerritoryHierarchy")
+
+  partners       BusinessPartner[]
+  salesEmployees SalesEmployee[]
+  opportunities  Opportunity[]
+
+  @@unique([companyId, name])
+  @@index([parentId])
+  @@map("territories")
+}
+
+model CommissionGroup {
+  id               String   @id @default(uuid())
+  companyId        String
+  code             String
+  name             String
+  commissionPercent Decimal @db.Decimal(5, 2) @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesEmployees SalesEmployee[]
+
+  @@unique([companyId, code])
+  @@map("commission_groups")
+}
+
+// "Sales Employees / Buyers". Optionally linked to a User (so the person can
+// log in) and/or an Employee (HR record) — both are optional because SAP allows
+// sales-employee rows for people who are neither.
+model SalesEmployee {
+  id                String   @id @default(uuid())
+  companyId         String
+  code              String
+  name              String
+  jobTitle          String?
+  commissionGroupId String?
+  commissionPercent Decimal? @db.Decimal(5, 2)
+  territoryId       String?
+  telephone         String?
+  mobile            String?
+  fax               String?
+  email             String?
+  remarks           String?
+  isActive          Boolean  @default(true)
+  userId            String?  @unique
+  employeeId        String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  commissionGroup CommissionGroup? @relation(fields: [commissionGroupId], references: [id])
+  territory       Territory?       @relation(fields: [territoryId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
+  employee        Employee?        @relation(fields: [employeeId], references: [id])
+
+  partners      BusinessPartner[]
+  opportunities Opportunity[]
+  stageEntries  OpportunityStageEntry[]
+  campaigns     Campaign[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+  @@map("sales_employees")
+}
+
+// ─── ACTIVITIES ───────────────────────────────────────────────────────────────
+enum ActivityKind {
+  MEETING
+  PHONE_CALL
+  TASK
+  NOTE
+  CAMPAIGN
+  OTHER
+}
+
+enum ActivityStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+  CANCELLED
+}
+
+enum ActivityPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+model Activity {
+  id              String           @id @default(uuid())
+  companyId       String
+  docNumber       Int?             // sequential per company, from NumberingSeries
+  kind            ActivityKind     @default(TASK)
+  subject         String
+  activityType    String?          // free-form sub-type ("General", "Support", …)
+  bpId            String?
+  contactPersonId String?
+  priority        ActivityPriority @default(NORMAL)
+  status          ActivityStatus   @default(OPEN)
+  startDate       DateTime
+  startTime       String?          // "HH:mm" — the window has separate time fields
+  endDate         DateTime?
+  endTime         String?
+  durationMinutes Int?
+  location        String?
+  // ── Reminder ──
+  reminderEnabled Boolean          @default(false)
+  reminderMinutesBefore Int?
+  reminderSentAt  DateTime?
+  // ── Recurrence: { freq, interval, until, byDay } ──
+  recurrence      Json?
+  parentActivityId String?
+  // ── Linked document (the "Linked Document" tab) ──
+  linkedDocType   String?
+  linkedDocId     String?
+  linkedDocNumber String?
+  // ── Content / Other details tabs ──
+  content         String?
+  remarks         String?
+  ownerId         String?
+  assignedToUserId String?
+  closedAt        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bp            BusinessPartner? @relation(fields: [bpId], references: [id])
+  contactPerson BpContactPerson? @relation(fields: [contactPersonId], references: [id])
+  owner         User?            @relation("ActivityOwner", fields: [ownerId], references: [id])
+  assignedTo    User?            @relation("ActivityAssignee", fields: [assignedToUserId], references: [id])
+  parent        Activity?        @relation("ActivityRecurrence", fields: [parentActivityId], references: [id])
+  occurrences   Activity[]       @relation("ActivityRecurrence")
+  opportunityStages OpportunityStageEntry[]
+
+  @@unique([companyId, docNumber])
+  @@index([companyId, status])
+  @@index([bpId])
+  @@index([assignedToUserId, status])
+  @@index([companyId, startDate])
+  @@map("activities")
+}
+
+// ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+}
+
+// Setup → Opportunities → Opportunity Stages
+model OpportunityStageDef {
+  id             String   @id @default(uuid())
+  companyId      String
+  stageNo        Int
+  name           String
+  closingPercent Decimal  @db.Decimal(5, 2) @default(0)
+  isActive       Boolean  @default(true)
+
+  company Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entries OpportunityStageEntry[]
+  opportunities Opportunity[]
+
+  @@unique([companyId, stageNo])
+  @@map("opportunity_stage_defs")
+}
+
+model Competitor {
+  id          String  @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  threatLevel String?
+  remarks     String?
+  isActive    Boolean @default(true)
+
+  company       Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunities OpportunityCompetitor[]
+
+  @@unique([companyId, code])
+  @@map("competitors")
+}
+
+// Setup → Opportunities → Partners. A third party involved in a deal
+// (reseller, integrator) — distinct from a BusinessPartner record.
+model CrmPartner {
+  id        String  @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  type      String?
+  isActive  Boolean @default(true)
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunities OpportunityPartner[]
+
+  @@unique([companyId, code])
+  @@map("crm_partners")
+}
+
+model InformationSource {
+  id        String  @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  isActive  Boolean @default(true)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@unique([companyId, code])
+  @@map("information_sources")
+}
+
+model Opportunity {
+  id              String            @id @default(uuid())
+  companyId       String
+  docNumber       Int?
+  name            String
+  bpId            String
+  contactPersonId String?
+  salesEmployeeId String?
+  territoryId     String?
+  currentStageId  String?
+  status          OpportunityStatus @default(OPEN)
+  level           Int               @default(1)
+  startDate       DateTime
+  closingDate     DateTime?
+  predictedClosingDate DateTime?
+  // ── Potential tab ──
+  currency        String            @default("USD")
+  potentialAmount Decimal           @db.Decimal(15, 2) @default(0)
+  weightedAmount  Decimal           @db.Decimal(15, 2) @default(0)
+  closePercent    Decimal           @db.Decimal(5, 2)  @default(0)
+  grossProfit     Decimal?          @db.Decimal(15, 2)
+  grossProfitPercent Decimal?       @db.Decimal(5, 2)
+  // ── General tab ──
+  informationSourceId String?
+  industry        String?
+  interestField   String?
+  interestLevel   String?
+  reasonId        String?
+  // ── Closing ──
+  wonLostReason   String?
+  remarks         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bp            BusinessPartner      @relation(fields: [bpId], references: [id])
+  contactPerson BpContactPerson?     @relation(fields: [contactPersonId], references: [id])
+  salesEmployee SalesEmployee?       @relation(fields: [salesEmployeeId], references: [id])
+  territory     Territory?           @relation(fields: [territoryId], references: [id])
+  currentStage  OpportunityStageDef? @relation(fields: [currentStageId], references: [id])
+  informationSource InformationSource? @relation(fields: [informationSourceId], references: [id])
+
+  stages      OpportunityStageEntry[]
+  competitors OpportunityCompetitor[]
+  partners    OpportunityPartner[]
+
+  @@unique([companyId, docNumber])
+  @@index([companyId, status])
+  @@index([bpId])
+  @@index([salesEmployeeId])
+  @@map("opportunities")
+}
+
+// One row per stage the opportunity has passed through — the "Stages" tab grid.
+model OpportunityStageEntry {
+  id              String   @id @default(uuid())
+  opportunityId   String
+  stageDefId      String
+  ordering        Int      @default(0)
+  startDate       DateTime?
+  closingDate     DateTime?
+  closePercent    Decimal  @db.Decimal(5, 2) @default(0)
+  potentialAmount Decimal  @db.Decimal(15, 2) @default(0)
+  weightedAmount  Decimal  @db.Decimal(15, 2) @default(0)
+  salesEmployeeId String?
+  activityId      String?
+  docType         String?
+  docNumber       String?
+  remarks         String?
+  completedAt     DateTime?
+
+  opportunity   Opportunity         @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  stageDef      OpportunityStageDef @relation(fields: [stageDefId], references: [id])
+  salesEmployee SalesEmployee?      @relation(fields: [salesEmployeeId], references: [id])
+  activity      Activity?           @relation(fields: [activityId], references: [id])
+
+  @@index([opportunityId, ordering])
+  @@map("opportunity_stage_entries")
+}
+
+model OpportunityCompetitor {
+  id            String  @id @default(uuid())
+  opportunityId String
+  competitorId  String
+  threatLevel   String?
+  strengths     String?
+  weaknesses    String?
+  remarks       String?
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  competitor  Competitor  @relation(fields: [competitorId], references: [id])
+
+  @@unique([opportunityId, competitorId])
+  @@map("opportunity_competitors")
+}
+
+model OpportunityPartner {
+  id            String  @id @default(uuid())
+  opportunityId String
+  partnerId     String
+  role          String?
+  remarks       String?
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  partner     CrmPartner  @relation(fields: [partnerId], references: [id])
+
+  @@unique([opportunityId, partnerId])
+  @@map("opportunity_partners")
+}
+
+// ─── CAMPAIGNS ────────────────────────────────────────────────────────────────
+enum CampaignStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Campaign {
+  id              String         @id @default(uuid())
+  companyId       String
+  campaignNumber  Int?
+  name            String
+  type            String?
+  status          CampaignStatus @default(PLANNED)
+  startDate       DateTime?
+  endDate         DateTime?
+  salesEmployeeId String?
+  targetGroup     String?
+  budgetAmount    Decimal?       @db.Decimal(15, 2)
+  revenueAmount   Decimal?       @db.Decimal(15, 2)
+  remarks         String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesEmployee SalesEmployee?   @relation(fields: [salesEmployeeId], references: [id])
+  targets       CampaignTarget[]
+
+  @@unique([companyId, campaignNumber])
+  @@index([companyId, status])
+  @@map("campaigns")
+}
+
+model CampaignTarget {
+  id              String  @id @default(uuid())
+  campaignId      String
+  bpId            String?
+  contactPersonId String?
+  response        String?
+  remarks         String?
+
+  campaign      Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  bp            BusinessPartner? @relation(fields: [bpId], references: [id])
+  contactPerson BpContactPerson? @relation(fields: [contactPersonId], references: [id])
+
+  @@index([campaignId])
+  @@map("campaign_targets")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FINANCIALS — SETUP, COST ACCOUNTING, BUDGETS, ASSETS (Section 6.15)
+// ══════════════════════════════════════════════════════════════════════════════
+
+model Currency {
+  id            String  @id @default(uuid())
+  companyId     String
+  code          String   // ISO-4217
+  name          String
+  intlDescription String?
+  hundredthName String?  // "Cents", "Paisa"
+  decimals      Int     @default(2)
+  rounding      String? // "standard" | "up" | "down"
+  isActive      Boolean @default(true)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@map("currencies")
+}
+
+// G/L Account Determination — the mapping table that tells posting routines
+// which account to hit for a named purpose, per functional area.
+enum AccountDeterminationArea {
+  SALES
+  PURCHASING
+  GENERAL
+  INVENTORY
+}
+
+model AccountDetermination {
+  id        String                   @id @default(uuid())
+  companyId String
+  area      AccountDeterminationArea
+  key       String                    // "domestic_ar", "tax_payable", "rounding", …
+  accountId String
+  updatedAt DateTime                 @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([companyId, area, key])
+  @@map("account_determinations")
+}
+
+model FinanceProject {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  validFrom DateTime?
+  validTo   DateTime?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+  journalLines   JournalLine[]
+
+  @@unique([companyId, code])
+  @@map("finance_projects")
+}
+
+model TransactionCode {
+  id          String  @id @default(uuid())
+  companyId   String
+  code        String
+  description String
+  isActive    Boolean @default(true)
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+
+  @@unique([companyId, code])
+  @@map("transaction_codes")
+}
+
+enum TaxCodeType {
+  SALES
+  PURCHASE
+  WITHHOLDING
+}
+
+model TaxCode {
+  id        String      @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  type      TaxCodeType @default(SALES)
+  rate      Decimal     @db.Decimal(7, 4) @default(0)
+  accountId String?
+  validFrom DateTime?
+  validTo   DateTime?
+  isActive  Boolean     @default(true)
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id])
+  lines   JournalLine[]
+
+  @@unique([companyId, code])
+  @@map("tax_codes")
+}
+
+model CashFlowLineItem {
+  id        String  @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  parentId  String?
+  section   String?  // "operating" | "investing" | "financing"
+  isActive  Boolean @default(true)
+
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   CashFlowLineItem?  @relation("CashFlowHierarchy", fields: [parentId], references: [id])
+  children CashFlowLineItem[] @relation("CashFlowHierarchy")
+  accounts Account[]
+
+  @@unique([companyId, code])
+  @@map("cash_flow_line_items")
+}
+
+// ─── POSTING TEMPLATES & RECURRING POSTINGS ───────────────────────────────────
+model PostingTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  code        String
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   PostingTemplateLine[]
+  entries JournalEntry[]
+
+  @@unique([companyId, code])
+  @@map("posting_templates")
+}
+
+// Percentage templates spread a single amount across accounts; the percentages
+// on the debit side and on the credit side must each total 100.
+model PostingTemplateLine {
+  id          String   @id @default(uuid())
+  templateId  String
+  accountId   String
+  description String?
+  percentage  Decimal  @db.Decimal(7, 4) @default(0)
+  side        String    // "debit" | "credit"
+  ordering    Int      @default(0)
+
+  template PostingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  account  Account         @relation(fields: [accountId], references: [id])
+
+  @@index([templateId, ordering])
+  @@map("posting_template_lines")
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMIANNUALLY
+  ANNUALLY
+  ONE_TIME
+}
+
+model RecurringPosting {
+  id             String              @id @default(uuid())
+  companyId      String
+  code           String
+  description    String
+  frequency      RecurrenceFrequency @default(MONTHLY)
+  nextExecution  DateTime
+  validUntil     DateTime?
+  executionCount Int                 @default(0)
+  maxExecutions  Int?
+  currency       String              @default("USD")
+  isActive       Boolean             @default(true)
+  lastExecutedAt DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  company Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   RecurringPostingLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive, nextExecution])
+  @@map("recurring_postings")
+}
+
+model RecurringPostingLine {
+  id          String   @id @default(uuid())
+  recurringId String
+  accountId   String
+  debit       Decimal  @db.Decimal(15, 2) @default(0)
+  credit      Decimal  @db.Decimal(15, 2) @default(0)
+  description String?
+  ordering    Int      @default(0)
+
+  recurring RecurringPosting @relation(fields: [recurringId], references: [id], onDelete: Cascade)
+  account   Account          @relation(fields: [accountId], references: [id])
+
+  @@index([recurringId])
+  @@map("recurring_posting_lines")
+}
+
+// ─── COST ACCOUNTING ──────────────────────────────────────────────────────────
+model Dimension {
+  id          String  @id @default(uuid())
+  companyId   String
+  dimensionNo Int      // 1..5
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costCenters       CostCenter[]
+  distributionRules DistributionRule[]
+
+  @@unique([companyId, dimensionNo])
+  @@map("dimensions")
+}
+
+model CostCenter {
+  id          String   @id @default(uuid())
+  companyId   String
+  dimensionId String
+  code        String
+  name        String
+  parentId    String?
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dimension Dimension    @relation(fields: [dimensionId], references: [id])
+  parent    CostCenter?  @relation("CostCenterHierarchy", fields: [parentId], references: [id])
+  children  CostCenter[] @relation("CostCenterHierarchy")
+
+  journalLines      JournalLine[]
+  distributionLines DistributionRuleLine[]
+  budgetLines       BudgetLine[]
+
+  @@unique([companyId, dimensionId, code])
+  @@index([companyId])
+  @@map("cost_centers")
+}
+
+// A distribution rule fans one posted amount across several cost centers by
+// ratio. `totalRatio` is the denominator: a line with ratio 3 out of a total of
+// 10 receives 30% of the amount.
+model DistributionRule {
+  id          String   @id @default(uuid())
+  companyId   String
+  dimensionId String
+  code        String
+  name        String
+  totalRatio  Decimal  @db.Decimal(15, 4) @default(0)
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dimension Dimension              @relation(fields: [dimensionId], references: [id])
+  lines     DistributionRuleLine[]
+  journalLines JournalLine[]
+
+  @@unique([companyId, dimensionId, code])
+  @@map("distribution_rules")
+}
+
+model DistributionRuleLine {
+  id           String  @id @default(uuid())
+  ruleId       String
+  costCenterId String
+  ratio        Decimal @db.Decimal(15, 4) @default(0)
+
+  rule       DistributionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  costCenter CostCenter       @relation(fields: [costCenterId], references: [id])
+
+  @@unique([ruleId, costCenterId])
+  @@map("distribution_rule_lines")
+}
+
+// ─── BUDGETS ──────────────────────────────────────────────────────────────────
+model BudgetScenario {
+  id                String   @id @default(uuid())
+  companyId         String
+  code              String
+  name              String
+  fiscalYear        Int
+  // A scenario can be derived from another by a percentage ("2027 = 2026 +10%").
+  basedOnScenarioId String?
+  initialRatio      Decimal  @db.Decimal(7, 4) @default(100)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  basedOn   BudgetScenario?  @relation("ScenarioDerivation", fields: [basedOnScenarioId], references: [id])
+  derived   BudgetScenario[] @relation("ScenarioDerivation")
+  lines     BudgetLine[]
+
+  @@unique([companyId, code])
+  @@map("budget_scenarios")
+}
+
+// Spreads an annual budget figure over the periods of the year.
+// `monthlyRatios` is a 12-element array summing to 100.
+model BudgetDistributionMethod {
+  id            String   @id @default(uuid())
+  companyId     String
+  code          String
+  name          String
+  monthlyRatios Json     @default("[]")
+  isActive      Boolean  @default(true)
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   BudgetLine[]
+
+  @@unique([companyId, code])
+  @@map("budget_distribution_methods")
+}
+
+model BudgetLine {
+  id                   String   @id @default(uuid())
+  companyId            String
+  scenarioId           String
+  accountId            String
+  costCenterId         String?
+  periodId             String?
+  distributionMethodId String?
+  annualDebit          Decimal  @db.Decimal(15, 2) @default(0)
+  annualCredit         Decimal  @db.Decimal(15, 2) @default(0)
+  // Per-period breakdown after distribution: [{ period: "2026-01", debit, credit }]
+  breakdown            Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company            Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scenario           BudgetScenario            @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  account            Account                   @relation(fields: [accountId], references: [id])
+  costCenter         CostCenter?               @relation(fields: [costCenterId], references: [id])
+  period             FiscalPeriod?             @relation(fields: [periodId], references: [id])
+  distributionMethod BudgetDistributionMethod? @relation(fields: [distributionMethodId], references: [id])
+
+  @@unique([scenarioId, accountId, costCenterId, periodId])
+  @@index([companyId, scenarioId])
+  @@map("budget_lines")
+}
+
+// ─── BANKING SETUP ────────────────────────────────────────────────────────────
+model Bank {
+  id        String  @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  swift     String?
+  country   String?
+  isActive  Boolean @default(true)
+
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accounts HouseBankAccount[]
+
+  @@unique([companyId, code])
+  @@map("banks")
+}
+
+model HouseBankAccount {
+  id           String  @id @default(uuid())
+  companyId    String
+  bankId       String
+  accountNo    String
+  accountName  String?
+  branch       String?
+  iban         String?
+  currency     String  @default("USD")
+  glAccountId  String?
+  isDefault    Boolean @default(false)
+  isActive     Boolean @default(true)
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bank      Bank           @relation(fields: [bankId], references: [id])
+  glAccount Account?       @relation(fields: [glAccountId], references: [id])
+  paymentMethods PaymentMethod[]
+
+  @@unique([companyId, bankId, accountNo])
+  @@map("house_bank_accounts")
+}
+
+enum PaymentDirection {
+  INCOMING
+  OUTGOING
+}
+
+model PaymentMethod {
+  id                 String           @id @default(uuid())
+  companyId          String
+  code               String
+  description        String
+  direction          PaymentDirection @default(INCOMING)
+  paymentMeans       String?          // "check" | "bank_transfer" | "cash" | "credit_card"
+  houseBankAccountId String?
+  isActive           Boolean          @default(true)
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  houseBankAccount HouseBankAccount? @relation(fields: [houseBankAccountId], references: [id])
+  partners         BusinessPartner[]
+
+  @@unique([companyId, code])
+  @@map("payment_methods")
+}
+
+model DunningTerm {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  // [{ level: 1, daysAfterDue: 14, feeAmount: 0, interestPercent: 0, letterTemplate: "…" }]
+  levels    Json     @default("[]")
+  isActive  Boolean  @default(true)
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  partners BusinessPartner[]
+
+  @@unique([companyId, code])
+  @@map("dunning_terms")
+}
+
+// ─── INTERNAL RECONCILIATION ──────────────────────────────────────────────────
+// Matches debits against credits on a BP or G/L account so open items can be
+// cleared. Reversible: `cancelledAt` unclears the matched rows.
+model InternalReconciliation {
+  id            String   @id @default(uuid())
+  companyId     String
+  bpId          String?
+  accountId     String?
+  reconciledAt  DateTime
+  totalAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  currency      String   @default("USD")
+  reconciledById String?
+  cancelledAt   DateTime?
+  remarks       String?
+  createdAt     DateTime @default(now())
+
+  company Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bp      BusinessPartner?             @relation(fields: [bpId], references: [id])
+  lines   InternalReconciliationLine[]
+
+  @@index([companyId, bpId])
+  @@map("internal_reconciliations")
+}
+
+model InternalReconciliationLine {
+  id               String  @id @default(uuid())
+  reconciliationId String
+  journalEntryId   String
+  amount           Decimal @db.Decimal(15, 2)
+
+  reconciliation InternalReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  journalEntry   JournalEntry           @relation(fields: [journalEntryId], references: [id])
+
+  @@index([reconciliationId])
+  @@map("internal_reconciliation_lines")
+}
+
+// ─── FIXED ASSETS ─────────────────────────────────────────────────────────────
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  DECLINING_BALANCE
+  SUM_OF_YEARS
+  IMMEDIATE
+  NONE
+}
+
+enum FixedAssetStatus {
+  NEW
+  CAPITALIZED
+  RETIRED
+  SOLD
+}
+
+model FixedAsset {
+  id             String             @id @default(uuid())
+  companyId      String
+  code           String
+  name           String
+  assetClass     String?
+  status         FixedAssetStatus   @default(NEW)
+  capitalizedAt  DateTime?
+  retiredAt      DateTime?
+  usefulLifeMonths Int              @default(60)
+  depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
+  acquisitionCost   Decimal         @db.Decimal(15, 2) @default(0)
+  salvageValue      Decimal         @db.Decimal(15, 2) @default(0)
+  accumulatedDepreciation Decimal   @db.Decimal(15, 2) @default(0)
+  netBookValue      Decimal         @db.Decimal(15, 2) @default(0)
+  currency          String          @default("USD")
+  costAccountId          String?
+  depreciationAccountId  String?
+  accumulatedAccountId   String?
+  costCenterId      String?
+  serialNumber      String?
+  location          String?
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costAccount         Account? @relation("AssetCostAccount", fields: [costAccountId], references: [id])
+  depreciationAccount Account? @relation("AssetDepreciationAccount", fields: [depreciationAccountId], references: [id])
+  accumulatedAccount  Account? @relation("AssetAccumulatedAccount", fields: [accumulatedAccountId], references: [id])
+  transactions        FixedAssetTransaction[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@map("fixed_assets")
+}
+
+enum AssetTransactionType {
+  CAPITALIZATION
+  CAPITALIZATION_CREDIT_MEMO
+  DEPRECIATION
+  MANUAL_DEPRECIATION
+  REVALUATION
+  TRANSFER
+  RETIREMENT
+}
+
+model FixedAssetTransaction {
+  id             String               @id @default(uuid())
+  assetId        String
+  type           AssetTransactionType
+  postingDate    DateTime
+  amount         Decimal              @db.Decimal(15, 2)
+  journalEntryId String?
+  remarks        String?
+  createdAt      DateTime             @default(now())
+
+  asset FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, postingDate])
+  @@map("fixed_asset_transactions")
 }

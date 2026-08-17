@@ -1,0 +1,22 @@
+-- ============================================================================
+-- PLACEHOLDER — reconstructed history entry.
+--
+-- This migration is recorded as applied in the live database's
+-- _prisma_migrations table (finished 2026-07-14) but its folder was missing
+-- from the repository. Prisma keys migration history by folder name, so the
+-- gap made `prisma migrate status` report permanent drift and blocked
+-- `migrate dev`.
+--
+-- The folder is restored here so local history matches the database. Because
+-- the row already exists in _prisma_migrations, `prisma migrate deploy` skips
+-- this file — it will never execute. It is intentionally inert.
+--
+-- What the original migration did, reconstructed from the live schema: it
+-- redefined the UserRoleType enum to ('SUPER_ADMIN', 'SUB_ADMIN', 'MANAGER',
+-- 'NORMAL_USER'). The follow-up migration 20260817000000_admin_crm_financials
+-- maps those labels back onto the master spec's four-tier hierarchy
+-- (SUPER_ADMIN / COMPANY_ADMIN / DEPARTMENT_HEAD / EMPLOYEE).
+-- ============================================================================
+
+-- No-op.
+SELECT 1;
