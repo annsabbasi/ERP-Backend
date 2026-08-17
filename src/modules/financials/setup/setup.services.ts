@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ledgerStatusWhere } from '../ledger-status';
 import {
   TenantCrudService,
   TenantCrudOptions,
@@ -792,7 +793,7 @@ export class BudgetLinesService extends TenantCrudService {
       by: ['accountId'],
       where: {
         accountId: { in: lines.map((l) => l.accountId) },
-        entry: { companyId, status: 'POSTED', date: { gte: yearStart, lte: yearEnd } },
+        entry: { companyId, ...ledgerStatusWhere(), date: { gte: yearStart, lte: yearEnd } },
       },
       _sum: { debit: true, credit: true },
     });

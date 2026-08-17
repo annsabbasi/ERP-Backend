@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { AccountType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ledgerStatusWhere } from '../ledger-status';
 import {
   ListQuery,
   TenantCrudService,
@@ -105,7 +106,7 @@ export class AccountsService extends TenantCrudService {
       where: {
         entry: {
           companyId: cid,
-          ...(opts.includeUnposted ? {} : { status: 'POSTED' }),
+          ...ledgerStatusWhere(opts.includeUnposted),
           ...(opts.from || opts.to
             ? { date: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
             : {}),

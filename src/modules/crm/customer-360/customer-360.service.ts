@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ledgerStatusWhere } from '../../financials/ledger-status';
 
 const ZERO = new Prisma.Decimal(0);
 
@@ -85,7 +86,7 @@ export class Customer360Service {
         _count: { _all: true },
       }),
       this.prisma.journalLine.aggregate({
-        where: { bpId, entry: { companyId, status: 'POSTED' } },
+        where: { bpId, entry: { companyId, ...ledgerStatusWhere() } },
         _sum: { debit: true, credit: true },
       }),
       this.prisma.activity.findFirst({

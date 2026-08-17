@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AccountType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ledgerStatusWhere } from '../ledger-status';
 
 const ZERO = new Prisma.Decimal(0);
 
@@ -66,7 +67,7 @@ export class FinancialReportsService {
       where: {
         entry: {
           companyId,
-          ...(range.includeUnposted ? {} : { status: 'POSTED' }),
+          ...ledgerStatusWhere(range.includeUnposted),
           ...(range.from || range.to
             ? {
                 date: {
@@ -241,7 +242,7 @@ export class FinancialReportsService {
         ...(opts.bpId ? { bpId: opts.bpId } : {}),
         entry: {
           companyId,
-          ...(opts.includeUnposted ? {} : { status: 'POSTED' }),
+          ...ledgerStatusWhere(opts.includeUnposted),
           ...(opts.from || opts.to
             ? { date: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
             : {}),
@@ -417,7 +418,7 @@ export class FinancialReportsService {
     const entries = await this.prisma.journalEntry.findMany({
       where: {
         companyId,
-        ...(range.includeUnposted ? {} : { status: 'POSTED' }),
+        ...ledgerStatusWhere(range.includeUnposted),
         ...(range.from || range.to
           ? { date: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } }
           : {}),
