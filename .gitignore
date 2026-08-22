@@ -37,3 +37,7 @@ Thumbs.db
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Scratch files from schema audits
+_*.tmp.*
+_relmap.json
