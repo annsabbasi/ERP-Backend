@@ -153,6 +153,7 @@ model Company {
   fixedAssets           FixedAsset[]
   internalReconciliations InternalReconciliation[]
   attachments           Attachment[]
+  idempotencyKeys       IdempotencyKey[]
 
   @@map("companies")
 }
@@ -2144,6 +2145,45 @@ model APPayment {
   @@index([billId])
   @@index([companyId])
   @@map("ap_payments")
+}
+
+// ─── SHARED: IDEMPOTENCY ──────────────────────────────────────────────────────
+// A retried POST must not post twice.
+//
+// The client sends an `Idempotency-Key` header; the first request records the
+// key and, once it finishes, the response it produced. A retry carrying the
+// same key is answered from that record instead of running again. This matters
+// most where a request moves money — recording a payment twice because a phone
+// lost signal mid-request is a real way to corrupt a ledger.
+model IdempotencyKey {
+  id        String   @id @default(uuid())
+  companyId String
+  key       String
+  // The same key on a different route is a different operation, so the route
+  // is part of the identity. Otherwise one client's key could replay another
+  // endpoint's response.
+  endpoint  String
+  // Guards against a key being reused with a changed body, which is a client
+  // bug rather than a retry and should be reported, not silently replayed.
+  requestHash String
+  status      IdempotencyStatus @default(IN_PROGRESS)
+  statusCode  Int?
+  // Null until the request completes. A row that stays IN_PROGRESS means the
+  // original request died before responding.
+  response    Json?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key, endpoint])
+  @@index([companyId, createdAt])
+  @@map("idempotency_keys")
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
 }
 
 // ─── SHARED: ATTACHMENTS ──────────────────────────────────────────────────────

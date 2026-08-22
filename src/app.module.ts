@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import configuration from './config/configuration';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -9,6 +9,7 @@ import { AppService } from './app.service';
 import { TenantContextModule } from './common/context/tenant-context.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 
 // Audit (global so any module can inject AuditService)
 import { AuditModule } from './modules/audit/audit.module';
@@ -106,6 +107,10 @@ import { HrModule } from './modules/hr/hr.module';
     // and gate themselves via @RequirePermission(...).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    // Replays a write that carries an Idempotency-Key it has already seen.
+    // Registered globally but inert unless the header is present, so it costs
+    // nothing on the routes that do not need it.
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule {}

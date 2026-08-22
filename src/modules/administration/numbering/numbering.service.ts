@@ -104,19 +104,53 @@ export class NumberingService extends TenantCrudService {
           where: { companyId, documentType, isDefault: true, isLocked: false },
         });
 
-    const resolved =
+    const candidate =
       series ??
       (await tx.numberingSeries.findFirst({
         where: { companyId, documentType, isLocked: false },
         orderBy: { createdAt: 'asc' },
       }));
 
-    if (!resolved) {
+    if (!candidate) {
       throw new BadRequestException(
         `No numbering series is configured for "${documentType}". ` +
           `Set one up under Administration → System Initialization → Document Numbering.`,
       );
     }
+
+    // Take a row lock before reading the counter.
+    //
+    // The increment below is atomic on its own, so two callers never receive
+    // the same number. The checks are the problem: exhaustion, lock state and
+    // the effective window are all read before the increment, so without a lock
+    // two concurrent allocations can both see "one number left", both pass, and
+    // both increment — issuing a number past the series' last. Locking the row
+    // first makes the check and the increment one indivisible step; the second
+    // caller waits, then re-reads a counter that has already moved.
+    //
+    // Everything after this point reads `locked`, not `candidate`, because the
+    // candidate's values were read outside the lock and may already be stale.
+    const [locked] = await tx.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        nextNumber: number;
+        lastNumber: number | null;
+        isLocked: boolean;
+        effectiveFrom: Date | null;
+        effectiveTo: Date | null;
+      }>
+    >`SELECT id, name, "nextNumber", "lastNumber", "isLocked", "effectiveFrom", "effectiveTo"
+        FROM numbering_series WHERE id = ${candidate.id} FOR UPDATE`;
+
+    // The series can be deleted between resolving it and locking it.
+    if (!locked) {
+      throw new ConflictException(
+        `Numbering series "${candidate.name}" was removed while a number was being allocated.`,
+      );
+    }
+
+    const resolved = locked;
     if (resolved.isLocked) {
       throw new BadRequestException(`Numbering series "${resolved.name}" is locked.`);
     }
