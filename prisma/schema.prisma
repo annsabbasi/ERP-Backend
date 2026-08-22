@@ -938,6 +938,7 @@ model Product {
   arInvoiceLines ARInvoiceLine[]
 
   @@index([companyId])
+  @@unique([companyId, id])
   @@map("products")
 }
 
@@ -1002,8 +1003,11 @@ model OrderItem {
   quantity  Int
   unitPrice Decimal @db.Decimal(19, 4)
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  companyId String
+
+  order   Order   @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Cascade)
+  product Product @relation(fields: [companyId, productId], references: [companyId, id])
+  @@index([companyId])
   @@index([orderId])
   @@index([productId])
 
@@ -1833,6 +1837,7 @@ model JournalEntry {
   @@index([seriesId])
   @@index([templateId])
   @@index([transactionCodeId])
+  @@unique([companyId, id])
   @@map("journal_entries")
 }
 
@@ -1860,15 +1865,22 @@ model JournalLine {
   ref2               String?
   ref3               String?
 
-  entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  account Account      @relation(fields: [accountId], references: [id])
+  // Carried on the line itself so every foreign key can be tenant-scoped: a
+  // line can only reach an entry, account or partner belonging to its own
+  // company. Without it the FKs point at bare ids and nothing stops a line
+  // from referencing another tenant's account.
+  companyId String
 
-  bp               BusinessPartner?  @relation(fields: [bpId], references: [id])
-  costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id])
-  distributionRule DistributionRule? @relation(fields: [distributionRuleId], references: [id])
-  project          FinanceProject?   @relation(fields: [projectId], references: [id])
-  taxCode          TaxCode?          @relation(fields: [taxCodeId], references: [id])
+  entry   JournalEntry @relation(fields: [companyId, entryId], references: [companyId, id], onDelete: Cascade)
+  account Account      @relation(fields: [companyId, accountId], references: [companyId, id])
 
+  bp               BusinessPartner?  @relation(fields: [companyId, bpId], references: [companyId, id])
+  costCenter       CostCenter?       @relation(fields: [companyId, costCenterId], references: [companyId, id])
+  distributionRule DistributionRule? @relation(fields: [companyId, distributionRuleId], references: [companyId, id])
+  project          FinanceProject?   @relation(fields: [companyId, projectId], references: [companyId, id])
+  taxCode          TaxCode?          @relation(fields: [companyId, taxCodeId], references: [companyId, id])
+
+  @@index([companyId])
   @@index([entryId])
   @@index([accountId])
   @@index([bpId])
@@ -1999,10 +2011,13 @@ model ARInvoiceLine {
   // Ties the revenue line to the inventory item that was sold.
   productId      String?
 
-  invoice ARInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  account Account?  @relation(fields: [accountId], references: [id])
-  product Product?  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  companyId String
 
+  invoice ARInvoice @relation(fields: [companyId, invoiceId], references: [companyId, id], onDelete: Cascade)
+  account Account?  @relation(fields: [companyId, accountId], references: [companyId, id])
+  product Product?  @relation(fields: [companyId, productId], references: [companyId, id], onDelete: Restrict)
+
+  @@index([companyId])
   @@index([invoiceId])
   @@index([productId])
   @@index([accountId])
@@ -2094,9 +2109,12 @@ model APBillLine {
   tax       Decimal  @db.Decimal(19, 4) @default(0)
   accountId      String?
 
-  bill    APBill   @relation(fields: [billId], references: [id], onDelete: Cascade)
-  account Account? @relation(fields: [accountId], references: [id])
+  companyId String
 
+  bill    APBill   @relation(fields: [companyId, billId], references: [companyId, id], onDelete: Cascade)
+  account Account? @relation(fields: [companyId, accountId], references: [companyId, id])
+
+  @@index([companyId])
   @@index([billId])
   @@index([accountId])
   @@map("ap_bill_lines")
@@ -3289,6 +3307,7 @@ model FinanceProject {
   journalLines   JournalLine[]
 
   @@unique([companyId, code])
+  @@unique([companyId, id])
   @@map("finance_projects")
 }
 
@@ -3330,6 +3349,7 @@ model TaxCode {
 
   @@unique([companyId, code])
   @@index([accountId])
+  @@unique([companyId, id])
   @@map("tax_codes")
 }
 
@@ -3484,6 +3504,7 @@ model CostCenter {
   @@index([companyId])
   @@index([dimensionId])
   @@index([parentId])
+  @@unique([companyId, id])
   @@map("cost_centers")
 }
 
@@ -3510,6 +3531,7 @@ model DistributionRule {
 
   @@unique([companyId, dimensionId, code])
   @@index([dimensionId])
+  @@unique([companyId, id])
   @@map("distribution_rules")
 }
 
