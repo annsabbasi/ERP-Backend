@@ -11,6 +11,8 @@ import { FinancialReportsController } from './reports/financial-reports.controll
 import { FinancialReportsService } from './reports/financial-reports.service';
 import { FixedAssetsController } from './fixed-assets/fixed-assets.controller';
 import { FixedAssetsService } from './fixed-assets/fixed-assets.service';
+import { APBillsController, ARInvoicesController } from './ar-ap/ar-ap.controller';
+import { APBillsService, ARInvoicesService } from './ar-ap/ar-ap.service';
 import * as SetupServices from './setup/setup.services';
 import * as SetupControllers from './setup/setup.controllers';
 
@@ -71,6 +73,8 @@ const setupControllers = [
     JournalEntriesController,
     FinancialReportsController,
     FixedAssetsController,
+    ARInvoicesController,
+    APBillsController,
     ...setupControllers,
   ],
   providers: [
@@ -79,6 +83,8 @@ const setupControllers = [
     JournalEntriesService,
     FinancialReportsService,
     FixedAssetsService,
+    ARInvoicesService,
+    APBillsService,
     ...setupServices,
   ],
   // Exported so CRM (Customer 360) and future AR/AP modules can reuse the
@@ -88,6 +94,8 @@ const setupControllers = [
     FiscalPeriodsService,
     JournalEntriesService,
     FinancialReportsService,
+    ARInvoicesService,
+    APBillsService,
     SetupServices.ExchangeRatesService,
     SetupServices.AccountDeterminationService,
     SetupServices.PaymentTermsService,

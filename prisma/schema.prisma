@@ -2010,6 +2010,9 @@ model ARInvoiceLine {
   accountId      String?
   // Ties the revenue line to the inventory item that was sold.
   productId      String?
+  // Line sequence as the user entered it. A document without it renders its
+  // lines in whatever order the planner returns them.
+  ordering       Int      @default(0)
 
   companyId String
 
@@ -2108,6 +2111,7 @@ model APBillLine {
   taxPercent     Decimal? @db.Decimal(5, 2)
   tax       Decimal  @db.Decimal(19, 4) @default(0)
   accountId      String?
+  ordering       Int      @default(0)
 
   companyId String
 

@@ -292,7 +292,33 @@ export class JournalEntriesService {
    * marks the original REVERSED. The original's rows are never touched.
    */
   async reverse(companyId: string, id: string, userId: string, dto: ReverseJournalEntryDto = {}) {
-    const original = await this.findOne(companyId, id);
+    return this.prisma.$transaction(
+      (tx) => this.reverseFromSource(tx, companyId, userId, id, dto),
+      TX_OPTIONS,
+    );
+  }
+
+  /**
+   * The reversal itself, running inside a caller-supplied transaction.
+   *
+   * A subledger voiding a document has to reverse its journal in the same
+   * transaction that flips the document to VOID, or a failure between the two
+   * leaves a voided invoice whose posting is still in the ledger. Sharing this
+   * with `reverse` keeps one reversal path: there is no second way to undo a
+   * posting, so the immutability rules cannot be routed around.
+   */
+  async reverseFromSource(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    userId: string | null,
+    id: string,
+    dto: ReverseJournalEntryDto = {},
+  ) {
+    const original = await tx.journalEntry.findFirst({
+      where: { id, companyId },
+      include: DETAIL_INCLUDE,
+    });
+    if (!original) throw new NotFoundException(`Journal entry ${id} not found`);
 
     if (original.status !== JournalEntryStatus.POSTED) {
       throw new ConflictException(
@@ -306,9 +332,9 @@ export class JournalEntriesService {
     }
 
     const date = dto.date ? new Date(dto.date) : new Date();
-    const period = await this.periods.resolveOpenPeriod(companyId, date, 'general');
+    const period = await this.periods.resolveOpenPeriod(companyId, date, 'general', tx);
 
-    return this.prisma.$transaction(async (tx) => {
+    {
       const allocated = await this.numbering.allocate(tx, companyId, 'journal_entry');
 
       const reversal = await tx.journalEntry.create({
@@ -359,8 +385,9 @@ export class JournalEntriesService {
         data: { status: JournalEntryStatus.REVERSED },
       });
 
+      await this.assertDeferredConstraints(tx);
       return reversal;
-    }, TX_OPTIONS);
+    }
   }
 
   // ── Delete (drafts only) ───────────────────────────────────────────────────
@@ -397,6 +424,12 @@ export class JournalEntriesService {
   ) {
     const { totalDebit, totalCredit } = this.totals(input.lines);
     this.assertBalanced(totalDebit, totalCredit);
+    // Subledger postings go through the same line checks as a hand-keyed entry.
+    // Skipping them here would have made this the weaker of two routes to the
+    // ledger, which is the whole thing this method exists to prevent: control
+    // accounts would accept lines with no business partner, and the subledger
+    // would silently stop reconciling to the GL.
+    await this.validateLines(companyId, input.lines);
 
     const period = await this.periods.resolveOpenPeriod(
       companyId,

@@ -177,6 +177,8 @@ const FINE_GRAINED: PermissionDef[] = [
   ...standardSet('financials', 'financials.period', 'posting periods'),
   ...standardSet('financials', 'financials.journal', 'journal entries'),
   ...standardSet('financials', 'financials.report', 'financial reports'),
+  ...standardSet('financials', 'financials.ar', 'A/R invoices and receipts'),
+  ...standardSet('financials', 'financials.ap', 'A/P bills and payments'),
 
   // ── Financials: setup catalogs (Section 6.15) ──
   ...standardSet('financials', 'financials.currency', 'currencies'),

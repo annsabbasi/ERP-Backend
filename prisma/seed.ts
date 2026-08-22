@@ -1,4 +1,6 @@
 import {
+  AccountDeterminationArea,
+  AccountType,
   BillingInterval,
   PermissionScope,
   PrismaClient,
@@ -8,6 +10,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { PERMISSION_CATALOG, SYSTEM_PERMISSION_SETS } from '../src/modules/permissions/permission-catalog';
 import { SYSTEM_WORKFLOW_TEMPLATES } from '../src/modules/workflows/system-templates';
+import { NUMBERED_DOCUMENT_TYPES } from '../src/modules/administration/numbering/numbering.service';
 
 const prisma = new PrismaClient();
 
@@ -269,6 +272,93 @@ async function main() {
     });
   }
   console.log(`✅ ${CURRENCIES.length} currencies seeded`);
+
+  // Starter chart of accounts and G/L account determination.
+  //
+  // A/R and A/P cannot post without these: the subledgers resolve their control,
+  // revenue, expense, tax and cash accounts through the determination table
+  // rather than hard-coding account codes, so a company that has none simply
+  // cannot issue an invoice. Like the currency master, this is required setup
+  // rather than sample data — a company is free to renumber or repoint any of
+  // it afterwards.
+  const ACCOUNTS = [
+    { code: '1000', name: 'Cash on Hand',        type: AccountType.ASSET },
+    { code: '1010', name: 'Bank Account',        type: AccountType.ASSET },
+    { code: '1100', name: 'Accounts Receivable', type: AccountType.ASSET,     isControl: true },
+    { code: '1200', name: 'Input Tax',           type: AccountType.ASSET },
+    { code: '2000', name: 'Accounts Payable',    type: AccountType.LIABILITY, isControl: true },
+    { code: '2100', name: 'Output Tax',          type: AccountType.LIABILITY },
+    { code: '4000', name: 'Sales Revenue',       type: AccountType.INCOME },
+    { code: '5000', name: 'Operating Expenses',  type: AccountType.EXPENSE },
+  ];
+  const accountsByCode = new Map<string, string>();
+  for (const a of ACCOUNTS) {
+    const row = await prisma.account.upsert({
+      where: { companyId_code: { companyId: demoCompany.id, code: a.code } },
+      // Only the flags the platform depends on are reconciled; a company that
+      // renamed an account keeps its name.
+      update: { isControl: a.isControl ?? false },
+      create: { companyId: demoCompany.id, ...a },
+    });
+    accountsByCode.set(a.code, row.id);
+  }
+
+  const DETERMINATIONS = [
+    { area: AccountDeterminationArea.SALES,      key: 'domestic_ar',     code: '1100' },
+    { area: AccountDeterminationArea.SALES,      key: 'revenue',         code: '4000' },
+    { area: AccountDeterminationArea.SALES,      key: 'tax_payable',     code: '2100' },
+    { area: AccountDeterminationArea.PURCHASING, key: 'domestic_ap',     code: '2000' },
+    { area: AccountDeterminationArea.PURCHASING, key: 'expense',         code: '5000' },
+    { area: AccountDeterminationArea.PURCHASING, key: 'tax_receivable',  code: '1200' },
+    { area: AccountDeterminationArea.GENERAL,    key: 'cash',            code: '1000' },
+  ];
+  for (const d of DETERMINATIONS) {
+    const accountId = accountsByCode.get(d.code)!;
+    await prisma.accountDetermination.upsert({
+      where: { companyId_area_key: { companyId: demoCompany.id, area: d.area, key: d.key } },
+      update: { accountId },
+      create: { companyId: demoCompany.id, area: d.area, key: d.key, accountId },
+    });
+  }
+  console.log(`✅ ${ACCOUNTS.length} G/L accounts and ${DETERMINATIONS.length} determinations seeded`);
+
+  // A default numbering series per document type.
+  //
+  // Allocation is mandatory — a document with no series cannot be saved at all,
+  // because its number is what the rest of the platform refers to it by. Every
+  // type the platform can number gets a series here so no module is dead on
+  // arrival; a company can rename the series, change the prefix or add its own
+  // alongside, but it never starts from nothing.
+  const SERIES_PREFIX: Record<string, string> = {
+    journal_entry: 'JE-',      ar_invoice: 'INV-',       ar_credit_memo: 'CRD-',
+    ar_down_payment: 'ADP-',   ap_bill: 'BILL-',         ap_credit_memo: 'PCR-',
+    sales_order: 'SO-',        delivery: 'DLV-',         return: 'RET-',
+    purchase_order: 'PO-',     purchase_request: 'PR-',  goods_receipt_po: 'GRPO-',
+    incoming_payment: 'RCT-',  outgoing_payment: 'PAY-', activity: 'ACT-',
+    opportunity: 'OPP-',       campaign: 'CMP-',         business_partner: 'BP-',
+    fixed_asset: 'FA-',
+  };
+  let seriesCreated = 0;
+  for (const documentType of NUMBERED_DOCUMENT_TYPES) {
+    const existing = await prisma.numberingSeries.findFirst({
+      where: { companyId: demoCompany.id, documentType },
+    });
+    // A company that already numbers this document type keeps its own series —
+    // re-seeding must never reset a counter that has issued numbers.
+    if (existing) continue;
+    await prisma.numberingSeries.create({
+      data: {
+        companyId: demoCompany.id,
+        documentType,
+        name: 'Primary',
+        prefix: SERIES_PREFIX[documentType] ?? '',
+        digits: 5,
+        isDefault: true,
+      },
+    });
+    seriesCreated++;
+  }
+  console.log(`✅ ${seriesCreated} numbering series seeded`);
 
   // Subscribe the demo company to the Premium plan, in TRIAL.
   const premium = await prisma.plan.findUnique({ where: { key: 'premium' } });
