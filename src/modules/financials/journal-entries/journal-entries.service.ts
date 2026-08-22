@@ -69,6 +69,22 @@ export class JournalEntriesService {
     private readonly periods: FiscalPeriodsService,
   ) {}
 
+
+  /**
+   * Forces deferred constraints to evaluate before the transaction callback
+   * returns.
+   *
+   * The posted-entry balance guard is a DEFERRED constraint trigger, so it
+   * normally fires at COMMIT — after Prisma's interactive transaction callback
+   * has already resolved. A violation then rolls the write back correctly but
+   * does not surface as a rejected promise, so the caller is told the write
+   * succeeded when it did not. Checking early turns that into an ordinary
+   * error the service can report.
+   */
+  private async assertDeferredConstraints(tx: Prisma.TransactionClient) {
+    await tx.$executeRawUnsafe('SET CONSTRAINTS ALL IMMEDIATE');
+  }
+
   // ── Reads ──────────────────────────────────────────────────────────────────
   async findAll(companyId: string, query: ListQuery = {}) {
     const where: Prisma.JournalEntryWhereInput = { companyId };
@@ -137,7 +153,7 @@ export class JournalEntriesService {
         dto.seriesId,
       );
 
-      return tx.journalEntry.create({
+      const created = await tx.journalEntry.create({
         data: {
           companyId,
           periodId: period.id,
@@ -169,6 +185,8 @@ export class JournalEntriesService {
         },
         include: DETAIL_INCLUDE,
       });
+      await this.assertDeferredConstraints(tx);
+      return created;
     }, TX_OPTIONS);
   }
 
