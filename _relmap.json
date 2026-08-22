@@ -1,0 +1,3219 @@
+{
+ "generated": "2026-08-22T11:57:37.152Z",
+ "tableCount": 139,
+ "fkCount": 287,
+ "modules": {
+  "Other": [
+   {
+    "table": "_prisma_migrations",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 0
+   }
+  ],
+  "Financials": [
+   {
+    "table": "account_determinations",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "accounts",
+    "kind": "master",
+    "out": [
+     {
+      "col": "cashFlowLineItemId",
+      "tgt": "cash_flow_line_items",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "parentId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 23
+   },
+   {
+    "table": "ap_bill_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "billId",
+      "tgt": "ap_bills",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "ap_bills",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "journalEntryId",
+      "tgt": "journal_entries",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "paymentTermsId",
+      "tgt": "payment_terms",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "voidedById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "ap_payments",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "billId",
+      "tgt": "ap_bills",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "journalEntryId",
+      "tgt": "journal_entries",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "ar_invoice_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "invoiceId",
+      "tgt": "ar_invoices",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "productId",
+      "tgt": "products",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "ar_invoices",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "journalEntryId",
+      "tgt": "journal_entries",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "orderId",
+      "tgt": "orders",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "paymentTermsId",
+      "tgt": "payment_terms",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "voidedById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "ar_payments",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "invoiceId",
+      "tgt": "ar_invoices",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "journalEntryId",
+      "tgt": "journal_entries",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "banks",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "budget_distribution_methods",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "budget_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "costCenterId",
+      "tgt": "cost_centers",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "distributionMethodId",
+      "tgt": "budget_distribution_methods",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "periodId",
+      "tgt": "fiscal_periods",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "scenarioId",
+      "tgt": "budget_scenarios",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "budget_scenarios",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "basedOnScenarioId",
+      "tgt": "budget_scenarios",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "cash_flow_line_items",
+    "kind": "child",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "parentId",
+      "tgt": "cash_flow_line_items",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "cost_centers",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "dimensionId",
+      "tgt": "dimensions",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "parentId",
+      "tgt": "cost_centers",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 5
+   },
+   {
+    "table": "currencies",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "dimensions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "distribution_rule_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "costCenterId",
+      "tgt": "cost_centers",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "ruleId",
+      "tgt": "distribution_rules",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "distribution_rules",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "dimensionId",
+      "tgt": "dimensions",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "dunning_terms",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "exchange_rates",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "finance_projects",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "fiscal_periods",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "closedById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "parentId",
+      "tgt": "fiscal_periods",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "fixed_asset_transactions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "assetId",
+      "tgt": "fixed_assets",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "journalEntryId",
+      "tgt": "journal_entries",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "fixed_assets",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "accumulatedAccountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "costAccountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "costCenterId",
+      "tgt": "cost_centers",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "depreciationAccountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "house_bank_accounts",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bankId",
+      "tgt": "banks",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "glAccountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "internal_reconciliation_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "journalEntryId",
+      "tgt": "journal_entries",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "reconciliationId",
+      "tgt": "internal_reconciliations",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "internal_reconciliations",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "journal_entries",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "createdById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "periodId",
+      "tgt": "fiscal_periods",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "postedById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "projectId",
+      "tgt": "finance_projects",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "reversalOfId",
+      "tgt": "journal_entries",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "seriesId",
+      "tgt": "numbering_series",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "templateId",
+      "tgt": "posting_templates",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "transactionCodeId",
+      "tgt": "transaction_codes",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 8
+   },
+   {
+    "table": "journal_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "costCenterId",
+      "tgt": "cost_centers",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "distributionRuleId",
+      "tgt": "distribution_rules",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "entryId",
+      "tgt": "journal_entries",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "projectId",
+      "tgt": "finance_projects",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "taxCodeId",
+      "tgt": "tax_codes",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "payment_methods",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "houseBankAccountId",
+      "tgt": "house_bank_accounts",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "payment_terms",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "posting_template_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "templateId",
+      "tgt": "posting_templates",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "posting_templates",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "recurring_posting_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "recurringId",
+      "tgt": "recurring_postings",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "recurring_postings",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "tax_codes",
+    "kind": "master",
+    "out": [
+     {
+      "col": "accountId",
+      "tgt": "accounts",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "transaction_codes",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   }
+  ],
+  "CRM": [
+   {
+    "table": "activities",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "assignedToUserId",
+      "tgt": "users",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "contactPersonId",
+      "tgt": "bp_contact_persons",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "ownerId",
+      "tgt": "users",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "parentActivityId",
+      "tgt": "activities",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "bp_addresses",
+    "kind": "master",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "bp_bank_accounts",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "bp_contact_persons",
+    "kind": "master",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "bp_groups",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "bp_relationship_types",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "bp_relationships",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "fromBpId",
+      "tgt": "business_partners",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "toBpId",
+      "tgt": "business_partners",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "typeId",
+      "tgt": "bp_relationship_types",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "business_partners",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "controlAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "downPaymentAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "dunningTermId",
+      "tgt": "dunning_terms",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "groupId",
+      "tgt": "bp_groups",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "paymentMethodId",
+      "tgt": "payment_methods",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "paymentTermsId",
+      "tgt": "payment_terms",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "salesEmployeeId",
+      "tgt": "sales_employees",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "territoryId",
+      "tgt": "territories",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 13
+   },
+   {
+    "table": "campaign_targets",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "campaignId",
+      "tgt": "campaigns",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "contactPersonId",
+      "tgt": "bp_contact_persons",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "campaigns",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "salesEmployeeId",
+      "tgt": "sales_employees",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "commission_groups",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "competitors",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "crm_partners",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "information_sources",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "opportunities",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "contactPersonId",
+      "tgt": "bp_contact_persons",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "currentStageId",
+      "tgt": "opportunity_stage_defs",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "informationSourceId",
+      "tgt": "information_sources",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "salesEmployeeId",
+      "tgt": "sales_employees",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "territoryId",
+      "tgt": "territories",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "opportunity_competitors",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "competitorId",
+      "tgt": "competitors",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "opportunityId",
+      "tgt": "opportunities",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "opportunity_partners",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "opportunityId",
+      "tgt": "opportunities",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "partnerId",
+      "tgt": "crm_partners",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "opportunity_stage_defs",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "opportunity_stage_entries",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "activityId",
+      "tgt": "activities",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "opportunityId",
+      "tgt": "opportunities",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "salesEmployeeId",
+      "tgt": "sales_employees",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "stageDefId",
+      "tgt": "opportunity_stage_defs",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "sales_employees",
+    "kind": "master",
+    "out": [
+     {
+      "col": "commissionGroupId",
+      "tgt": "commission_groups",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "territoryId",
+      "tgt": "territories",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 4
+   },
+   {
+    "table": "territories",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "parentId",
+      "tgt": "territories",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 4
+   }
+  ],
+  "Administration": [
+   {
+    "table": "activity_logs",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 0
+   },
+   {
+    "table": "alert_definitions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "alert_instances",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "alertId",
+      "tgt": "alert_definitions",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "alert_subscriptions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "alertId",
+      "tgt": "alert_definitions",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "approval_request_stages",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "requestId",
+      "tgt": "approval_requests",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "stageId",
+      "tgt": "approval_stages",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "approval_requests",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "originatorId",
+      "tgt": "users",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "templateId",
+      "tgt": "approval_templates",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "approval_stage_approvers",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "stageId",
+      "tgt": "approval_stages",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "approval_stages",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "approval_template_originators",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "templateId",
+      "tgt": "approval_templates",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "approval_template_stages",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "stageId",
+      "tgt": "approval_stages",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "templateId",
+      "tgt": "approval_templates",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "approval_templates",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 4
+   },
+   {
+    "table": "audit_events",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 0
+   },
+   {
+    "table": "auth_events",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "billing_invoices",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "subscriptionId",
+      "tgt": "subscriptions",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "billing_payments",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "invoiceId",
+      "tgt": "billing_invoices",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "branches",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "managerId",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 4
+   },
+   {
+    "table": "companies",
+    "kind": "master",
+    "out": [
+     {
+      "col": "defaultApAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "defaultArAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "defaultCashAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "defaultExpenseAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "defaultRevenueAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "defaultTaxPayableAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "defaultTaxRecoverableAccountId",
+      "tgt": "accounts",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 80
+   },
+   {
+    "table": "company_modules",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "moduleId",
+      "tgt": "system_modules",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "company_settings",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "updatedById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "countries",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "document_approval_decisions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "approverId",
+      "tgt": "users",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "requestId",
+      "tgt": "approval_requests",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "requestStageId",
+      "tgt": "approval_request_stages",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "document_settings",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "login_attempts",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 0
+   },
+   {
+    "table": "numbering_series",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "permission_set_items",
+    "kind": "child",
+    "out": [
+     {
+      "col": "permissionId",
+      "tgt": "permissions",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "setId",
+      "tgt": "permission_sets",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "permission_sets",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "permissions",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 2
+   },
+   {
+    "table": "plan_modules",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "moduleId",
+      "tgt": "system_modules",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "planId",
+      "tgt": "plans",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "plans",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 2
+   },
+   {
+    "table": "predefined_texts",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "refresh_tokens",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "replacedById",
+      "tgt": "refresh_tokens",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "retention_policies",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 0
+   },
+   {
+    "table": "role_permission_sets",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "roleId",
+      "tgt": "roles",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "setId",
+      "tgt": "permission_sets",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "role_permissions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "permissionId",
+      "tgt": "permissions",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "roleId",
+      "tgt": "roles",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "roles",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "sourceRoleId",
+      "tgt": "roles",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 4
+   },
+   {
+    "table": "state_regions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "countryId",
+      "tgt": "countries",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "subscription_events",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "subscriptionId",
+      "tgt": "subscriptions",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "subscriptions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "planId",
+      "tgt": "plans",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "substitute_authorizers",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "originalUserId",
+      "tgt": "users",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "substituteUserId",
+      "tgt": "users",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "templateId",
+      "tgt": "approval_templates",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "system_modules",
+    "kind": "transactional",
+    "out": [],
+    "inbound": 3
+   },
+   {
+    "table": "user_defaults_groups",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "user_group_members",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "groupId",
+      "tgt": "user_groups",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "user_groups",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "user_modules",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "moduleId",
+      "tgt": "system_modules",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "user_roles",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "roleId",
+      "tgt": "roles",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "users",
+    "kind": "master",
+    "out": [
+     {
+      "col": "branchId",
+      "tgt": "branches",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "departmentId",
+      "tgt": "departments",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "userDefaultsGroupId",
+      "tgt": "user_defaults_groups",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 27
+   }
+  ],
+  "Documents": [
+   {
+    "table": "attachments",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "uploadedById",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "document_access_logs",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "documentId",
+      "tgt": "documents",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "document_versions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "documentId",
+      "tgt": "documents",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "documents",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "currentVersionId",
+      "tgt": "document_versions",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "folderId",
+      "tgt": "folders",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "folders",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "parentId",
+      "tgt": "folders",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "share_links",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "documentId",
+      "tgt": "documents",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   }
+  ],
+  "HR": [
+   {
+    "table": "attendance_entries",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "shiftId",
+      "tgt": "shifts",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "departments",
+    "kind": "master",
+    "out": [
+     {
+      "col": "branchId",
+      "tgt": "branches",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 3
+   },
+   {
+    "table": "employee_shifts",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "shiftId",
+      "tgt": "shifts",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "employees",
+    "kind": "master",
+    "out": [
+     {
+      "col": "branchId",
+      "tgt": "branches",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "departmentId",
+      "tgt": "departments",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "managerId",
+      "tgt": "employees",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "positionId",
+      "tgt": "positions",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 8
+   },
+   {
+    "table": "employment_contracts",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "positionId",
+      "tgt": "positions",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "leave_balances",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "leaveTypeId",
+      "tgt": "leave_types",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "leave_requests",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "leaveTypeId",
+      "tgt": "leave_types",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "leave_types",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "onboarding_instance_items",
+    "kind": "child",
+    "out": [
+     {
+      "col": "instanceId",
+      "tgt": "onboarding_instances",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "onboarding_instances",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "employeeId",
+      "tgt": "employees",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "templateId",
+      "tgt": "onboarding_templates",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "onboarding_template_items",
+    "kind": "child",
+    "out": [
+     {
+      "col": "templateId",
+      "tgt": "onboarding_templates",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "onboarding_templates",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "positions",
+    "kind": "master",
+    "out": [
+     {
+      "col": "branchId",
+      "tgt": "branches",
+      "rule": "SET NULL"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "departmentId",
+      "tgt": "departments",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 2
+   },
+   {
+    "table": "shifts",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 2
+   }
+  ],
+  "Inventory": [
+   {
+    "table": "inventory_items",
+    "kind": "child",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "productId",
+      "tgt": "products",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "products",
+    "kind": "master",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 3
+   }
+  ],
+  "Sales": [
+   {
+    "table": "invoice_lines",
+    "kind": "child",
+    "out": [
+     {
+      "col": "invoiceId",
+      "tgt": "invoices",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "invoices",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "orderId",
+      "tgt": "orders",
+      "rule": "SET NULL"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "order_items",
+    "kind": "child",
+    "out": [
+     {
+      "col": "orderId",
+      "tgt": "orders",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "productId",
+      "tgt": "products",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "orders",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "bpId",
+      "tgt": "business_partners",
+      "rule": "RESTRICT"
+     },
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 3
+   }
+  ],
+  "Platform": [
+   {
+    "table": "notification_preferences",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "notifications",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "userId",
+      "tgt": "users",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "webhook_deliveries",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "endpointId",
+      "tgt": "webhook_endpoints",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "webhook_endpoints",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "workflow_approvals",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "instanceId",
+      "tgt": "workflow_instances",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "workflow_definitions",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 1
+   },
+   {
+    "table": "workflow_history",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "instanceId",
+      "tgt": "workflow_instances",
+      "rule": "CASCADE"
+     }
+    ],
+    "inbound": 0
+   },
+   {
+    "table": "workflow_instances",
+    "kind": "transactional",
+    "out": [
+     {
+      "col": "companyId",
+      "tgt": "companies",
+      "rule": "CASCADE"
+     },
+     {
+      "col": "definitionId",
+      "tgt": "workflow_definitions",
+      "rule": "RESTRICT"
+     }
+    ],
+    "inbound": 2
+   }
+  ]
+ },
+ "crossModule": [
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "account_determinations",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "accounts",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "activities",
+   "col": "assignedToUserId",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "activities",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "activities",
+   "col": "ownerId",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "CRM",
+   "src": "ap_bills",
+   "col": "bpId",
+   "tgt": "business_partners",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "ap_bills",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "ap_bills",
+   "col": "voidedById",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "ap_payments",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Inventory",
+   "src": "ar_invoice_lines",
+   "col": "productId",
+   "tgt": "products",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Financials",
+   "to": "CRM",
+   "src": "ar_invoices",
+   "col": "bpId",
+   "tgt": "business_partners",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "ar_invoices",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Sales",
+   "src": "ar_invoices",
+   "col": "orderId",
+   "tgt": "orders",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "ar_invoices",
+   "col": "voidedById",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "ar_payments",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Documents",
+   "to": "Administration",
+   "src": "attachments",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Documents",
+   "to": "Administration",
+   "src": "attachments",
+   "col": "uploadedById",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "attendance_entries",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "banks",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "bp_groups",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "bp_relationship_types",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "budget_distribution_methods",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "budget_lines",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "budget_scenarios",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "business_partners",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Financials",
+   "src": "business_partners",
+   "col": "controlAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "CRM",
+   "to": "Financials",
+   "src": "business_partners",
+   "col": "downPaymentAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "CRM",
+   "to": "Financials",
+   "src": "business_partners",
+   "col": "dunningTermId",
+   "tgt": "dunning_terms",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "CRM",
+   "to": "Financials",
+   "src": "business_partners",
+   "col": "paymentMethodId",
+   "tgt": "payment_methods",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "CRM",
+   "to": "Financials",
+   "src": "business_partners",
+   "col": "paymentTermsId",
+   "tgt": "payment_terms",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "campaigns",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "cash_flow_line_items",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "commission_groups",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultApAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultArAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultCashAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultExpenseAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultRevenueAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultTaxPayableAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Administration",
+   "to": "Financials",
+   "src": "companies",
+   "col": "defaultTaxRecoverableAccountId",
+   "tgt": "accounts",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "competitors",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "cost_centers",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "crm_partners",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "currencies",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "departments",
+   "col": "branchId",
+   "tgt": "branches",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "departments",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "dimensions",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "distribution_rules",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Documents",
+   "to": "Administration",
+   "src": "documents",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "dunning_terms",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "employees",
+   "col": "branchId",
+   "tgt": "branches",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "employees",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "employees",
+   "col": "userId",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "exchange_rates",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "finance_projects",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "fiscal_periods",
+   "col": "closedById",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "fiscal_periods",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "fixed_assets",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Documents",
+   "to": "Administration",
+   "src": "folders",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "house_bank_accounts",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "information_sources",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "CRM",
+   "src": "internal_reconciliations",
+   "col": "bpId",
+   "tgt": "business_partners",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "internal_reconciliations",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Inventory",
+   "to": "Administration",
+   "src": "inventory_items",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Sales",
+   "to": "Administration",
+   "src": "invoices",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "journal_entries",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "journal_entries",
+   "col": "createdById",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "journal_entries",
+   "col": "postedById",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "journal_entries",
+   "col": "seriesId",
+   "tgt": "numbering_series",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Financials",
+   "to": "CRM",
+   "src": "journal_lines",
+   "col": "bpId",
+   "tgt": "business_partners",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "leave_requests",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "leave_types",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Platform",
+   "to": "Administration",
+   "src": "notification_preferences",
+   "col": "userId",
+   "tgt": "users",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Platform",
+   "to": "Administration",
+   "src": "notifications",
+   "col": "userId",
+   "tgt": "users",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "onboarding_instances",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "onboarding_templates",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "opportunities",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "opportunity_stage_defs",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Sales",
+   "to": "Inventory",
+   "src": "order_items",
+   "col": "productId",
+   "tgt": "products",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Sales",
+   "to": "CRM",
+   "src": "orders",
+   "col": "bpId",
+   "tgt": "business_partners",
+   "rule": "RESTRICT"
+  },
+  {
+   "from": "Sales",
+   "to": "Administration",
+   "src": "orders",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "payment_methods",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "payment_terms",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "positions",
+   "col": "branchId",
+   "tgt": "branches",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "positions",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "posting_templates",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Inventory",
+   "to": "Administration",
+   "src": "products",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "recurring_postings",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "sales_employees",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "HR",
+   "src": "sales_employees",
+   "col": "employeeId",
+   "tgt": "employees",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "sales_employees",
+   "col": "userId",
+   "tgt": "users",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "HR",
+   "to": "Administration",
+   "src": "shifts",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "tax_codes",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "CRM",
+   "to": "Administration",
+   "src": "territories",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Financials",
+   "to": "Administration",
+   "src": "transaction_codes",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Administration",
+   "to": "HR",
+   "src": "users",
+   "col": "departmentId",
+   "tgt": "departments",
+   "rule": "SET NULL"
+  },
+  {
+   "from": "Platform",
+   "to": "Administration",
+   "src": "webhook_endpoints",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Platform",
+   "to": "Administration",
+   "src": "workflow_definitions",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  },
+  {
+   "from": "Platform",
+   "to": "Administration",
+   "src": "workflow_instances",
+   "col": "companyId",
+   "tgt": "companies",
+   "rule": "CASCADE"
+  }
+ ]
+}

@@ -87,6 +87,13 @@ model Company {
   onboardingTemplates OnboardingTemplate[]
   onboardingInstances OnboardingInstance[]
   accounts            Account[]
+  defaultArAccount             Account? @relation("CoDefaultAr",  fields: [defaultArAccountId],  references: [id], onDelete: Restrict)
+  defaultApAccount             Account? @relation("CoDefaultAp",  fields: [defaultApAccountId],  references: [id], onDelete: Restrict)
+  defaultCashAccount           Account? @relation("CoDefaultCash", fields: [defaultCashAccountId], references: [id], onDelete: Restrict)
+  defaultTaxPayableAccount     Account? @relation("CoDefaultTaxPay", fields: [defaultTaxPayableAccountId], references: [id], onDelete: Restrict)
+  defaultTaxRecoverableAccount Account? @relation("CoDefaultTaxRec", fields: [defaultTaxRecoverableAccountId], references: [id], onDelete: Restrict)
+  defaultRevenueAccount        Account? @relation("CoDefaultRevenue", fields: [defaultRevenueAccountId], references: [id], onDelete: Restrict)
+  defaultExpenseAccount        Account? @relation("CoDefaultExpense", fields: [defaultExpenseAccountId], references: [id], onDelete: Restrict)
   fiscalPeriods       FiscalPeriod[]
   journalEntries      JournalEntry[]
   exchangeRates       ExchangeRate[]
@@ -174,6 +181,7 @@ model Branch {
 
   @@unique([companyId, name])
   @@index([companyId])
+  @@index([managerId])
   @@map("branches")
 }
 
@@ -189,6 +197,7 @@ model CompanyModule {
   module  SystemModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, moduleId])
+  @@index([moduleId])
   @@map("company_modules")
 }
 
@@ -259,10 +268,19 @@ model User {
   alertSubscriptions    AlertSubscription[]
   alertInstances        AlertInstance[]
   uploadedAttachments   Attachment[]
+  journalEntriesCreated JournalEntry[]           @relation("JeCreatedBy")
+  journalEntriesPosted  JournalEntry[]           @relation("JePostedBy")
+  arInvoicesVoided      ARInvoice[]              @relation("ArVoidedBy")
+  apBillsVoided         APBill[]                 @relation("ApVoidedBy")
+  periodsClosed         FiscalPeriod[]           @relation("PeriodClosedBy")
+  settingsUpdated       CompanySetting[]         @relation("SettingUpdatedBy")
+  employeeRecord        Employee?                @relation("EmployeeUser")
 
   @@unique([email, companyId])
   @@index([companyId])
   @@index([branchId])
+  @@index([departmentId])
+  @@index([userDefaultsGroupId])
   @@map("users")
 }
 
@@ -349,6 +367,7 @@ model UserModule {
   module SystemModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@id([userId, moduleId])
+  @@index([moduleId])
   @@map("user_modules")
 }
 
@@ -377,6 +396,7 @@ model Role {
 
   @@unique([name, companyId])
   @@index([companyId])
+  @@index([sourceRoleId])
   @@map("roles")
 }
 
@@ -390,6 +410,7 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
+  @@index([roleId])
   @@map("user_roles")
 }
 
@@ -444,6 +465,7 @@ model PermissionSet {
   rolePermissionSets RolePermissionSet[]
 
   @@unique([name, companyId])
+  @@index([companyId])
   @@map("permission_sets")
 }
 
@@ -457,6 +479,7 @@ model PermissionSetItem {
   permission Permission    @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([setId, permissionId, scope])
+  @@index([permissionId])
   @@map("permission_set_items")
 }
 
@@ -475,6 +498,7 @@ model RolePermission {
 
   @@unique([roleId, permissionId, scope])
   @@index([roleId])
+  @@index([permissionId])
   @@map("role_permissions")
 }
 
@@ -487,6 +511,7 @@ model RolePermissionSet {
   set  PermissionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
 
   @@id([roleId, setId])
+  @@index([setId])
   @@map("role_permission_sets")
 }
 
@@ -562,11 +587,14 @@ model Employee {
   shiftAssignments    EmployeeShift[]
   onboardingInstances OnboardingInstance[]
   salesEmployee       SalesEmployee?
+  user                User?                @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@index([branchId])
   @@index([managerId])
   @@index([positionId])
+  @@index([userId])
+  @@index([departmentId])
   @@map("employees")
 }
 
@@ -593,6 +621,8 @@ model Position {
 
   @@unique([companyId, title])
   @@index([companyId])
+  @@index([branchId])
+  @@index([departmentId])
   @@map("positions")
 }
 
@@ -628,6 +658,7 @@ model EmploymentContract {
   position Position? @relation(fields: [positionId], references: [id])
 
   @@index([employeeId])
+  @@index([positionId])
   @@map("employment_contracts")
 }
 
@@ -682,6 +713,7 @@ model LeaveBalance {
 
   @@unique([employeeId, leaveTypeId, periodKey])
   @@index([employeeId])
+  @@index([leaveTypeId])
   @@map("leave_balances")
 }
 
@@ -718,6 +750,7 @@ model LeaveRequest {
 
   @@index([companyId])
   @@index([employeeId, status])
+  @@index([leaveTypeId])
   @@map("leave_requests")
 }
 
@@ -738,8 +771,9 @@ model Shift {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignments EmployeeShift[]
+  attendanceEntries AttendanceEntry[]
 
   @@unique([companyId, code])
   @@map("shifts")
@@ -756,6 +790,7 @@ model EmployeeShift {
   shift    Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([shiftId])
   @@map("employee_shifts")
 }
 
@@ -793,7 +828,8 @@ model AttendanceEntry {
   updatedAt     DateTime         @updatedAt
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shift    Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   @@unique([employeeId, date])
   @@index([companyId, date])
@@ -860,6 +896,8 @@ model OnboardingInstance {
   items    OnboardingInstanceItem[]
 
   @@index([employeeId])
+  @@index([companyId])
+  @@index([templateId])
   @@map("onboarding_instances")
 }
 
@@ -898,6 +936,7 @@ model Product {
   company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem?
   orderItems    OrderItem[]
+  arInvoiceLines ARInvoiceLine[]
 
   @@index([companyId])
   @@map("products")
@@ -923,16 +962,25 @@ model InventoryItem {
 model Order {
   id        String      @id @default(uuid())
   companyId String
+  // The sales order had no customer at all, which broke the core ERP chain
+  // (customer -> sales order -> invoice -> payment). It now references the
+  // BusinessPartner master rather than carrying a copied-in name.
+  bpId      String?
   status    OrderStatus @default(PENDING)
   total     Decimal     @default(0) @db.Decimal(12, 2)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
   company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // RESTRICT, not CASCADE: deleting a partner must never delete their order
+  // history. Partners are deactivated instead.
+  bp       BusinessPartner? @relation("BpOrders", fields: [bpId], references: [id], onDelete: Restrict)
   items    OrderItem[]
   invoices Invoice[]
+  arInvoices ARInvoice[]
 
   @@index([companyId])
+  @@index([bpId])
   @@map("orders")
 }
 
@@ -953,6 +1001,8 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+  @@index([orderId])
+  @@index([productId])
 
   @@map("order_items")
 }
@@ -973,6 +1023,7 @@ model Invoice {
   lines   InvoiceLine[]
 
   @@index([companyId])
+  @@index([orderId])
   @@map("invoices")
 }
 
@@ -993,6 +1044,7 @@ model InvoiceLine {
   total       Decimal @db.Decimal(12, 2)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  @@index([invoiceId])
 
   @@map("invoice_lines")
 }
@@ -1096,6 +1148,7 @@ model PlanModule {
   module SystemModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@id([planId, moduleId])
+  @@index([moduleId])
   @@map("plan_modules")
 }
 
@@ -1665,10 +1718,21 @@ model Account {
   assetsCost           FixedAsset[]           @relation("AssetCostAccount")
   assetsDepreciation   FixedAsset[]           @relation("AssetDepreciationAccount")
   assetsAccumulated    FixedAsset[]           @relation("AssetAccumulatedAccount")
+  coDefaultAr          Company[]              @relation("CoDefaultAr")
+  coDefaultAp          Company[]              @relation("CoDefaultAp")
+  coDefaultCash        Company[]              @relation("CoDefaultCash")
+  coDefaultTaxPay      Company[]              @relation("CoDefaultTaxPay")
+  coDefaultTaxRec      Company[]              @relation("CoDefaultTaxRec")
+  coDefaultRevenue     Company[]              @relation("CoDefaultRevenue")
+  coDefaultExpense     Company[]              @relation("CoDefaultExpense")
+  bpControlAccounts    BusinessPartner[]      @relation("BpControlAccount")
+  bpDownPaymentAccounts BusinessPartner[]     @relation("BpDownPaymentAccount")
+  internalReconciliations InternalReconciliation[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
   @@index([parentId])
+  @@index([cashFlowLineItemId])
   @@map("accounts")
 }
 
@@ -1709,6 +1773,7 @@ model FiscalPeriod {
   updatedAt  DateTime           @updatedAt
 
   company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  closedBy User?          @relation("PeriodClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   parent   FiscalPeriod?  @relation("PeriodHierarchy", fields: [parentId], references: [id])
   children FiscalPeriod[] @relation("PeriodHierarchy")
   journals JournalEntry[]
@@ -1775,11 +1840,14 @@ model JournalEntry {
   reversalOf JournalEntry? @relation("JournalReversal", fields: [reversalOfId], references: [id])
   reversal   JournalEntry? @relation("JournalReversal")
 
+  createdBy       User?            @relation("JeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  postedBy        User?            @relation("JePostedBy", fields: [postedById], references: [id], onDelete: SetNull)
   series          NumberingSeries? @relation(fields: [seriesId], references: [id])
   transactionCode TransactionCode? @relation(fields: [transactionCodeId], references: [id])
   project         FinanceProject?  @relation(fields: [projectId], references: [id])
   template        PostingTemplate? @relation(fields: [templateId], references: [id])
   reconciliationLines InternalReconciliationLine[]
+  fixedAssetTransactions FixedAssetTransaction[]
 
   arInvoice  ARInvoice?
   arPayment  ARPayment?
@@ -1790,6 +1858,10 @@ model JournalEntry {
   @@index([companyId, status])
   @@index([periodId])
   @@index([source, sourceId])
+  @@index([projectId])
+  @@index([seriesId])
+  @@index([templateId])
+  @@index([transactionCodeId])
   @@map("journal_entries")
 }
 
@@ -1830,6 +1902,9 @@ model JournalLine {
   @@index([accountId])
   @@index([bpId])
   @@index([costCenterId])
+  @@index([distributionRuleId])
+  @@index([projectId])
+  @@index([taxCodeId])
   @@map("journal_lines")
 }
 
@@ -1906,6 +1981,9 @@ model ARInvoice {
   paidMinor      Int             @default(0)
   status         ARInvoiceStatus @default(DRAFT)
   paymentTermsId String?
+  // Links the receivable back to the sales order it was raised from, closing
+  // the second joint of the core chain.
+  orderId        String?
   notes          String?
   journalEntryId String?         @unique
   voidedAt       DateTime?
@@ -1915,6 +1993,8 @@ model ARInvoice {
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bp           BusinessPartner @relation("BpArInvoices", fields: [bpId], references: [id])
+  order        Order?          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  voidedBy     User?           @relation("ArVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        ARInvoiceLine[]
   payments     ARPayment[]
@@ -1923,6 +2003,8 @@ model ARInvoice {
   @@unique([companyId, number])
   @@index([companyId, status])
   @@index([bpId])
+  @@index([orderId])
+  @@index([paymentTermsId])
   @@map("ar_invoices")
 }
 
@@ -1936,11 +2018,16 @@ model ARInvoiceLine {
   taxPercent     Decimal? @db.Decimal(5, 2)
   taxMinor       Int      @default(0)
   accountId      String?
+  // Ties the revenue line to the inventory item that was sold.
+  productId      String?
 
   invoice ARInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   account Account?  @relation(fields: [accountId], references: [id])
+  product Product?  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([invoiceId])
+  @@index([productId])
+  @@index([accountId])
   @@map("ar_invoice_lines")
 }
 
@@ -1957,10 +2044,11 @@ model ARPayment {
   createdAt      DateTime @default(now())
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoice      ARInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice      ARInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   @@index([invoiceId])
+  @@index([companyId])
   @@map("ar_payments")
 }
 
@@ -1998,6 +2086,7 @@ model APBill {
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bp           BusinessPartner @relation("BpApBills", fields: [bpId], references: [id])
+  voidedBy     User?           @relation("ApVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        APBillLine[]
   payments     APPayment[]
@@ -2006,6 +2095,7 @@ model APBill {
   @@unique([companyId, bpId, number])
   @@index([companyId, status])
   @@index([bpId])
+  @@index([paymentTermsId])
   @@map("ap_bills")
 }
 
@@ -2024,6 +2114,7 @@ model APBillLine {
   account Account? @relation(fields: [accountId], references: [id])
 
   @@index([billId])
+  @@index([accountId])
   @@map("ap_bill_lines")
 }
 
@@ -2040,10 +2131,11 @@ model APPayment {
   createdAt      DateTime @default(now())
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bill         APBill        @relation(fields: [billId], references: [id], onDelete: Cascade)
+  bill         APBill        @relation(fields: [billId], references: [id], onDelete: Restrict)
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   @@index([billId])
+  @@index([companyId])
   @@map("ap_payments")
 }
 
@@ -2070,6 +2162,7 @@ model Attachment {
   uploadedBy User?   @relation(fields: [uploadedById], references: [id])
 
   @@index([companyId, entityType, entityId])
+  @@index([uploadedById])
   @@map("attachments")
 }
 
@@ -2091,7 +2184,8 @@ model CompanySetting {
   updatedAt DateTime @updatedAt
   updatedById String?
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("SettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@unique([companyId, group, key])
   @@index([companyId, group])
@@ -2308,6 +2402,7 @@ model AlertInstance {
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt])
+  @@index([alertId])
   @@map("alert_instances")
 }
 
@@ -2354,6 +2449,7 @@ model ApprovalStageApprover {
   user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([stageId, userId])
+  @@index([userId])
   @@map("approval_stage_approvers")
 }
 
@@ -2393,6 +2489,7 @@ model ApprovalTemplateOriginator {
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([templateId, userId])
+  @@index([userId])
   @@map("approval_template_originators")
 }
 
@@ -2407,6 +2504,7 @@ model ApprovalTemplateStage {
 
   @@unique([templateId, stageId])
   @@index([templateId, ordering])
+  @@index([stageId])
   @@map("approval_template_stages")
 }
 
@@ -2436,6 +2534,8 @@ model ApprovalRequest {
 
   @@index([companyId, status])
   @@index([documentType, documentId])
+  @@index([originatorId])
+  @@index([templateId])
   @@map("approval_requests")
 }
 
@@ -2453,6 +2553,7 @@ model ApprovalRequestStage {
 
   @@unique([requestId, stageId])
   @@index([requestId, ordering])
+  @@index([stageId])
   @@map("approval_request_stages")
 }
 
@@ -2475,6 +2576,7 @@ model DocumentApprovalDecision {
 
   @@unique([requestStageId, approverId])
   @@index([requestId])
+  @@index([approverId])
   @@map("document_approval_decisions")
 }
 
@@ -2496,6 +2598,8 @@ model SubstituteAuthorizer {
 
   @@index([companyId, isActive])
   @@index([originalUserId])
+  @@index([substituteUserId])
+  @@index([templateId])
   @@map("substitute_authorizers")
 }
 
@@ -2582,6 +2686,8 @@ model BusinessPartner {
   paymentTerms   PaymentTerms?         @relation(fields: [paymentTermsId], references: [id])
   paymentMethod  PaymentMethod?        @relation(fields: [paymentMethodId], references: [id])
   dunningTerm    DunningTerm?          @relation(fields: [dunningTermId], references: [id])
+  controlAccount     Account?          @relation("BpControlAccount", fields: [controlAccountId], references: [id], onDelete: Restrict)
+  downPaymentAccount Account?          @relation("BpDownPaymentAccount", fields: [downPaymentAccountId], references: [id], onDelete: Restrict)
 
   contacts     BpContactPerson[]
   addresses    BpAddress[]
@@ -2594,11 +2700,18 @@ model BusinessPartner {
   relationsTo   BpRelationship[] @relation("RelationTo")
   arInvoices   ARInvoice[]       @relation("BpArInvoices")
   apBills      APBill[]          @relation("BpApBills")
+  orders       Order[]           @relation("BpOrders")
   internalReconciliations InternalReconciliation[]
 
   @@unique([companyId, cardCode])
   @@index([companyId, cardType])
   @@index([companyId, cardName])
+  @@index([dunningTermId])
+  @@index([groupId])
+  @@index([paymentMethodId])
+  @@index([paymentTermsId])
+  @@index([salesEmployeeId])
+  @@index([territoryId])
   @@map("business_partners")
 }
 
@@ -2708,6 +2821,8 @@ model BpRelationship {
   type   BpRelationshipType @relation(fields: [typeId], references: [id])
 
   @@unique([fromBpId, toBpId, typeId])
+  @@index([toBpId])
+  @@index([typeId])
   @@map("bp_relationships")
 }
 
@@ -2787,6 +2902,8 @@ model SalesEmployee {
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
+  @@index([commissionGroupId])
+  @@index([territoryId])
   @@map("sales_employees")
 }
 
@@ -2864,6 +2981,9 @@ model Activity {
   @@index([bpId])
   @@index([assignedToUserId, status])
   @@index([companyId, startDate])
+  @@index([contactPersonId])
+  @@index([ownerId])
+  @@index([parentActivityId])
   @@map("activities")
 }
 
@@ -2988,6 +3108,10 @@ model Opportunity {
   @@index([companyId, status])
   @@index([bpId])
   @@index([salesEmployeeId])
+  @@index([contactPersonId])
+  @@index([currentStageId])
+  @@index([informationSourceId])
+  @@index([territoryId])
   @@map("opportunities")
 }
 
@@ -3015,6 +3139,9 @@ model OpportunityStageEntry {
   activity      Activity?           @relation(fields: [activityId], references: [id])
 
   @@index([opportunityId, ordering])
+  @@index([activityId])
+  @@index([salesEmployeeId])
+  @@index([stageDefId])
   @@map("opportunity_stage_entries")
 }
 
@@ -3031,6 +3158,7 @@ model OpportunityCompetitor {
   competitor  Competitor  @relation(fields: [competitorId], references: [id])
 
   @@unique([opportunityId, competitorId])
+  @@index([competitorId])
   @@map("opportunity_competitors")
 }
 
@@ -3045,6 +3173,7 @@ model OpportunityPartner {
   partner     CrmPartner  @relation(fields: [partnerId], references: [id])
 
   @@unique([opportunityId, partnerId])
+  @@index([partnerId])
   @@map("opportunity_partners")
 }
 
@@ -3079,6 +3208,7 @@ model Campaign {
 
   @@unique([companyId, campaignNumber])
   @@index([companyId, status])
+  @@index([salesEmployeeId])
   @@map("campaigns")
 }
 
@@ -3095,6 +3225,8 @@ model CampaignTarget {
   contactPerson BpContactPerson? @relation(fields: [contactPersonId], references: [id])
 
   @@index([campaignId])
+  @@index([bpId])
+  @@index([contactPersonId])
   @@map("campaign_targets")
 }
 
@@ -3140,6 +3272,7 @@ model AccountDetermination {
   account Account @relation(fields: [accountId], references: [id])
 
   @@unique([companyId, area, key])
+  @@index([accountId])
   @@map("account_determinations")
 }
 
@@ -3198,6 +3331,7 @@ model TaxCode {
   lines   JournalLine[]
 
   @@unique([companyId, code])
+  @@index([accountId])
   @@map("tax_codes")
 }
 
@@ -3216,6 +3350,7 @@ model CashFlowLineItem {
   accounts Account[]
 
   @@unique([companyId, code])
+  @@index([parentId])
   @@map("cash_flow_line_items")
 }
 
@@ -3252,6 +3387,7 @@ model PostingTemplateLine {
   account  Account         @relation(fields: [accountId], references: [id])
 
   @@index([templateId, ordering])
+  @@index([accountId])
   @@map("posting_template_lines")
 }
 
@@ -3302,6 +3438,7 @@ model RecurringPostingLine {
   account   Account          @relation(fields: [accountId], references: [id])
 
   @@index([recurringId])
+  @@index([accountId])
   @@map("recurring_posting_lines")
 }
 
@@ -3343,9 +3480,12 @@ model CostCenter {
   journalLines      JournalLine[]
   distributionLines DistributionRuleLine[]
   budgetLines       BudgetLine[]
+  fixedAssets       FixedAsset[]
 
   @@unique([companyId, dimensionId, code])
   @@index([companyId])
+  @@index([dimensionId])
+  @@index([parentId])
   @@map("cost_centers")
 }
 
@@ -3371,6 +3511,7 @@ model DistributionRule {
   journalLines JournalLine[]
 
   @@unique([companyId, dimensionId, code])
+  @@index([dimensionId])
   @@map("distribution_rules")
 }
 
@@ -3384,6 +3525,7 @@ model DistributionRuleLine {
   costCenter CostCenter       @relation(fields: [costCenterId], references: [id])
 
   @@unique([ruleId, costCenterId])
+  @@index([costCenterId])
   @@map("distribution_rule_lines")
 }
 
@@ -3407,6 +3549,7 @@ model BudgetScenario {
   lines     BudgetLine[]
 
   @@unique([companyId, code])
+  @@index([basedOnScenarioId])
   @@map("budget_scenarios")
 }
 
@@ -3451,6 +3594,10 @@ model BudgetLine {
 
   @@unique([scenarioId, accountId, costCenterId, periodId])
   @@index([companyId, scenarioId])
+  @@index([accountId])
+  @@index([costCenterId])
+  @@index([distributionMethodId])
+  @@index([periodId])
   @@map("budget_lines")
 }
 
@@ -3490,6 +3637,8 @@ model HouseBankAccount {
   paymentMethods PaymentMethod[]
 
   @@unique([companyId, bankId, accountNo])
+  @@index([bankId])
+  @@index([glAccountId])
   @@map("house_bank_accounts")
 }
 
@@ -3513,6 +3662,7 @@ model PaymentMethod {
   partners         BusinessPartner[]
 
   @@unique([companyId, code])
+  @@index([houseBankAccountId])
   @@map("payment_methods")
 }
 
@@ -3550,9 +3700,11 @@ model InternalReconciliation {
 
   company Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bp      BusinessPartner?             @relation(fields: [bpId], references: [id])
+  account Account?                     @relation(fields: [accountId], references: [id], onDelete: Restrict)
   lines   InternalReconciliationLine[]
 
   @@index([companyId, bpId])
+  @@index([bpId])
   @@map("internal_reconciliations")
 }
 
@@ -3566,6 +3718,7 @@ model InternalReconciliationLine {
   journalEntry   JournalEntry           @relation(fields: [journalEntryId], references: [id])
 
   @@index([reconciliationId])
+  @@index([journalEntryId])
   @@map("internal_reconciliation_lines")
 }
 
@@ -3615,10 +3768,14 @@ model FixedAsset {
   costAccount         Account? @relation("AssetCostAccount", fields: [costAccountId], references: [id])
   depreciationAccount Account? @relation("AssetDepreciationAccount", fields: [depreciationAccountId], references: [id])
   accumulatedAccount  Account? @relation("AssetAccumulatedAccount", fields: [accumulatedAccountId], references: [id])
+  costCenter          CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
   transactions        FixedAssetTransaction[]
 
   @@unique([companyId, code])
   @@index([companyId, status])
+  @@index([accumulatedAccountId])
+  @@index([costAccountId])
+  @@index([depreciationAccountId])
   @@map("fixed_assets")
 }
 
@@ -3642,7 +3799,8 @@ model FixedAssetTransaction {
   remarks        String?
   createdAt      DateTime             @default(now())
 
-  asset FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asset        FixedAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
 
   @@index([assetId, postingDate])
   @@map("fixed_asset_transactions")
