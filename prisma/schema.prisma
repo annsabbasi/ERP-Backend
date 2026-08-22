@@ -1694,6 +1694,7 @@ model Account {
   bpDownPaymentAccounts BusinessPartner[]     @relation("BpDownPaymentAccount")
   internalReconciliations InternalReconciliation[]
 
+  currencyRef Currency @relation("accounts", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@unique([companyId, code])
   @@index([companyId, type])
   @@index([parentId])
@@ -1823,6 +1824,7 @@ model JournalEntry {
   apBill     APBill?
   apPayment  APPayment?
 
+  currencyRef Currency @relation("journalEntries", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@unique([companyId, number])
   @@index([companyId, status])
   @@index([periodId])
@@ -1940,6 +1942,10 @@ model ARInvoice {
   id             String          @id @default(uuid())
   companyId      String
   bpId           String          // BusinessPartner with cardType CUSTOMER or LEAD
+  // Stored copy of the partner's cardType. It exists so the foreign key can
+  // pin the type; a CHECK constraint holds it to CUSTOMER. The AR service must
+  // set it from the partner — an insert that omits it fails loudly.
+  bpCardType     BpCardType
   number         String          // unique per company; auto-generated
   issueDate      DateTime
   dueDate        DateTime?
@@ -1961,7 +1967,7 @@ model ARInvoice {
   updatedAt      DateTime        @updatedAt
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bp           BusinessPartner @relation("BpArInvoices", fields: [companyId, bpId], references: [companyId, id])
+  bp           BusinessPartner @relation("BpArInvoices", fields: [companyId, bpId, bpCardType], references: [companyId, id, cardType])
   order        Order?          @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Restrict)
   voidedBy     User?           @relation("ArVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
@@ -1969,6 +1975,7 @@ model ARInvoice {
   payments     ARPayment[]
   journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
+  currencyRef Currency @relation("arInvoices", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@unique([companyId, number])
   @@index([companyId, status])
   @@index([bpId])
@@ -2018,6 +2025,7 @@ model ARPayment {
   invoice      ARInvoice     @relation(fields: [companyId, invoiceId], references: [companyId, id], onDelete: Restrict)
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
+  currencyRef Currency @relation("arPayments", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@index([invoiceId])
   @@index([companyId])
   @@map("ar_payments")
@@ -2038,6 +2046,8 @@ model APBill {
   id             String       @id @default(uuid())
   companyId      String
   bpId           String        // BusinessPartner with cardType VENDOR
+  // See ARInvoice.bpCardType. A CHECK constraint holds this to VENDOR.
+  bpCardType     BpCardType
   number         String        // vendor's invoice number — not auto-generated
   issueDate      DateTime
   dueDate        DateTime?
@@ -2056,13 +2066,14 @@ model APBill {
   updatedAt      DateTime      @updatedAt
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bp           BusinessPartner @relation("BpApBills", fields: [companyId, bpId], references: [companyId, id])
+  bp           BusinessPartner @relation("BpApBills", fields: [companyId, bpId, bpCardType], references: [companyId, id, cardType])
   voidedBy     User?           @relation("ApVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        APBillLine[]
   payments     APPayment[]
   journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
+  currencyRef Currency @relation("apBills", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@unique([companyId, bpId, number])
   @@index([companyId, status])
   @@index([bpId])
@@ -2107,6 +2118,7 @@ model APPayment {
   bill         APBill        @relation(fields: [companyId, billId], references: [companyId, id], onDelete: Restrict)
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
+  currencyRef Currency @relation("apPayments", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@index([billId])
   @@index([companyId])
   @@map("ap_payments")
@@ -2676,6 +2688,7 @@ model BusinessPartner {
   orders       Order[]           @relation("BpOrders")
   internalReconciliations InternalReconciliation[]
 
+  currencyRef Currency @relation("businessPartners", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
   @@unique([companyId, cardCode])
   @@index([companyId, cardType])
   @@index([companyId, cardName])
@@ -2687,6 +2700,9 @@ model BusinessPartner {
   @@index([territoryId])
   // Target for composite tenant-scoped foreign keys (F6).
   @@unique([companyId, id])
+  // Target for type-discriminated foreign keys (F3): AR may only reference a
+  // CUSTOMER row, AP only a VENDOR row, and the database checks it.
+  @@unique([companyId, id, cardType])
   @@map("business_partners")
 }
 
@@ -3221,6 +3237,13 @@ model Currency {
   isActive      Boolean @default(true)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  arInvoices ARInvoice[] @relation("arInvoices")
+  apBills APBill[] @relation("apBills")
+  arPayments ARPayment[] @relation("arPayments")
+  apPayments APPayment[] @relation("apPayments")
+  businessPartners BusinessPartner[] @relation("businessPartners")
+  journalEntries JournalEntry[] @relation("journalEntries")
+  accounts Account[] @relation("accounts")
 
   @@unique([companyId, code])
   @@map("currencies")

@@ -154,8 +154,8 @@ async function main() {
       key: 'starter',
       name: 'Starter',
       description: 'Core (HR, Finance, Reports). Up to 25 seats.',
-      monthlyPrice: 4900,    // cents
-      annualPrice: 49000,
+      monthlyPrice: 49.00,
+      annualPrice: 490.00,
       maxUsers: 25,
       sortOrder: 10,
       moduleSlugs: ['administration', 'financials', 'hr', 'hr-employee-records', 'reports'],
@@ -164,8 +164,8 @@ async function main() {
       key: 'business',
       name: 'Business',
       description: 'Core + 3 industry modules. Up to 100 seats.',
-      monthlyPrice: 14900,
-      annualPrice: 149000,
+      monthlyPrice: 149.00,
+      annualPrice: 1490.00,
       maxUsers: 100,
       sortOrder: 20,
       moduleSlugs: [
@@ -177,8 +177,8 @@ async function main() {
       key: 'premium',
       name: 'Premium',
       description: 'Core + all industry modules. Up to 500 seats.',
-      monthlyPrice: 39900,
-      annualPrice: 399000,
+      monthlyPrice: 399.00,
+      annualPrice: 3990.00,
       maxUsers: 500,
       sortOrder: 30,
       moduleSlugs: ALL_SLUGS,
@@ -245,6 +245,30 @@ async function main() {
     },
   });
   console.log(`✅ Demo company seeded  →  slug: "demo"`);
+
+  // Currency master. Every monetary column references this by (companyId,
+  // code), so a company with an empty currency master cannot save an invoice
+  // at all — this is required setup, not sample data.
+  const CURRENCIES = [
+    { code: 'USD', name: 'US Dollar',        hundredthName: 'Cents' },
+    { code: 'EUR', name: 'Euro',             hundredthName: 'Cents' },
+    { code: 'GBP', name: 'Pound Sterling',   hundredthName: 'Pence' },
+    { code: 'PKR', name: 'Pakistani Rupee',  hundredthName: 'Paisa' },
+    { code: 'AED', name: 'UAE Dirham',       hundredthName: 'Fils' },
+    { code: 'SAR', name: 'Saudi Riyal',      hundredthName: 'Halala' },
+    { code: 'INR', name: 'Indian Rupee',     hundredthName: 'Paise' },
+    { code: 'CAD', name: 'Canadian Dollar',  hundredthName: 'Cents' },
+    { code: 'AUD', name: 'Australian Dollar',hundredthName: 'Cents' },
+    { code: 'JPY', name: 'Japanese Yen',     hundredthName: 'Sen' },
+  ];
+  for (const c of CURRENCIES) {
+    await prisma.currency.upsert({
+      where: { companyId_code: { companyId: demoCompany.id, code: c.code } },
+      update: {},
+      create: { companyId: demoCompany.id, ...c, decimals: 2 },
+    });
+  }
+  console.log(`✅ ${CURRENCIES.length} currencies seeded`);
 
   // Subscribe the demo company to the Premium plan, in TRIAL.
   const premium = await prisma.plan.findUnique({ where: { key: 'premium' } });
