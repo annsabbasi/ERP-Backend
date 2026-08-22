@@ -28,7 +28,7 @@ export class CreateContractDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  salaryAmountMinor?: number;
+  salaryAmount?: number;
 
   @IsString()
   @IsOptional()
@@ -72,7 +72,7 @@ export class UpdateContractDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  salaryAmountMinor?: number;
+  salaryAmount?: number;
 
   @IsString()
   @IsOptional()

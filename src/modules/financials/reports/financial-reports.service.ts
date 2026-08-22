@@ -363,7 +363,7 @@ export class FinancialReportsService {
 
     for (const d of docs) {
       // Amounts are stored in minor units; the report works in major units.
-      const outstanding = (d.totalMinor - d.paidMinor) / 100;
+      const outstanding = Number(new Prisma.Decimal(d.total).minus(d.paid));
       if (outstanding <= 0) continue;
 
       const due = d.dueDate ?? d.issueDate;

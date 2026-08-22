@@ -182,16 +182,16 @@ export class BusinessPartnersService extends TenantCrudService {
     const [ar, ap] = await Promise.all([
       this.prisma.aRInvoice.aggregate({
         where: { companyId, bpId: id, status: { notIn: ['VOID', 'DRAFT'] } },
-        _sum: { totalMinor: true, paidMinor: true },
+        _sum: { total: true, paid: true },
       }),
       this.prisma.aPBill.aggregate({
         where: { companyId, bpId: id, status: { notIn: ['VOID', 'DRAFT'] } },
-        _sum: { totalMinor: true, paidMinor: true },
+        _sum: { total: true, paid: true },
       }),
     ]);
 
-    const openAr = ((ar._sum.totalMinor ?? 0) - (ar._sum.paidMinor ?? 0)) / 100;
-    const openAp = ((ap._sum.totalMinor ?? 0) - (ap._sum.paidMinor ?? 0)) / 100;
+    const openAr = new Prisma.Decimal(ar._sum.total ?? 0).minus(ar._sum.paid ?? 0);
+    const openAp = new Prisma.Decimal(ap._sum.total ?? 0).minus(ap._sum.paid ?? 0);
 
     const opps = await this.prisma.opportunity.aggregate({
       where: { companyId, bpId: id, status: 'OPEN' },
@@ -202,7 +202,7 @@ export class BusinessPartnersService extends TenantCrudService {
       where: { id },
       data: {
         // A vendor's balance is what we owe; a customer's is what they owe us.
-        accountBalance: new Prisma.Decimal(openAr > 0 ? openAr : openAp),
+        accountBalance: openAr.greaterThan(0) ? openAr : openAp,
         opportunitiesAmount: opps._sum.potentialAmount ?? new Prisma.Decimal(0),
       },
       ...this.readArgs(),

@@ -71,7 +71,6 @@ model Company {
   products         Product[]
   inventoryItems   InventoryItem[]
   orders           Order[]
-  invoices         Invoice[]
   subscription        Subscription?
   billingInvoices     BillingInvoice[]
   workflowDefinitions WorkflowDefinition[]
@@ -563,10 +562,10 @@ model Employee {
   terminationDate DateTime?
   status          EmployeeStatus @default(ACTIVE)
   customFields    Json?
-  // Legacy quick-access salary — superseded by EmploymentContract.salaryAmountMinor.
+  // Legacy quick-access salary — superseded by EmploymentContract.salaryAmount.
   // Kept for back-compat with the skeletal scaffold; new code should write
   // contracts and read `currentContract` instead.
-  salary          Decimal?       @db.Decimal(12, 2)
+  salary          Decimal?       @db.Decimal(19, 4)
   // Mirror legacy position string for back-compat; positionId is canonical.
   position        String?
   isActive        Boolean        @default(true)
@@ -643,8 +642,8 @@ model EmploymentContract {
   type              EmploymentType
   startDate         DateTime
   endDate           DateTime?
-  // Monetary fields use integer minor units + currency code (Section 14.1).
-  salaryAmountMinor Int?
+  // Monetary fields are Decimal(19,4) + an ISO currency code.
+  salaryAmount Decimal?  @db.Decimal(19, 4)
   salaryCurrency    String?        @default("USD")
   // "MONTHLY" | "ANNUAL" | "HOURLY" | "DAILY" — kept as string to allow custom.
   salaryFrequency   String?
@@ -676,10 +675,10 @@ model LeaveType {
   description      String?
   accrualMode      LeaveAccrualMode @default(NONE)
   // Days accrued per period (when accrualMode = PERIODIC).
-  accrualDays      Decimal?         @db.Decimal(6, 2)
+  accrualDays      Decimal?         @db.Decimal(19, 4)
   // "MONTHLY" | "YEARLY" | "PAY_PERIOD" — interpreted by the accrual runner.
   accrualPeriod    String?
-  maxBalance       Decimal?         @db.Decimal(6, 2)
+  maxBalance       Decimal?         @db.Decimal(19, 4)
   paid             Boolean          @default(true)
   requiresApproval Boolean          @default(true)
   workflowKey      String?          // workflow definition key (default "leave_request")
@@ -702,10 +701,10 @@ model LeaveBalance {
   employeeId    String
   leaveTypeId   String
   periodKey     String
-  accruedDays   Decimal  @db.Decimal(6, 2) @default(0)
-  usedDays      Decimal  @db.Decimal(6, 2) @default(0)
-  pendingDays   Decimal  @db.Decimal(6, 2) @default(0)
-  carryOverDays Decimal  @db.Decimal(6, 2) @default(0)
+  accruedDays   Decimal  @db.Decimal(19, 4) @default(0)
+  usedDays      Decimal  @db.Decimal(19, 4) @default(0)
+  pendingDays   Decimal  @db.Decimal(19, 4) @default(0)
+  carryOverDays Decimal  @db.Decimal(19, 4) @default(0)
   updatedAt     DateTime @updatedAt
 
   employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -734,7 +733,7 @@ model LeaveRequest {
   startDate          DateTime
   endDate            DateTime
   // Fractional days for half-day support.
-  days               Decimal            @db.Decimal(6, 2)
+  days               Decimal            @db.Decimal(19, 4)
   reason             String?
   status             LeaveRequestStatus @default(PENDING)
   workflowInstanceId String?
@@ -927,7 +926,7 @@ model Product {
   companyId   String
   name        String
   description String?
-  price       Decimal  @db.Decimal(12, 2)
+  price       Decimal  @db.Decimal(19, 4)
   sku         String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -967,20 +966,24 @@ model Order {
   // BusinessPartner master rather than carrying a copied-in name.
   bpId      String?
   status    OrderStatus @default(PENDING)
-  total     Decimal     @default(0) @db.Decimal(12, 2)
+  total     Decimal     @default(0) @db.Decimal(19, 4)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
   company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // RESTRICT, not CASCADE: deleting a partner must never delete their order
   // history. Partners are deactivated instead.
-  bp       BusinessPartner? @relation("BpOrders", fields: [bpId], references: [id], onDelete: Restrict)
-  items    OrderItem[]
-  invoices Invoice[]
+  bp       BusinessPartner? @relation("BpOrders", fields: [companyId, bpId], references: [companyId, id], onDelete: Restrict)
+  items      OrderItem[]
+  // ar_invoices is the single authoritative receivable. The legacy `invoices`
+  // table was retired: it carried a bare total with no accounting, no payment
+  // terms and no journal entry, so revenue had two possible answers.
   arInvoices ARInvoice[]
 
   @@index([companyId])
   @@index([bpId])
+  // Target for composite tenant-scoped foreign keys (F6).
+  @@unique([companyId, id])
   @@map("orders")
 }
 
@@ -997,7 +1000,7 @@ model OrderItem {
   orderId   String
   productId String
   quantity  Int
-  unitPrice Decimal @db.Decimal(12, 2)
+  unitPrice Decimal @db.Decimal(19, 4)
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
@@ -1008,46 +1011,8 @@ model OrderItem {
 }
 
 // ─── INVOICES ─────────────────────────────────────────────────────────────────
-model Invoice {
-  id        String        @id @default(uuid())
-  companyId String
-  orderId   String?
-  status    InvoiceStatus @default(DRAFT)
-  total     Decimal       @default(0) @db.Decimal(12, 2)
-  dueDate   DateTime?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
 
-  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  order   Order?        @relation(fields: [orderId], references: [id])
-  lines   InvoiceLine[]
 
-  @@index([companyId])
-  @@index([orderId])
-  @@map("invoices")
-}
-
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
-}
-
-model InvoiceLine {
-  id          String  @id @default(uuid())
-  invoiceId   String
-  description String
-  quantity    Int
-  unitPrice   Decimal @db.Decimal(12, 2)
-  total       Decimal @db.Decimal(12, 2)
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  @@index([invoiceId])
-
-  @@map("invoice_lines")
-}
 
 // ─── ACTIVITY LOGS ────────────────────────────────────────────────────────────
 // High-volume informational log (Section 6.12). For audit-grade records that
@@ -1123,8 +1088,8 @@ model Plan {
   description   String?
   isPublic      Boolean  @default(true)   // shown in self-service signup
   isActive      Boolean  @default(true)
-  monthlyPrice  Int?     // minor units (cents) — null = custom-quoted
-  annualPrice   Int?     // minor units
+  monthlyPrice  Decimal?  @db.Decimal(19, 4) // null = custom-quoted
+  annualPrice   Decimal?  @db.Decimal(19, 4)
   currency      String   @default("USD")
   maxUsers      Int?     // null = unlimited (Enterprise)
   trialDays     Int      @default(14)
@@ -1234,7 +1199,7 @@ model BillingInvoice {
   subscriptionId  String?
   number          String               @unique
   status          BillingInvoiceStatus @default(DRAFT)
-  amountMinor     Int                  // total in minor units (e.g. cents)
+  amount     Decimal  @db.Decimal(19, 4)                  // total in minor units (e.g. cents)
   currency        String               @default("USD")
   periodStart     DateTime?
   periodEnd       DateTime?
@@ -1257,7 +1222,7 @@ model BillingInvoice {
 model BillingPayment {
   id          String   @id @default(uuid())
   invoiceId   String
-  amountMinor Int
+  amount Decimal  @db.Decimal(19, 4)
   currency    String   @default("USD")
   method      String?  // "manual" | "stripe" | "wire" — string to avoid lock-in
   reference   String?
@@ -1733,6 +1698,8 @@ model Account {
   @@index([companyId, type])
   @@index([parentId])
   @@index([cashFlowLineItemId])
+  // Target for composite tenant-scoped foreign keys (F6).
+  @@unique([companyId, id])
   @@map("accounts")
 }
 
@@ -1783,6 +1750,8 @@ model FiscalPeriod {
   @@index([companyId, status])
   @@index([companyId, startDate, endDate])
   @@index([parentId])
+  // Target for composite tenant-scoped foreign keys (F6).
+  @@unique([companyId, id])
   @@map("fiscal_periods")
 }
 
@@ -1812,8 +1781,8 @@ model JournalEntry {
   postedById   String?
   reversalOfId String?   @unique   // points at the original being reversed; unique = each entry reversed at most once
   currency     String              @default("USD")
-  totalDebit   Decimal             @db.Decimal(15, 2) @default(0)
-  totalCredit  Decimal             @db.Decimal(15, 2) @default(0)
+  totalDebit   Decimal             @db.Decimal(19, 4) @default(0)
+  totalCredit  Decimal             @db.Decimal(19, 4) @default(0)
   source       String?             // "ar_invoice" | "ap_bill" | "ar_payment" | "ap_payment" | "manual"
   sourceId     String?
   createdAt    DateTime            @default(now())
@@ -1835,7 +1804,7 @@ model JournalEntry {
   createdById       String?
 
   company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  period     FiscalPeriod  @relation(fields: [periodId], references: [id])
+  period     FiscalPeriod  @relation(fields: [companyId, periodId], references: [companyId, id])
   lines      JournalLine[]
   reversalOf JournalEntry? @relation("JournalReversal", fields: [reversalOfId], references: [id])
   reversal   JournalEntry? @relation("JournalReversal")
@@ -1869,8 +1838,8 @@ model JournalLine {
   id          String   @id @default(uuid())
   entryId     String
   accountId   String
-  debit       Decimal  @db.Decimal(15, 2) @default(0)
-  credit      Decimal  @db.Decimal(15, 2) @default(0)
+  debit       Decimal  @db.Decimal(19, 4) @default(0)
+  credit      Decimal  @db.Decimal(19, 4) @default(0)
   description String?
   ordering    Int      @default(0)
 
@@ -1883,7 +1852,7 @@ model JournalLine {
   distributionRuleId String?
   projectId          String?
   taxCodeId          String?
-  taxAmount          Decimal? @db.Decimal(15, 2)
+  taxAmount          Decimal? @db.Decimal(19, 4)
   dueDate            DateTime?
   ref1               String?
   ref2               String?
@@ -1975,10 +1944,10 @@ model ARInvoice {
   issueDate      DateTime
   dueDate        DateTime?
   currency       String          @default("USD")
-  subtotalMinor  Int             @default(0)
-  taxMinor       Int             @default(0)
-  totalMinor     Int             @default(0)
-  paidMinor      Int             @default(0)
+  subtotal  Decimal  @db.Decimal(19, 4) @default(0)
+  tax       Decimal  @db.Decimal(19, 4) @default(0)
+  total     Decimal  @db.Decimal(19, 4) @default(0)
+  paid      Decimal  @db.Decimal(19, 4) @default(0)
   status         ARInvoiceStatus @default(DRAFT)
   paymentTermsId String?
   // Links the receivable back to the sales order it was raised from, closing
@@ -1992,8 +1961,8 @@ model ARInvoice {
   updatedAt      DateTime        @updatedAt
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bp           BusinessPartner @relation("BpArInvoices", fields: [bpId], references: [id])
-  order        Order?          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  bp           BusinessPartner @relation("BpArInvoices", fields: [companyId, bpId], references: [companyId, id])
+  order        Order?          @relation(fields: [companyId, orderId], references: [companyId, id], onDelete: Restrict)
   voidedBy     User?           @relation("ArVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        ARInvoiceLine[]
@@ -2005,6 +1974,8 @@ model ARInvoice {
   @@index([bpId])
   @@index([orderId])
   @@index([paymentTermsId])
+  // Target for composite tenant-scoped foreign keys (F6).
+  @@unique([companyId, id])
   @@map("ar_invoices")
 }
 
@@ -2012,11 +1983,11 @@ model ARInvoiceLine {
   id             String   @id @default(uuid())
   invoiceId      String
   description    String
-  quantity       Decimal  @db.Decimal(15, 4) @default(1)
-  unitPriceMinor Int
-  lineTotalMinor Int
+  quantity       Decimal  @db.Decimal(19, 4) @default(1)
+  unitPrice Decimal  @db.Decimal(19, 4)
+  lineTotal Decimal  @db.Decimal(19, 4)
   taxPercent     Decimal? @db.Decimal(5, 2)
-  taxMinor       Int      @default(0)
+  tax       Decimal  @db.Decimal(19, 4) @default(0)
   accountId      String?
   // Ties the revenue line to the inventory item that was sold.
   productId      String?
@@ -2035,7 +2006,7 @@ model ARPayment {
   id             String   @id @default(uuid())
   companyId      String
   invoiceId      String
-  amountMinor    Int
+  amount    Decimal  @db.Decimal(19, 4)
   currency       String   @default("USD")
   method         String?  // "manual" | "wire" | "stripe" | …
   reference      String?
@@ -2044,7 +2015,7 @@ model ARPayment {
   createdAt      DateTime @default(now())
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoice      ARInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  invoice      ARInvoice     @relation(fields: [companyId, invoiceId], references: [companyId, id], onDelete: Restrict)
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   @@index([invoiceId])
@@ -2071,10 +2042,10 @@ model APBill {
   issueDate      DateTime
   dueDate        DateTime?
   currency       String        @default("USD")
-  subtotalMinor  Int           @default(0)
-  taxMinor       Int           @default(0)
-  totalMinor     Int           @default(0)
-  paidMinor      Int           @default(0)
+  subtotal  Decimal  @db.Decimal(19, 4) @default(0)
+  tax       Decimal  @db.Decimal(19, 4) @default(0)
+  total     Decimal  @db.Decimal(19, 4) @default(0)
+  paid      Decimal  @db.Decimal(19, 4) @default(0)
   status         APBillStatus  @default(DRAFT)
   paymentTermsId String?
   notes          String?
@@ -2085,7 +2056,7 @@ model APBill {
   updatedAt      DateTime      @updatedAt
 
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bp           BusinessPartner @relation("BpApBills", fields: [bpId], references: [id])
+  bp           BusinessPartner @relation("BpApBills", fields: [companyId, bpId], references: [companyId, id])
   voidedBy     User?           @relation("ApVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerms?   @relation(fields: [paymentTermsId], references: [id])
   lines        APBillLine[]
@@ -2096,6 +2067,8 @@ model APBill {
   @@index([companyId, status])
   @@index([bpId])
   @@index([paymentTermsId])
+  // Target for composite tenant-scoped foreign keys (F6).
+  @@unique([companyId, id])
   @@map("ap_bills")
 }
 
@@ -2103,11 +2076,11 @@ model APBillLine {
   id             String   @id @default(uuid())
   billId         String
   description    String
-  quantity       Decimal  @db.Decimal(15, 4) @default(1)
-  unitPriceMinor Int
-  lineTotalMinor Int
+  quantity       Decimal  @db.Decimal(19, 4) @default(1)
+  unitPrice Decimal  @db.Decimal(19, 4)
+  lineTotal Decimal  @db.Decimal(19, 4)
   taxPercent     Decimal? @db.Decimal(5, 2)
-  taxMinor       Int      @default(0)
+  tax       Decimal  @db.Decimal(19, 4) @default(0)
   accountId      String?
 
   bill    APBill   @relation(fields: [billId], references: [id], onDelete: Cascade)
@@ -2122,7 +2095,7 @@ model APPayment {
   id             String   @id @default(uuid())
   companyId      String
   billId         String
-  amountMinor    Int
+  amount    Decimal  @db.Decimal(19, 4)
   currency       String   @default("USD")
   method         String?
   reference      String?
@@ -2131,7 +2104,7 @@ model APPayment {
   createdAt      DateTime @default(now())
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bill         APBill        @relation(fields: [billId], references: [id], onDelete: Restrict)
+  bill         APBill        @relation(fields: [companyId, billId], references: [companyId, id], onDelete: Restrict)
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   @@index([billId])
@@ -2462,7 +2435,7 @@ model ApprovalTemplate {
   // Document types this template guards, e.g. ["ar_invoice","purchase_order"].
   documentTypes String[]
   // Declarative trigger terms evaluated against the document:
-  // { "always": false, "conditions": [{ "field": "totalMinor", "op": "gt", "value": 500000 }] }
+  // { "always": false, "conditions": [{ "field": "total", "op": "gt", "value": 500000 }] }
   terms       Json     @default("{}")
   validFrom   DateTime?
   validTo     DateTime?
@@ -2653,19 +2626,19 @@ model BusinessPartner {
   paymentTermsId   String?
   paymentMethodId  String?
   dunningTermId    String?
-  creditLimit      Decimal? @db.Decimal(15, 2)
-  commitmentLimit  Decimal? @db.Decimal(15, 2)
+  creditLimit      Decimal? @db.Decimal(19, 4)
+  commitmentLimit  Decimal? @db.Decimal(19, 4)
   discountPercent  Decimal? @db.Decimal(5, 2)
-  interestOnArrears Decimal? @db.Decimal(5, 2)
+  interestOnArrears Decimal? @db.Decimal(19, 4)
   priceListId      String?
   // ── Accounting tab: control accounts overriding the company defaults ──
   controlAccountId String?
   downPaymentAccountId String?
   // ── Running balances, maintained by AR/AP posting ──
-  accountBalance      Decimal @db.Decimal(15, 2) @default(0)
-  ordersBalance       Decimal @db.Decimal(15, 2) @default(0)
-  deliveriesBalance   Decimal @db.Decimal(15, 2) @default(0)
-  opportunitiesAmount Decimal @db.Decimal(15, 2) @default(0)
+  accountBalance      Decimal @db.Decimal(19, 4) @default(0)
+  ordersBalance       Decimal @db.Decimal(19, 4) @default(0)
+  deliveriesBalance   Decimal @db.Decimal(19, 4) @default(0)
+  opportunitiesAmount Decimal @db.Decimal(19, 4) @default(0)
   // ── Properties tab: 64 named boolean slots in SAP; stored as a JSON set ──
   properties Json?
   industry   String?
@@ -2712,6 +2685,8 @@ model BusinessPartner {
   @@index([paymentTermsId])
   @@index([salesEmployeeId])
   @@index([territoryId])
+  // Target for composite tenant-scoped foreign keys (F6).
+  @@unique([companyId, id])
   @@map("business_partners")
 }
 
@@ -3075,10 +3050,10 @@ model Opportunity {
   predictedClosingDate DateTime?
   // ── Potential tab ──
   currency        String            @default("USD")
-  potentialAmount Decimal           @db.Decimal(15, 2) @default(0)
-  weightedAmount  Decimal           @db.Decimal(15, 2) @default(0)
+  potentialAmount Decimal           @db.Decimal(19, 4) @default(0)
+  weightedAmount  Decimal           @db.Decimal(19, 4) @default(0)
   closePercent    Decimal           @db.Decimal(5, 2)  @default(0)
-  grossProfit     Decimal?          @db.Decimal(15, 2)
+  grossProfit     Decimal?          @db.Decimal(19, 4)
   grossProfitPercent Decimal?       @db.Decimal(5, 2)
   // ── General tab ──
   informationSourceId String?
@@ -3124,8 +3099,8 @@ model OpportunityStageEntry {
   startDate       DateTime?
   closingDate     DateTime?
   closePercent    Decimal  @db.Decimal(5, 2) @default(0)
-  potentialAmount Decimal  @db.Decimal(15, 2) @default(0)
-  weightedAmount  Decimal  @db.Decimal(15, 2) @default(0)
+  potentialAmount Decimal  @db.Decimal(19, 4) @default(0)
+  weightedAmount  Decimal  @db.Decimal(19, 4) @default(0)
   salesEmployeeId String?
   activityId      String?
   docType         String?
@@ -3196,8 +3171,8 @@ model Campaign {
   endDate         DateTime?
   salesEmployeeId String?
   targetGroup     String?
-  budgetAmount    Decimal?       @db.Decimal(15, 2)
-  revenueAmount   Decimal?       @db.Decimal(15, 2)
+  budgetAmount    Decimal?       @db.Decimal(19, 4)
+  revenueAmount   Decimal?       @db.Decimal(19, 4)
   remarks         String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -3429,8 +3404,8 @@ model RecurringPostingLine {
   id          String   @id @default(uuid())
   recurringId String
   accountId   String
-  debit       Decimal  @db.Decimal(15, 2) @default(0)
-  credit      Decimal  @db.Decimal(15, 2) @default(0)
+  debit       Decimal  @db.Decimal(19, 4) @default(0)
+  credit      Decimal  @db.Decimal(19, 4) @default(0)
   description String?
   ordering    Int      @default(0)
 
@@ -3578,8 +3553,8 @@ model BudgetLine {
   costCenterId         String?
   periodId             String?
   distributionMethodId String?
-  annualDebit          Decimal  @db.Decimal(15, 2) @default(0)
-  annualCredit         Decimal  @db.Decimal(15, 2) @default(0)
+  annualDebit          Decimal  @db.Decimal(19, 4) @default(0)
+  annualCredit         Decimal  @db.Decimal(19, 4) @default(0)
   // Per-period breakdown after distribution: [{ period: "2026-01", debit, credit }]
   breakdown            Json?
   createdAt            DateTime @default(now())
@@ -3691,7 +3666,7 @@ model InternalReconciliation {
   bpId          String?
   accountId     String?
   reconciledAt  DateTime
-  totalAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  totalAmount   Decimal  @db.Decimal(19, 4) @default(0)
   currency      String   @default("USD")
   reconciledById String?
   cancelledAt   DateTime?
@@ -3712,7 +3687,7 @@ model InternalReconciliationLine {
   id               String  @id @default(uuid())
   reconciliationId String
   journalEntryId   String
-  amount           Decimal @db.Decimal(15, 2)
+  amount           Decimal @db.Decimal(19, 4)
 
   reconciliation InternalReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
   journalEntry   JournalEntry           @relation(fields: [journalEntryId], references: [id])
@@ -3749,10 +3724,10 @@ model FixedAsset {
   retiredAt      DateTime?
   usefulLifeMonths Int              @default(60)
   depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
-  acquisitionCost   Decimal         @db.Decimal(15, 2) @default(0)
-  salvageValue      Decimal         @db.Decimal(15, 2) @default(0)
-  accumulatedDepreciation Decimal   @db.Decimal(15, 2) @default(0)
-  netBookValue      Decimal         @db.Decimal(15, 2) @default(0)
+  acquisitionCost   Decimal         @db.Decimal(19, 4) @default(0)
+  salvageValue      Decimal         @db.Decimal(19, 4) @default(0)
+  accumulatedDepreciation Decimal   @db.Decimal(19, 4) @default(0)
+  netBookValue      Decimal         @db.Decimal(19, 4) @default(0)
   currency          String          @default("USD")
   costAccountId          String?
   depreciationAccountId  String?
@@ -3794,7 +3769,7 @@ model FixedAssetTransaction {
   assetId        String
   type           AssetTransactionType
   postingDate    DateTime
-  amount         Decimal              @db.Decimal(15, 2)
+  amount         Decimal              @db.Decimal(19, 4)
   journalEntryId String?
   remarks        String?
   createdAt      DateTime             @default(now())

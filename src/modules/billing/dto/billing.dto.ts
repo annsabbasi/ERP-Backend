@@ -9,7 +9,7 @@ import {
 export class CreateBillingInvoiceDto {
   @IsInt()
   @Min(0)
-  amountMinor: number;
+  amount: number;
 
   @IsString()
   @IsOptional()
@@ -35,7 +35,7 @@ export class CreateBillingInvoiceDto {
 export class RecordPaymentDto {
   @IsInt()
   @Min(1)
-  amountMinor: number;
+  amount: number;
 
   @IsString()
   @IsOptional()

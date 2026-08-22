@@ -49,7 +49,7 @@ export class Customer360Service {
         take: 25,
         select: {
           id: true, number: true, issueDate: true, dueDate: true, status: true,
-          currency: true, totalMinor: true, paidMinor: true,
+          currency: true, total: true, paid: true,
         },
       }),
       this.prisma.aPBill.findMany({
@@ -58,7 +58,7 @@ export class Customer360Service {
         take: 25,
         select: {
           id: true, number: true, issueDate: true, dueDate: true, status: true,
-          currency: true, totalMinor: true, paidMinor: true,
+          currency: true, total: true, paid: true,
         },
       }),
       this.prisma.activity.findMany({
@@ -207,7 +207,7 @@ export class Customer360Service {
         id: true, cardCode: true, cardName: true, currency: true, creditLimit: true,
         arInvoices: {
           where: { status: { notIn: ['VOID', 'DRAFT', 'PAID'] } },
-          select: { totalMinor: true, paidMinor: true },
+          select: { total: true, paid: true },
         },
       },
     });
@@ -236,31 +236,34 @@ export class Customer360Service {
 }
 
 interface DocLike {
-  totalMinor: number;
-  paidMinor: number;
+  total: Prisma.Decimal;
+  paid: Prisma.Decimal;
   dueDate?: Date | null;
   issueDate?: Date;
 }
 
 function sumOpen(docs: DocLike[]): Prisma.Decimal {
-  // Amounts are stored in minor units; convert once at the boundary.
-  const minor = docs.reduce((s, d) => s + (d.totalMinor - d.paidMinor), 0);
-  return new Prisma.Decimal(minor).dividedBy(100);
+  // Amounts are Decimal(19,4) in major units — no conversion, and no float
+  // arithmetic anywhere on the path.
+  return docs.reduce(
+    (acc, d) => acc.plus(new Prisma.Decimal(d.total).minus(d.paid)),
+    new Prisma.Decimal(0),
+  );
 }
 
 function withOutstanding<T extends DocLike>(d: T) {
   return {
     ...d,
-    total: (d.totalMinor / 100).toFixed(2),
-    paid: (d.paidMinor / 100).toFixed(2),
-    outstanding: ((d.totalMinor - d.paidMinor) / 100).toFixed(2),
+    total: new Prisma.Decimal(d.total).toFixed(2),
+    paid: new Prisma.Decimal(d.paid).toFixed(2),
+    outstanding: new Prisma.Decimal(d.total).minus(d.paid).toFixed(2),
   };
 }
 
 function bucketize(docs: DocLike[], asOf: Date) {
   const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 };
   for (const d of docs) {
-    const outstanding = (d.totalMinor - d.paidMinor) / 100;
+    const outstanding = Number(new Prisma.Decimal(d.total).minus(d.paid));
     if (outstanding <= 0) continue;
     const due = d.dueDate ?? d.issueDate ?? asOf;
     const days = Math.floor((asOf.getTime() - due.getTime()) / 86_400_000);

@@ -56,7 +56,7 @@ export class BillingInvoicesService {
         subscriptionId: sub.id,
         number,
         status: BillingInvoiceStatus.ISSUED,
-        amountMinor: dto.amountMinor,
+        amount: dto.amount,
         currency: dto.currency ?? 'USD',
         periodStart: dto.periodStart ? new Date(dto.periodStart) : null,
         periodEnd: dto.periodEnd ? new Date(dto.periodEnd) : null,
@@ -68,7 +68,7 @@ export class BillingInvoicesService {
     await this.recordActivity(companyId, audit, 'billing.invoice.issued', {
       invoiceId: inv.id,
       number: inv.number,
-      amountMinor: inv.amountMinor,
+      amount: inv.amount,
     });
     return inv;
   }
@@ -88,7 +88,7 @@ export class BillingInvoicesService {
       const payment = await tx.billingPayment.create({
         data: {
           invoiceId: inv.id,
-          amountMinor: dto.amountMinor,
+          amount: dto.amount,
           currency: dto.currency ?? inv.currency,
           method: dto.method ?? 'manual',
           reference: dto.reference,
@@ -96,9 +96,10 @@ export class BillingInvoicesService {
       });
       const totalPaid = await tx.billingPayment.aggregate({
         where: { invoiceId: inv.id },
-        _sum: { amountMinor: true },
+        _sum: { amount: true },
       });
-      const paidNow = (totalPaid._sum.amountMinor ?? 0) >= inv.amountMinor;
+      // Decimal comparison: `>=` on Prisma.Decimal objects compares references.
+      const paidNow = new Prisma.Decimal(totalPaid._sum.amount ?? 0).greaterThanOrEqualTo(inv.amount);
       if (paidNow && inv.status !== BillingInvoiceStatus.PAID) {
         await tx.billingInvoice.update({
           where: { id: inv.id },
@@ -111,7 +112,7 @@ export class BillingInvoicesService {
     await this.recordActivity(companyId, audit, 'billing.payment.recorded', {
       invoiceId: inv.id,
       paymentId: result.payment.id,
-      amountMinor: result.payment.amountMinor,
+      amount: result.payment.amount,
       paidInFull: result.paidInFull,
     });
     return this.findOne(companyId, inv.id);

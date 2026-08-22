@@ -185,7 +185,7 @@ export class CreateApprovalTemplateDto {
     description:
       'Trigger terms. { always: true } fires for every document; otherwise ' +
       '{ conditions: [{ field, op, value }], match: "all" | "any" }.',
-    example: { conditions: [{ field: 'totalMinor', op: 'gt', value: 500000 }], match: 'all' },
+    example: { conditions: [{ field: 'total', op: 'gt', value: 500000 }], match: 'all' },
   })
   @IsOptional() @IsObject() terms?: Record<string, unknown>;
 

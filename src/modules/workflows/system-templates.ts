@@ -76,8 +76,8 @@ export const SYSTEM_WORKFLOW_TEMPLATES: SystemWorkflowTemplate[] = [
           name: 'Route by amount',
           type: 'CONDITIONAL_BRANCH',
           cases: [
-            { when: { path: 'amountMinor', lt: 100000 }, then: 'small_po_approval' },
-            { when: { path: 'amountMinor', lt: 1000000 }, then: 'medium_po_approval' },
+            { when: { path: 'amount', lt: 100000 }, then: 'small_po_approval' },
+            { when: { path: 'amount', lt: 1000000 }, then: 'medium_po_approval' },
           ],
           default: 'large_po_approval',
         },

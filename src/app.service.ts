@@ -20,7 +20,6 @@ export class AppService {
         products: '/api/v1/products',
         inventory: '/api/v1/inventory',
         orders: '/api/v1/orders',
-        invoices: '/api/v1/invoices',
         administration: '/api/v1/administration',
         financials: '/api/v1/financials',
         crm: '/api/v1/crm',
