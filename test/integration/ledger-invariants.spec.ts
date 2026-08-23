@@ -57,6 +57,9 @@ describe('ledger invariants', () => {
   });
 
   afterAll(async () => {
+    // bootstrap() may have thrown, in which case there is nothing to tear down
+    // and trying would bury the real failure under a TypeError.
+    if (!h?.prisma) return;
     await withGuardsDisabled(prisma, async () => {
       await prisma.journalLine.deleteMany({ where: { entryId: { in: made } } });
       await prisma.journalEntry.deleteMany({ where: { id: { in: made } } });

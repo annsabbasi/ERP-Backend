@@ -17,6 +17,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/permissions.decorator';
 import { RequireModule } from '../../../common/decorators/module-access.decorator';
 import { IdempotencyKey } from '../../../common/decorators/idempotency-key.decorator';
+import { KeyBoundWrite } from '../../../common/decorators/key-bound-write.decorator';
 import type { AuthedUser } from '../../../common/crud/tenant-crud.controller';
 import type { ListQuery } from '../../../common/crud/tenant-crud.service';
 import { APBillsService, ARInvoicesService } from './ar-ap.service';
@@ -85,6 +86,7 @@ export class ARInvoicesController {
 
   @ApiOperation({ summary: 'Record a receipt against the invoice' })
   @RequirePermission('finance.journal.post')
+  @KeyBoundWrite()
   @Post(':id/payments')
   pay(
     @CurrentUser() user: AuthedUser,
@@ -170,6 +172,7 @@ export class APBillsController {
 
   @ApiOperation({ summary: 'Record a payment against the bill' })
   @RequirePermission('finance.journal.post')
+  @KeyBoundWrite()
   @Post(':id/payments')
   pay(
     @CurrentUser() user: AuthedUser,

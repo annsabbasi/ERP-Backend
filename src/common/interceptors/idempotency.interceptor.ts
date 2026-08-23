@@ -8,10 +8,12 @@ import {
   NestInterceptor,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { IdempotencyStatus, Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { Observable, catchError, concatMap, from, throwError } from 'rxjs';
 import { PrismaService } from '../../modules/prisma/prisma.service';
+import { KEY_BOUND_WRITE } from '../decorators/key-bound-write.decorator';
 
 /**
  * Answers a retried write from the response the first attempt produced.
@@ -62,17 +64,22 @@ export class IdempotencyInterceptor implements NestInterceptor {
    */
   private static readonly SWEEP_PROBABILITY = 0.02;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest();
     const key = req.headers?.['idempotency-key'];
     const companyId = req.user?.companyId;
+    const userId = req.user?.sub;
 
     if (
       !key ||
       typeof key !== 'string' ||
       !companyId ||
+      !userId ||
       !IdempotencyInterceptor.GUARDED_METHODS.has(req.method)
     ) {
       return next.handle();
@@ -82,9 +89,18 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const requestHash = createHash('sha256')
       .update(JSON.stringify({ body: req.body ?? null, params: req.params ?? null }))
       .digest('hex');
-    const scope = { companyId, key, endpoint };
+    const scope = { companyId, userId, key, endpoint };
 
-    return from(this.claim(scope, requestHash)).pipe(
+    // X1. Reclaiming a dead claim means running the write a second time, which
+    // is only safe where the database itself refuses the duplicate. Routes say
+    // so with @KeyBoundWrite(); everything else is never re-run.
+    const reclaimable =
+      this.reflector.getAllAndOverride<boolean>(KEY_BOUND_WRITE, [
+        context.getHandler(),
+        context.getClass(),
+      ]) ?? false;
+
+    return from(this.claim(scope, requestHash, reclaimable)).pipe(
       concatMap((replay) => {
         if (replay.kind === 'replay') return from(Promise.resolve(replay.body));
 
@@ -125,8 +141,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
    * Claims the key, or resolves to the stored response when this is a retry.
    */
   private async claim(
-    scope: { companyId: string; key: string; endpoint: string },
+    scope: { companyId: string; userId: string; key: string; endpoint: string },
     requestHash: string,
+    reclaimable: boolean,
   ): Promise<{ kind: 'proceed' } | { kind: 'replay'; body: unknown }> {
     const expiresAt = new Date(Date.now() + IdempotencyInterceptor.RETENTION_MS);
 
@@ -140,8 +157,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     const where = {
-      companyId_key_endpoint: {
+      companyId_userId_key_endpoint: {
         companyId: scope.companyId,
+        userId: scope.userId,
         key: scope.key,
         endpoint: scope.endpoint,
       },
@@ -177,30 +195,61 @@ export class IdempotencyInterceptor implements NestInterceptor {
       );
     }
 
-    // The original attempt is dead. Take the claim over and run again. This is
-    // safe for payments because the unique index on the payment row refuses a
-    // duplicate under the same key regardless of what this record says.
+    // The claim is dead, but re-running is only safe where the database will
+    // refuse a duplicate write on its own. On every other route the honest
+    // answer is that we cannot tell whether the original write landed, so the
+    // caller is asked for a new key rather than being handed a second invoice,
+    // a second document number and a second journal entry.
+    if (!reclaimable) {
+      throw new ConflictException(
+        `A request with idempotency key "${scope.key}" did not complete, and this operation ` +
+          `cannot be safely repeated under the same key - it may already have taken effect. ` +
+          `Check whether it did, then retry with a new key if not.`,
+      );
+    }
+
+    // X2. Read, judge, then write with nothing in between is the same shape as
+    // the bug fixed in allocate(): two retries arriving after the window would
+    // both read a stale row, both judge it reclaimable, and both proceed.
+    // Putting the staleness test in the WHERE makes exactly one of them win,
+    // and the loser sees zero rows updated.
+    const staleBefore = new Date(Date.now() - IdempotencyInterceptor.STALE_AFTER_MS);
+    const { count } = await this.prisma.idempotencyKey.updateMany({
+      where: {
+        companyId: scope.companyId,
+        userId: scope.userId,
+        key: scope.key,
+        endpoint: scope.endpoint,
+        status: IdempotencyStatus.IN_PROGRESS,
+        createdAt: { lt: staleBefore },
+      },
+      data: { createdAt: new Date(), expiresAt },
+    });
+    if (count === 0) {
+      throw new ConflictException(
+        `A request with idempotency key "${scope.key}" is already being retried. ` +
+          `Retry once that attempt has finished.`,
+      );
+    }
+
     this.log.warn(
-      `Reclaiming idempotency key "${scope.key}" on ${scope.endpoint} — the request that ` +
+      `Reclaiming idempotency key "${scope.key}" on ${scope.endpoint}: the request that ` +
         `claimed it ${Math.round(age / 1000)}s ago never finished.`,
     );
-    await this.prisma.idempotencyKey.update({
-      where,
-      data: { createdAt: new Date(), status: IdempotencyStatus.IN_PROGRESS, expiresAt },
-    });
     return { kind: 'proceed' };
   }
 
   private async record(
-    scope: { companyId: string; key: string; endpoint: string },
+    scope: { companyId: string; userId: string; key: string; endpoint: string },
     statusCode: number,
     body: unknown,
   ) {
     try {
       await this.prisma.idempotencyKey.update({
         where: {
-          companyId_key_endpoint: {
+          companyId_userId_key_endpoint: {
             companyId: scope.companyId,
+            userId: scope.userId,
             key: scope.key,
             endpoint: scope.endpoint,
           },

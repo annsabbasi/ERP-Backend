@@ -42,6 +42,7 @@ export interface Harness {
   app: INestApplication;
   prisma: PrismaClient;
   companyId: string;
+  userId: string;
   token: string;
   api: (
     method: 'get' | 'post' | 'put' | 'delete',
@@ -73,6 +74,12 @@ export async function bootstrap(): Promise<Harness> {
     );
   }
   const token = login.body?.data?.accessToken ?? login.body?.accessToken;
+  // The subject claim, which is what the interceptor scopes an idempotency key
+  // by. Read from the token rather than looked up, so the tests assert on the
+  // same value the running code uses.
+  const userId = JSON.parse(
+    Buffer.from(token.split('.')[1], 'base64').toString('utf8'),
+  ).sub as string;
   const company = await prisma.company.findFirstOrThrow({ where: { slug: 'demo' } });
 
   const api: Harness['api'] = async (method, path, body, headers = {}) => {
@@ -89,6 +96,7 @@ export async function bootstrap(): Promise<Harness> {
     app,
     prisma,
     companyId: company.id,
+    userId,
     token,
     api,
     close: async () => {

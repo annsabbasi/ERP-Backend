@@ -35,6 +35,15 @@ jobs:
       JWT_SECRET: ci-only-not-a-real-secret
       JWT_REFRESH_SECRET: ci-only-not-a-real-secret-either
       NODE_ENV: test
+      # SupabaseService builds its client in onModuleInit and throws without
+      # these, so the application will not boot at all — the integration suite
+      # boots the real AppModule, so it needs them even though nothing it
+      # exercises talks to Supabase. Placeholders on purpose: createClient only
+      # parses the URL, it does not connect, and no real credential belongs in
+      # a workflow file. SUPABASE_SERVICE_ROLE_KEY is deliberately absent; it
+      # is only demanded when the admin client is actually asked for.
+      SUPABASE_URL: https://placeholder.supabase.co
+      SUPABASE_ANON_KEY: ci-placeholder-anon-key
 
     steps:
       - uses: actions/checkout@v4

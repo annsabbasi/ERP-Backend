@@ -34,6 +34,7 @@ describe('concurrency and retries', () => {
   });
 
   afterAll(async () => {
+    if (!h?.prisma) return;
     await cleanupDocuments(prisma, h.companyId, { arInvoices });
     await prisma.idempotencyKey.deleteMany({ where: { companyId: h.companyId } });
     await assertLedgerConsistent(prisma, h.companyId);
@@ -94,6 +95,25 @@ describe('concurrency and retries', () => {
     const pay = (amount: number, key?: string) =>
       h.api('post', `/financials/ar-invoices/${invoiceId}/payments`, { amount },
         key ? { 'idempotency-key': key } : {});
+
+    const ENDPOINT = 'POST /api/v1/financials/ar-invoices/:id/payments';
+    // The interceptor's hash, reproduced. Interceptors run before pipes, so
+    // it sees the raw parsed body and the route params.
+    const hashOf = (amount: number) =>
+      createHash('sha256')
+        .update(JSON.stringify({ body: { amount }, params: { id: invoiceId } }))
+        .digest('hex');
+
+    /** Exactly the row a process killed mid-request leaves behind. */
+    const strandClaim = (key: string, requestHash: string, endpoint = ENDPOINT) =>
+      prisma.idempotencyKey.create({
+        data: {
+          companyId: h.companyId, userId: h.userId, key, endpoint, requestHash,
+          status: 'IN_PROGRESS',
+          createdAt: new Date(Date.now() - 10 * 60_000),
+          expiresAt: new Date(Date.now() + 60 * 60_000),
+        },
+      });
 
     it('answers a retry from the first response and charges once', async () => {
       const key = randomUUID();
@@ -157,25 +177,6 @@ describe('concurrency and retries', () => {
     });
 
     describe('W1 — a key is never stuck forever', () => {
-      const ENDPOINT = 'POST /api/v1/financials/ar-invoices/:id/payments';
-      // The interceptor's hash, reproduced. Interceptors run before pipes, so
-      // it sees the raw parsed body and the route params.
-      const hashOf = (amount: number) =>
-        createHash('sha256')
-          .update(JSON.stringify({ body: { amount }, params: { id: invoiceId } }))
-          .digest('hex');
-
-      /** Exactly the row a process killed mid-request leaves behind. */
-      const strandClaim = (key: string, requestHash: string) =>
-        prisma.idempotencyKey.create({
-          data: {
-            companyId: h.companyId, key, endpoint: ENDPOINT, requestHash,
-            status: 'IN_PROGRESS',
-            createdAt: new Date(Date.now() - 10 * 60_000),
-            expiresAt: new Date(Date.now() + 60 * 60_000),
-          },
-        });
-
       it('reclaims a claim whose request never finished', async () => {
         const key = randomUUID();
         await strandClaim(key, hashOf(15));
@@ -202,7 +203,8 @@ describe('concurrency and retries', () => {
       it('expires replay records so the table cannot grow without bound', async () => {
         await prisma.idempotencyKey.create({
           data: {
-            companyId: h.companyId, key: randomUUID(), endpoint: 'POST /expired',
+            companyId: h.companyId, userId: h.userId, key: randomUUID(),
+            endpoint: 'POST /expired',
             requestHash: 'x', status: 'COMPLETED',
             expiresAt: new Date(Date.now() - 60_000),
           },
@@ -220,6 +222,94 @@ describe('concurrency and retries', () => {
           await prisma.idempotencyKey.count({
             where: { companyId: h.companyId, expiresAt: { lt: new Date() } } }),
         ).toBe(0);
+      });
+    });
+
+    describe('X1 — only a key-bound write may be reclaimed', () => {
+      // The reclaim path re-runs the request. That is safe exactly where the
+      // database refuses the duplicate on its own, and nowhere else. Invoice
+      // creation is not key-bound: re-running it would issue a second invoice,
+      // consume a second document number and post a second journal entry, with
+      // nothing to stop any of it.
+      it('refuses to reclaim a stale claim on a route that is not key-bound', async () => {
+        const key = randomUUID();
+        const body = { bpId: customer.id, issueDate: '2026-08-24',
+                       lines: [{ description: 'X1 probe', quantity: 1, unitPrice: 100 }] };
+        await prisma.idempotencyKey.create({
+          data: {
+            companyId: h.companyId, userId: h.userId, key,
+            endpoint: 'POST /api/v1/financials/ar-invoices',
+            requestHash: createHash('sha256')
+              .update(JSON.stringify({ body, params: {} })).digest('hex'),
+            status: 'IN_PROGRESS',
+            createdAt: new Date(Date.now() - 10 * 60_000),
+            expiresAt: new Date(Date.now() + 60 * 60_000),
+          },
+        });
+
+        const before = await prisma.aRInvoice.count({ where: { companyId: h.companyId } });
+        const res = await h.api('post', '/financials/ar-invoices', body,
+          { 'idempotency-key': key });
+
+        expect(res.status).toBe(409);
+        expect(JSON.stringify(res.body)).toMatch(/new key/i);
+        expect(await prisma.aRInvoice.count({ where: { companyId: h.companyId } })).toBe(before);
+      });
+
+      it('still reclaims on the payment route, which is key-bound', async () => {
+        const key = randomUUID();
+        await strandClaim(key, hashOf(18));
+        expect((await pay(18, key)).status).toBeLessThan(300);
+      });
+    });
+
+    describe('X2 - two retries after the window cannot both reclaim', () => {
+      it('rejects the loser at the claim, before it reaches the handler', async () => {
+        const key = randomUUID();
+        await strandClaim(key, hashOf(22));
+
+        const [a, b] = await Promise.all([pay(22, key), pay(22, key)]);
+
+        // Exactly one payment either way - but that is the unique index on
+        // ar_payments doing the work, not the reclaim. It is why the first
+        // version of this test passed with the bug still in place.
+        expect(await prisma.aRPayment.count({ where: { invoiceId, amount: 22 } })).toBe(1);
+
+        // So assert where the loser was stopped. Without a predicate on the
+        // reclaim, both requests judge the stale row reclaimable, both run, and
+        // the loser is turned away by the payment's unique index - which reads
+        // "already recorded under idempotency key". With the predicate the
+        // loser never reaches the handler at all.
+        const loser = [a, b].find((r) => r.status >= 400);
+        if (loser) {
+          expect(JSON.stringify(loser.body)).not.toMatch(/already recorded under idempotency key/i);
+          expect(JSON.stringify(loser.body)).toMatch(/already being retried|still in progress/i);
+        }
+        expect([a, b].filter((r) => r.status < 300)).toHaveLength(1);
+      });
+    });
+
+    describe('W6 — a key belongs to a user, not just a company', () => {
+      it('does not hand one user another user response', async () => {
+        const key = randomUUID();
+        const mine = await pay(35, key);
+        expect(mine.status).toBeLessThan(300);
+
+        // The same company, the same key, the same endpoint — a different user.
+        // Keyed only on (companyId, key, endpoint) this read would return the
+        // first user's recorded response.
+        const other = await prisma.idempotencyKey.findFirst({
+          where: {
+            companyId: h.companyId, key,
+            endpoint: 'POST /api/v1/financials/ar-invoices/:id/payments',
+            userId: { not: h.userId },
+          },
+        });
+        expect(other).toBeNull();
+
+        const stored = await prisma.idempotencyKey.findFirstOrThrow({
+          where: { companyId: h.companyId, key } });
+        expect(stored.userId).toBe(h.userId);
       });
     });
 

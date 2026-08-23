@@ -30,6 +30,7 @@ describe('A/R and A/P', () => {
   });
 
   afterAll(async () => {
+    if (!h?.prisma) return;
     await cleanupDocuments(prisma, h.companyId, { arInvoices, apBills });
     await assertLedgerConsistent(prisma, h.companyId);
     await h.close();

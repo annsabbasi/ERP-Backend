@@ -2179,6 +2179,11 @@ model IdempotencyKey {
   // is part of the identity. Otherwise one client's key could replay another
   // endpoint's response.
   endpoint  String
+  // W6. Keys are chosen by clients, so two users in the same company can pick
+  // the same one. Without the user in the identity, one of them would be handed
+  // the other's recorded response — a cross-user data leak, and a write silently
+  // skipped because someone else's request happened to share a UUID.
+  userId    String
   // Guards against a key being reused with a changed body, which is a client
   // bug rather than a retry and should be reported, not silently replayed.
   requestHash String
@@ -2196,7 +2201,7 @@ model IdempotencyKey {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([companyId, key, endpoint])
+  @@unique([companyId, userId, key, endpoint])
   @@index([companyId, createdAt])
   @@index([expiresAt])
   @@map("idempotency_keys")
