@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # A throwaway Postgres per run. The integration suite writes ledger rows and
+    # briefly disables triggers to clean up after itself, so it must never be
+    # pointed at anything that matters — the suite refuses to start unless the
+    # database host is a disposable one, and this is that host.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: erp_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Same URL for both: there is no PgBouncer here, so the pooled and direct
+      # connections the app distinguishes in production are the same thing.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/erp_test?schema=public
+      JWT_SECRET: ci-only-not-a-real-secret
+      JWT_REFRESH_SECRET: ci-only-not-a-real-secret-either
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply migrations
+        # `migrate deploy`, not `db push`: this runs the committed migration
+        # files, so a migration that only works against the developer's
+        # database — or that silently drops a view — fails here.
+        run: npx prisma migrate deploy
+
+      - name: Seed
+        run: npx prisma db seed
+
+      - name: Typecheck and build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint -- --max-warnings=0
+        continue-on-error: true
+
+      - name: Integration tests
+        # Covers the reporting views (which Prisma does not manage and cannot
+        # detect breakage in), the posting invariants, A/R and A/P end to end,
+        # and the concurrency and retry behaviour.
+        run: npm run test:integration

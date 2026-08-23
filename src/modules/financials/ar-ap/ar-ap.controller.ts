@@ -16,6 +16,7 @@ import { ModuleAccessGuard } from '../../../common/guards/module-access.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/permissions.decorator';
 import { RequireModule } from '../../../common/decorators/module-access.decorator';
+import { IdempotencyKey } from '../../../common/decorators/idempotency-key.decorator';
 import type { AuthedUser } from '../../../common/crud/tenant-crud.controller';
 import type { ListQuery } from '../../../common/crud/tenant-crud.service';
 import { APBillsService, ARInvoicesService } from './ar-ap.service';
@@ -89,8 +90,9 @@ export class ARInvoicesController {
     @CurrentUser() user: AuthedUser,
     @Param('id') id: string,
     @Body() dto: RecordPaymentDto,
+    @IdempotencyKey() idempotencyKey?: string,
   ) {
-    return this.service.recordPayment(user.companyId as string, id, user.sub, dto);
+    return this.service.recordPayment(user.companyId as string, id, user.sub, dto, idempotencyKey);
   }
 
   @ApiOperation({ summary: 'Void an issued invoice, reversing its journal entry' })
@@ -173,8 +175,9 @@ export class APBillsController {
     @CurrentUser() user: AuthedUser,
     @Param('id') id: string,
     @Body() dto: RecordPaymentDto,
+    @IdempotencyKey() idempotencyKey?: string,
   ) {
-    return this.service.recordPayment(user.companyId as string, id, user.sub, dto);
+    return this.service.recordPayment(user.companyId as string, id, user.sub, dto, idempotencyKey);
   }
 
   @ApiOperation({ summary: 'Void an approved bill, reversing its journal entry' })

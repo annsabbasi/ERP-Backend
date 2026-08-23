@@ -161,6 +161,26 @@ abstract class SubledgerService {
     return [...byAccount.entries()].filter(([, amount]) => !amount.isZero());
   }
 
+
+  /**
+   * A duplicate under the same idempotency key is a retry that got past the
+   * replay cache — the record was lost, or this is a reclaimed stale key. The
+   * unique index refused it inside the transaction, so nothing was written
+   * twice; the caller only needs to be told why.
+   */
+  protected duplicateKey(e: unknown, key: string | undefined): never | void {
+    if (
+      key &&
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === 'P2002' &&
+      String(e.meta?.target ?? '').includes('idempotencyKey')
+    ) {
+      throw new ConflictException(
+        `A payment was already recorded under idempotency key "${key}". It was not applied again.`,
+      );
+    }
+  }
+
   protected async dueDateFor(
     companyId: string,
     issueDate: Date,
@@ -233,7 +253,7 @@ export class ARInvoicesService extends SubledgerService {
     const issueDate = new Date(dto.issueDate);
     const dueDate = await this.dueDateFor(companyId, issueDate, dto.dueDate, dto.paymentTermsId);
 
-    if (dto.orderId) await this.requireOrder(companyId, dto.orderId);
+    if (dto.orderId) await this.requireOrder(companyId, dto.orderId, bp.id);
 
     return this.prisma.$transaction(async (tx) => {
       const allocated = await this.numbering.allocate(tx, companyId, 'ar_invoice');
@@ -269,7 +289,7 @@ export class ARInvoicesService extends SubledgerService {
     const bp = dto.bpId
       ? await this.requirePartner(companyId, dto.bpId, BpCardType.CUSTOMER)
       : null;
-    if (dto.orderId) await this.requireOrder(companyId, dto.orderId);
+    if (dto.orderId) await this.requireOrder(companyId, dto.orderId, bp?.id ?? inv.bpId);
 
     const repriced = dto.lines ? this.priceLines(dto.lines) : null;
     const issueDate = dto.issueDate ? new Date(dto.issueDate) : inv.issueDate;
@@ -356,7 +376,13 @@ export class ARInvoicesService extends SubledgerService {
    *   Dr  Cash / bank    amount
    *   Cr  Receivables    amount
    */
-  async recordPayment(companyId: string, id: string, userId: string, dto: RecordPaymentDto) {
+  async recordPayment(
+    companyId: string,
+    id: string,
+    userId: string,
+    dto: RecordPaymentDto,
+    idempotencyKey?: string,
+  ) {
     const inv = await this.findOne(companyId, id);
     const amount = money(D(dto.amount));
     this.assertPayable(inv.status, inv.number, 'A/R invoice');
@@ -378,7 +404,8 @@ export class ARInvoicesService extends SubledgerService {
     const receivedAt = dto.date ? new Date(dto.date) : new Date();
     const paid = inv.paid.plus(amount);
 
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const payment = await tx.aRPayment.create({
         data: {
           companyId,
@@ -388,6 +415,7 @@ export class ARInvoicesService extends SubledgerService {
           method: dto.method ?? null,
           reference: dto.reference ?? null,
           receivedAt,
+          idempotencyKey: idempotencyKey ?? null,
         },
       });
 
@@ -420,7 +448,11 @@ export class ARInvoicesService extends SubledgerService {
         },
         include: AR_INCLUDE,
       });
-    }, TX_OPTIONS);
+      }, TX_OPTIONS);
+    } catch (e) {
+      this.duplicateKey(e, idempotencyKey);
+      throw e;
+    }
   }
 
   /**
@@ -530,12 +562,37 @@ export class ARInvoicesService extends SubledgerService {
     }
   }
 
-  private async requireOrder(companyId: string, orderId: string) {
+  /**
+   * An order can only be invoiced if it has a customer, and it has to be the
+   * same customer the invoice is for.
+   *
+   * `bpId` on an order is optional so a quotation can be started before the
+   * customer is settled. That flexibility has to stop here: an invoice raised
+   * from a customerless order would leave the chain
+   * customer -> order -> invoice -> payment broken at its first joint, with
+   * the receivable pointing at an order that names nobody. Requiring it at
+   * invoice time keeps early drafts workable while making the finished chain
+   * unbreakable.
+   */
+  private async requireOrder(companyId: string, orderId: string, bpId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, companyId },
-      select: { id: true },
+      select: { id: true, bpId: true },
     });
     if (!order) throw new NotFoundException('Sales order not found in this company');
+
+    if (!order.bpId) {
+      throw new BadRequestException(
+        `Sales order ${orderId} has no customer, so it cannot be invoiced. ` +
+          `Set the customer on the order first.`,
+      );
+    }
+    if (order.bpId !== bpId) {
+      throw new BadRequestException(
+        `Sales order ${orderId} belongs to a different customer than this invoice. ` +
+          `An invoice cannot be raised against another partner's order.`,
+      );
+    }
     return order;
   }
 
@@ -726,7 +783,13 @@ export class APBillsService extends SubledgerService {
    *   Dr  Payables     amount
    *   Cr  Cash / bank  amount
    */
-  async recordPayment(companyId: string, id: string, userId: string, dto: RecordPaymentDto) {
+  async recordPayment(
+    companyId: string,
+    id: string,
+    userId: string,
+    dto: RecordPaymentDto,
+    idempotencyKey?: string,
+  ) {
     const bill = await this.findOne(companyId, id);
     const amount = money(D(dto.amount));
     this.assertPayable(bill.status, bill.number);
@@ -745,7 +808,8 @@ export class APBillsService extends SubledgerService {
     const paidAt = dto.date ? new Date(dto.date) : new Date();
     const paid = bill.paid.plus(amount);
 
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const payment = await tx.aPPayment.create({
         data: {
           companyId,
@@ -755,6 +819,7 @@ export class APBillsService extends SubledgerService {
           method: dto.method ?? null,
           reference: dto.reference ?? null,
           paidAt,
+          idempotencyKey: idempotencyKey ?? null,
         },
       });
 
@@ -787,7 +852,11 @@ export class APBillsService extends SubledgerService {
         },
         include: AP_INCLUDE,
       });
-    }, TX_OPTIONS);
+      }, TX_OPTIONS);
+    } catch (e) {
+      this.duplicateKey(e, idempotencyKey);
+      throw e;
+    }
   }
 
   async void(companyId: string, id: string, userId: string, dto: VoidDocumentDto = {}) {

@@ -2,39 +2,65 @@ import {
   CallHandler,
   ConflictException,
   ExecutionContext,
+  HttpException,
   Injectable,
+  Logger,
   NestInterceptor,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { IdempotencyStatus, Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
-import { Observable, from, switchMap, tap } from 'rxjs';
+import { Observable, catchError, concatMap, from, throwError } from 'rxjs';
 import { PrismaService } from '../../modules/prisma/prisma.service';
 
 /**
- * Makes a retried write safe to send twice.
+ * Answers a retried write from the response the first attempt produced.
  *
  * A client that loses its connection mid-request cannot tell whether the write
- * landed. Retrying is the only sensible thing it can do, and without this that
- * retry posts the payment a second time. So: the client sends an
- * `Idempotency-Key` header, the first request claims that key, and a retry
- * carrying the same key is answered from the stored response rather than run
- * again.
+ * landed, and retrying is the only sensible thing it can do. The client sends
+ * an `Idempotency-Key`; the first request claims it and records what it
+ * returned, and a retry carrying the same key gets that recorded response back
+ * instead of running again.
  *
- * Opt-in per request, not blanket-applied. A caller that sends no key gets the
- * old behaviour, which keeps this out of the way of reads and of writes where
- * a duplicate is harmless. The routes that most want it are the ones that move
- * money — posting an invoice, recording a payment, reversing an entry.
- *
- * The claim is a unique insert on (companyId, key, endpoint), so two requests
- * racing with the same key resolve at the database rather than in application
- * logic: exactly one insert wins and the loser is told the operation is already
- * running.
+ * What this is NOT: the thing that stops a payment being taken twice. That is
+ * the unique index on (companyId, idempotencyKey) on the payment tables, which
+ * fails a duplicate insert inside the same transaction as the write. The two
+ * writes here — the key record and the business write — are in different
+ * transactions, so there will always be a window between them where a crash
+ * loses the key record. The database closes that window; this layer only makes
+ * the retry pleasant rather than surprising.
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
+  private readonly log = new Logger(IdempotencyInterceptor.name);
+
   /** Reads cannot double-apply, so there is nothing to protect. */
   private static readonly GUARDED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+  /**
+   * How long a claimed-but-unfinished key blocks its retries.
+   *
+   * A request holding a key cannot still be running after this: the longest
+   * transaction budget in the codebase is 20s (TX_OPTIONS on the posting
+   * paths), and a serverless invocation is killed well before a minute. Past
+   * this point the original attempt is dead, and continuing to answer its
+   * retries with "still in progress" would block the key permanently — the
+   * failure the first version of this had no way out of.
+   */
+  private static readonly STALE_AFTER_MS = 60_000;
+
+  /** How long a completed response stays replayable. */
+  private static readonly RETENTION_MS = 24 * 60 * 60 * 1000;
+
+  /**
+   * Chance per claim of also clearing expired rows.
+   *
+   * The backend runs serverless, so an in-process scheduler would fire only on
+   * whichever instance happens to be warm, if any. Sweeping opportunistically
+   * on a fraction of requests keeps the table bounded without depending on a
+   * scheduler that will not reliably run.
+   */
+  private static readonly SWEEP_PROBABILITY = 0.02;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -52,106 +78,169 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    // Route path, not the resolved URL: two different ids under the same route
-    // are different operations, but the body hash already separates those, and
-    // the route is what makes "same key, different endpoint" detectable.
     const endpoint = `${req.method} ${req.route?.path ?? req.url}`;
     const requestHash = createHash('sha256')
       .update(JSON.stringify({ body: req.body ?? null, params: req.params ?? null }))
       .digest('hex');
+    const scope = { companyId, key, endpoint };
 
-    return from(this.claim(companyId, key, endpoint, requestHash)).pipe(
-      switchMap((replay) => {
-        if (replay) return from(Promise.resolve(replay));
+    return from(this.claim(scope, requestHash)).pipe(
+      concatMap((replay) => {
+        if (replay.kind === 'replay') return from(Promise.resolve(replay.body));
 
         return next.handle().pipe(
-          tap({
-            next: (body) => {
-              void this.complete(companyId, key, endpoint, context, body);
-            },
-            // A failed request releases its key. The caller is expected to fix
-            // the request and try again, and holding the key would answer that
-            // corrected retry with the original failure.
-            error: () => {
-              void this.release(companyId, key, endpoint);
-            },
-          }),
+          // concatMap, not tap: the recording is awaited, so the response is
+          // not sent until the replay record exists. Under tap the write was
+          // fire-and-forget, and a fast retry could arrive to find the key
+          // still IN_PROGRESS for a request that had already succeeded.
+          concatMap((body) =>
+            from(
+              this.record(scope, context.switchToHttp().getResponse()?.statusCode ?? 200, body).then(
+                () => body,
+              ),
+            ),
+          ),
+          catchError((err) =>
+            // The key is NOT released. Releasing assumes the failure means
+            // nothing was written, and a handler that throws after its
+            // transaction committed breaks that assumption — the retry would
+            // then write a second time, which is the exact duplicate this
+            // exists to prevent. Recording the failure instead means the retry
+            // is answered with the same error, and a client that wants to try
+            // a corrected request uses a new key.
+            from(
+              this.record(
+                scope,
+                err instanceof HttpException ? err.getStatus() : 500,
+                this.errorBody(err),
+              ),
+            ).pipe(concatMap(() => throwError(() => err))),
+          ),
         );
       }),
     );
   }
 
   /**
-   * Claims the key, or returns the stored response when this is a retry.
-   * Returns null when the caller should go ahead and run the request.
+   * Claims the key, or resolves to the stored response when this is a retry.
    */
   private async claim(
-    companyId: string,
-    key: string,
-    endpoint: string,
+    scope: { companyId: string; key: string; endpoint: string },
     requestHash: string,
-  ): Promise<unknown | null> {
+  ): Promise<{ kind: 'proceed' } | { kind: 'replay'; body: unknown }> {
+    const expiresAt = new Date(Date.now() + IdempotencyInterceptor.RETENTION_MS);
+
+    if (Math.random() < IdempotencyInterceptor.SWEEP_PROBABILITY) void this.sweep();
+
     try {
-      await this.prisma.idempotencyKey.create({
-        data: { companyId, key, endpoint, requestHash },
-      });
-      return null;
+      await this.prisma.idempotencyKey.create({ data: { ...scope, requestHash, expiresAt } });
+      return { kind: 'proceed' };
     } catch (e) {
       if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') throw e;
     }
 
-    const existing = await this.prisma.idempotencyKey.findUnique({
-      where: { companyId_key_endpoint: { companyId, key, endpoint } },
-    });
-    // Lost the race and the winner has since released the key — treat it as a
-    // fresh request rather than failing the caller.
-    if (!existing) return null;
+    const where = {
+      companyId_key_endpoint: {
+        companyId: scope.companyId,
+        key: scope.key,
+        endpoint: scope.endpoint,
+      },
+    };
+    const existing = await this.prisma.idempotencyKey.findUnique({ where });
+    // Swept between the failed insert and this read; treat as a fresh request.
+    if (!existing) return { kind: 'proceed' };
 
     if (existing.requestHash !== requestHash) {
       throw new UnprocessableEntityException(
-        `Idempotency key "${key}" was already used on this endpoint with a different request body. ` +
-          `Use a new key for a new operation.`,
+        `Idempotency key "${scope.key}" was already used on this endpoint with a different ` +
+          `request body. Use a new key for a new operation.`,
       );
     }
-    if (existing.status === IdempotencyStatus.IN_PROGRESS) {
+
+    if (existing.status === IdempotencyStatus.COMPLETED) {
+      // A recorded failure is replayed as that failure, so a retry sees what
+      // the first attempt saw rather than silently succeeding.
+      if ((existing.statusCode ?? 200) >= 400) {
+        throw new HttpException(
+          (existing.response ?? { message: 'The original request failed.' }) as object,
+          existing.statusCode ?? 500,
+        );
+      }
+      return { kind: 'replay', body: existing.response };
+    }
+
+    const age = Date.now() - existing.createdAt.getTime();
+    if (age < IdempotencyInterceptor.STALE_AFTER_MS) {
       throw new ConflictException(
-        `A request with idempotency key "${key}" is still in progress. Retry once it has finished.`,
+        `A request with idempotency key "${scope.key}" is still in progress. ` +
+          `Retry once it has finished.`,
       );
     }
-    return existing.response;
+
+    // The original attempt is dead. Take the claim over and run again. This is
+    // safe for payments because the unique index on the payment row refuses a
+    // duplicate under the same key regardless of what this record says.
+    this.log.warn(
+      `Reclaiming idempotency key "${scope.key}" on ${scope.endpoint} — the request that ` +
+        `claimed it ${Math.round(age / 1000)}s ago never finished.`,
+    );
+    await this.prisma.idempotencyKey.update({
+      where,
+      data: { createdAt: new Date(), status: IdempotencyStatus.IN_PROGRESS, expiresAt },
+    });
+    return { kind: 'proceed' };
   }
 
-  private async complete(
-    companyId: string,
-    key: string,
-    endpoint: string,
-    context: ExecutionContext,
+  private async record(
+    scope: { companyId: string; key: string; endpoint: string },
+    statusCode: number,
     body: unknown,
   ) {
     try {
       await this.prisma.idempotencyKey.update({
-        where: { companyId_key_endpoint: { companyId, key, endpoint } },
+        where: {
+          companyId_key_endpoint: {
+            companyId: scope.companyId,
+            key: scope.key,
+            endpoint: scope.endpoint,
+          },
+        },
         data: {
           status: IdempotencyStatus.COMPLETED,
-          statusCode: context.switchToHttp().getResponse()?.statusCode ?? 200,
+          statusCode,
           response: (body ?? null) as Prisma.InputJsonValue,
           completedAt: new Date(),
         },
       });
-    } catch {
-      // The request itself succeeded; failing to record the response only costs
-      // this key its replay protection, and must not turn a good write into an
-      // error the caller will retry.
+    } catch (e) {
+      // The request itself is already decided; failing to record its response
+      // must not change that outcome. The row stays IN_PROGRESS and becomes
+      // reclaimable after the staleness window, so this degrades to "the retry
+      // runs again" rather than "the key is stuck forever".
+      this.log.error(
+        `Could not record the result for idempotency key "${scope.key}" on ${scope.endpoint}: ` +
+          `${(e as Error).message}`,
+      );
     }
   }
 
-  private async release(companyId: string, key: string, endpoint: string) {
+  /** Serialises a thrown error into something replayable. */
+  private errorBody(err: unknown) {
+    if (err instanceof HttpException) {
+      const res = err.getResponse();
+      return typeof res === 'string' ? { message: res } : res;
+    }
+    return { message: 'Internal server error' };
+  }
+
+  private async sweep() {
     try {
-      await this.prisma.idempotencyKey.delete({
-        where: { companyId_key_endpoint: { companyId, key, endpoint } },
+      const { count } = await this.prisma.idempotencyKey.deleteMany({
+        where: { expiresAt: { lt: new Date() } },
       });
+      if (count) this.log.log(`Swept ${count} expired idempotency key(s).`);
     } catch {
-      // Already gone, or the row was never claimed by this request.
+      // Housekeeping. A failed sweep costs nothing but a later retry.
     }
   }
 }

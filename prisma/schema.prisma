@@ -2037,6 +2037,13 @@ model ARPayment {
   method         String?  // "manual" | "wire" | "stripe" | …
   reference      String?
   receivedAt     DateTime
+  // The idempotency key that produced this payment, when one was supplied.
+  //
+  // This is the guarantee, not the replay cache: the unique index means a
+  // second insert under the same key fails inside the same transaction as the
+  // write. Even if the replay record is lost — the process dies between
+  // committing and recording it — the database still refuses the duplicate.
+  idempotencyKey String?
   journalEntryId String?  @unique
   createdAt      DateTime @default(now())
 
@@ -2045,6 +2052,7 @@ model ARPayment {
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   currencyRef Currency @relation("arPayments", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  @@unique([companyId, idempotencyKey])
   @@index([invoiceId])
   @@index([companyId])
   @@map("ar_payments")
@@ -2134,6 +2142,13 @@ model APPayment {
   method         String?
   reference      String?
   paidAt         DateTime
+  // The idempotency key that produced this payment, when one was supplied.
+  //
+  // This is the guarantee, not the replay cache: the unique index means a
+  // second insert under the same key fails inside the same transaction as the
+  // write. Even if the replay record is lost — the process dies between
+  // committing and recording it — the database still refuses the duplicate.
+  idempotencyKey String?
   journalEntryId String?  @unique
   createdAt      DateTime @default(now())
 
@@ -2142,6 +2157,7 @@ model APPayment {
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   currencyRef Currency @relation("apPayments", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  @@unique([companyId, idempotencyKey])
   @@index([billId])
   @@index([companyId])
   @@map("ap_payments")
@@ -2173,11 +2189,16 @@ model IdempotencyKey {
   response    Json?
   createdAt   DateTime  @default(now())
   completedAt DateTime?
+  // A replay record is a cache, not a permanent fact. Without an expiry the
+  // table only ever grows, and a key can never be reused even long after the
+  // operation it named has passed out of relevance.
+  expiresAt   DateTime
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, key, endpoint])
   @@index([companyId, createdAt])
+  @@index([expiresAt])
   @@map("idempotency_keys")
 }
 

@@ -4,6 +4,7 @@ import {
   BillingInterval,
   PermissionScope,
   PrismaClient,
+  SubPeriodType,
   SubscriptionStatus,
   UserRoleType,
 } from '@prisma/client';
@@ -359,6 +360,54 @@ async function main() {
     seriesCreated++;
   }
   console.log(`✅ ${seriesCreated} numbering series seeded`);
+
+  // A fiscal year and its twelve months.
+  //
+  // Posting resolves the period the document date falls in and refuses to post
+  // when there is not one. A company with an empty period table therefore
+  // cannot post a journal entry, an invoice or a payment — the whole ledger is
+  // unreachable. Like the currency master and the numbering series, this is
+  // setup the platform needs to function rather than sample data.
+  const fiscalYear = new Date().getUTCFullYear();
+  const yearStart = new Date(Date.UTC(fiscalYear, 0, 1));
+  const yearEnd = new Date(Date.UTC(fiscalYear, 11, 31));
+  const year = await prisma.fiscalPeriod.upsert({
+    where: { companyId_name: { companyId: demoCompany.id, name: String(fiscalYear) } },
+    update: {},
+    create: {
+      companyId: demoCompany.id,
+      name: String(fiscalYear),
+      fiscalYear,
+      subPeriodType: SubPeriodType.YEAR,
+      startDate: yearStart,
+      endDate: yearEnd,
+    },
+  });
+
+  let monthsCreated = 0;
+  for (let month = 0; month < 12; month++) {
+    const name = `${fiscalYear}-${String(month + 1).padStart(2, '0')}`;
+    const existing = await prisma.fiscalPeriod.findFirst({
+      where: { companyId: demoCompany.id, name },
+    });
+    // Never reopen a period a company has closed.
+    if (existing) continue;
+    await prisma.fiscalPeriod.create({
+      data: {
+        companyId: demoCompany.id,
+        name,
+        parentId: year.id,
+        fiscalYear,
+        subPeriodType: SubPeriodType.MONTHS,
+        startDate: new Date(Date.UTC(fiscalYear, month, 1)),
+        // Day 0 of the next month is the last day of this one, leap years
+        // included.
+        endDate: new Date(Date.UTC(fiscalYear, month + 1, 0, 23, 59, 59, 999)),
+      },
+    });
+    monthsCreated++;
+  }
+  console.log(`✅ Fiscal year ${fiscalYear} seeded with ${monthsCreated} monthly period(s)`);
 
   // Subscribe the demo company to the Premium plan, in TRIAL.
   const premium = await prisma.plan.findUnique({ where: { key: 'premium' } });
