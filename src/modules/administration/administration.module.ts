@@ -4,9 +4,12 @@ import { NumberingService } from './numbering/numbering.service';
 import { ApprovalsService } from './approvals/approvals.service';
 import * as S from './administration.services';
 import * as C from './administration.controllers';
+import { ModuleGrantsService } from './module-grants/module-grants.service';
+import { ModuleGrantsController } from './module-grants/module-grants.controller';
 
 @Module({
   controllers: [
+    ModuleGrantsController,
     C.SystemInitializationController,
     C.NumberingController,
     C.PredefinedTextController,
@@ -18,6 +21,7 @@ import * as C from './administration.controllers';
     C.SubstituteAuthorizersController,
   ],
   providers: [
+    ModuleGrantsService,
     SettingsService,
     NumberingService,
     ApprovalsService,
@@ -31,6 +35,12 @@ import * as C from './administration.controllers';
   // NumberingService is the single document-number allocator; SettingsService
   // and ApprovalsService are needed by any module that posts documents.
   // AlertsService is exported so producers elsewhere can raise alerts.
-  exports: [NumberingService, SettingsService, ApprovalsService, S.AlertsService],
+  exports: [
+    ModuleGrantsService,
+    NumberingService,
+    SettingsService,
+    ApprovalsService,
+    S.AlertsService,
+  ],
 })
 export class AdministrationModule {}

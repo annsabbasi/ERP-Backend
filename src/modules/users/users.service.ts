@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ModuleGrantsService, GrantActor } from '../administration/module-grants/module-grants.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
@@ -16,7 +17,10 @@ const USER_SELECT = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly moduleGrants: ModuleGrantsService,
+  ) {}
 
   /**
    * Users who belong to no company: the platform operators.
@@ -83,13 +87,9 @@ export class UsersService {
     return user;
   }
 
-  async create(dto: CreateUserDto, companyId: string) {
+  async create(dto: CreateUserDto, companyId: string, actor: GrantActor) {
     const existing = await this.prisma.user.findFirst({ where: { email: dto.email, companyId } });
     if (existing) throw new BadRequestException('Email already in use in this company');
-
-    if (dto.moduleIds?.length) {
-      await this.assertModulesEnabledForCompany(companyId, dto.moduleIds);
-    }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
@@ -111,11 +111,19 @@ export class UsersService {
       });
     }
 
+    // Module access on the create payload goes through the same gate a later
+    // grant does. Skipping it here would mean anyone who can create a user can
+    // hand out any module without review, which is the control the client asked
+    // for, defeated by choosing a different screen.
+    //
+    // The user itself is created either way and can log in immediately; only
+    // their module access waits. Blocking creation would be a larger change
+    // that buys nothing, because the control is about who can reach which
+    // module, not about who exists.
     if (dto.moduleIds?.length) {
-      await this.prisma.userModule.createMany({
-        data: dto.moduleIds.map(moduleId => ({ userId: user.id, moduleId })),
-        skipDuplicates: true,
-      });
+      for (const moduleId of dto.moduleIds) {
+        await this.moduleGrants.request(companyId, actor, { userId: user.id, moduleId });
+      }
     }
 
     return this.findOne(user.id, companyId);

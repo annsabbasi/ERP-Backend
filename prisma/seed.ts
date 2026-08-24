@@ -421,6 +421,59 @@ async function main() {
   }
   console.log(`✅ Fiscal year ${fiscalYear} seeded with ${monthsCreated} monthly period(s)`);
 
+  // Module access is approved by the platform operator.
+  //
+  // ApprovalTemplate and ApprovalStage are company-scoped, so each tenant needs
+  // its own template naming the operator as approver — seeded here alongside
+  // the other setup a company cannot function without.
+  //
+  // The approver is named by id, resolved from the isSuperAdmin flag rather
+  // than from roleType. That distinction is not academic: the flag and the role
+  // had drifted apart on live, and a template that matched on the role would
+  // have named nobody at all, silently, producing a stage with no approvers
+  // that nothing could ever clear.
+  const platformOperator = await prisma.user.findFirst({
+    where: { isSuperAdmin: true },
+    select: { id: true },
+  });
+  if (platformOperator) {
+    const stage = await prisma.approvalStage.upsert({
+      where: { companyId_name: { companyId: demoCompany.id, name: 'Platform Operator' } },
+      update: {},
+      create: {
+        companyId: demoCompany.id,
+        name: 'Platform Operator',
+        description: 'Module access is approved by the platform operator.',
+        requiredApprovals: 1,
+      },
+    });
+    await prisma.approvalStageApprover.upsert({
+      where: { stageId_userId: { stageId: stage.id, userId: platformOperator.id } },
+      update: {},
+      create: { stageId: stage.id, userId: platformOperator.id },
+    });
+
+    const template = await prisma.approvalTemplate.upsert({
+      where: { companyId_name: { companyId: demoCompany.id, name: 'Module Access Grant' } },
+      update: { documentTypes: ['user_module_grant'], isActive: true },
+      create: {
+        companyId: demoCompany.id,
+        name: 'Module Access Grant',
+        description: 'A user gains a module only once the platform operator approves.',
+        documentTypes: ['user_module_grant'],
+      },
+    });
+    const linked = await prisma.approvalTemplateStage.findFirst({
+      where: { templateId: template.id, stageId: stage.id },
+    });
+    if (!linked) {
+      await prisma.approvalTemplateStage.create({
+        data: { templateId: template.id, stageId: stage.id, ordering: 0 },
+      });
+    }
+    console.log('✅ Module-grant approval template seeded → approver: the platform operator');
+  }
+
   // Subscribe the demo company to the Premium plan, in TRIAL.
   const premium = await prisma.plan.findUnique({ where: { key: 'premium' } });
   if (premium) {

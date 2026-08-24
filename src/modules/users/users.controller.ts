@@ -49,7 +49,7 @@ export class UsersController {
   @RequirePermission('administration.create')
   @Post()
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any, @Query('companyId') qCompanyId?: string) {
-    return this.usersService.create(dto, resolveCompanyId(user, qCompanyId));
+    return this.usersService.create(dto, resolveCompanyId(user, qCompanyId), user);
   }
 
   @RequirePermission('administration.update')

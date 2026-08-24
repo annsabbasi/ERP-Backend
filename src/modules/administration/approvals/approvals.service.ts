@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApprovalDecision, ApprovalRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { applyApprovedRequest } from './approval-effects';
 import {
   ApprovalDecisionDto,
   CreateApprovalStageDto,
@@ -300,6 +301,23 @@ export class ApprovalsService {
     return { required: requests.length > 0, requests };
   }
 
+  /**
+   * The company a request belongs to, for callers who are not inside one.
+   *
+   * A platform operator approves for every tenant, so `user.companyId` is null
+   * and there is nothing to scope by. The request itself knows which company it
+   * is for, so it is read from there rather than made the caller's problem —
+   * the alternative is an operator who can see a queue they cannot act on.
+   */
+  async companyIdForRequest(requestId: string): Promise<string> {
+    const req = await this.prisma.approvalRequest.findUnique({
+      where: { id: requestId },
+      select: { companyId: true },
+    });
+    if (!req) throw new NotFoundException('Approval request not found');
+    return req.companyId;
+  }
+
   // ── DECISIONS ──────────────────────────────────────────────────────────────
   async decide(
     companyId: string,
@@ -338,6 +356,32 @@ export class ApprovalsService {
       throw new ConflictException('You have already recorded a decision on this stage.');
     }
 
+    try {
+      return await this.recordDecision(request, stage, approverId, effectiveApproverId, dto);
+    } catch (e) {
+      // Two approvers deciding at the same instant both pass the in-memory
+      // "already decided" check above, because both read the stage before
+      // either wrote. The unique index on (requestStageId, approverId) is what
+      // actually settles it; this turns the loser's raw constraint violation
+      // into the same answer the sequential path gives.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002' &&
+        String(e.meta?.target ?? '').includes('approverId')
+      ) {
+        throw new ConflictException('You have already recorded a decision on this stage.');
+      }
+      throw e;
+    }
+  }
+
+  private async recordDecision(
+    request: NonNullable<Awaited<ReturnType<ApprovalsService['getRequest']>>>,
+    stage: (typeof request)['stages'][number],
+    approverId: string,
+    effectiveApproverId: string,
+    dto: ApprovalDecisionDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.documentApprovalDecision.create({
         data: {
@@ -387,6 +431,15 @@ export class ApprovalsService {
           ? { currentStageOrder: next.ordering }
           : { status: ApprovalRequestStatus.APPROVED, resolvedAt: new Date() },
       });
+
+      // The last stage has cleared, so whatever the request was asking for
+      // happens now — in this transaction, alongside the approval that
+      // authorises it. Doing it afterwards would leave a window where the
+      // request reads approved and the access does not exist, and doing it
+      // earlier would mean pending access is real access.
+      if (!next) {
+        await applyApprovedRequest(tx, request);
+      }
 
       return tx.approvalRequest.findUnique({ where: { id: request.id }, include: REQUEST_INCLUDE });
     });

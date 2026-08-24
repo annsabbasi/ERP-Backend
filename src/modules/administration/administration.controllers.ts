@@ -358,29 +358,38 @@ export class ApprovalsController {
     return this.service.myQueue(u.companyId as string, u.sub);
   }
 
+  /**
+   * A company user acts inside their own tenant. A platform operator is inside
+   * none, so the company comes from the request they named.
+   */
+  private async companyFor(u: AuthedUser, requestId: string): Promise<string> {
+    if (u.companyId) return u.companyId as string;
+    return this.service.companyIdForRequest(requestId);
+  }
+
   @ApiOperation({ summary: 'Get one approval request' })
   @RequirePermission('administration.approval.view')
   @Get('requests/:id')
-  getRequest(@CurrentUser() u: AuthedUser, @Param('id') id: string) {
-    return this.service.getRequest(u.companyId as string, id);
+  async getRequest(@CurrentUser() u: AuthedUser, @Param('id') id: string) {
+    return this.service.getRequest(await this.companyFor(u, id), id);
   }
 
   @ApiOperation({ summary: 'Approve or reject the current stage' })
   @RequirePermission('administration.approval.decide')
   @Post('requests/:id/decide')
-  decide(
+  async decide(
     @CurrentUser() u: AuthedUser,
     @Param('id') id: string,
     @Body() dto: Dto.ApprovalDecisionDto,
   ) {
-    return this.service.decide(u.companyId as string, id, u.sub, dto);
+    return this.service.decide(await this.companyFor(u, id), id, u.sub, dto);
   }
 
   @ApiOperation({ summary: 'Withdraw a request (originator only)' })
   @RequirePermission('administration.approval.submit')
   @Post('requests/:id/cancel')
-  cancel(@CurrentUser() u: AuthedUser, @Param('id') id: string) {
-    return this.service.cancel(u.companyId as string, id, u.sub);
+  async cancel(@CurrentUser() u: AuthedUser, @Param('id') id: string) {
+    return this.service.cancel(await this.companyFor(u, id), id, u.sub);
   }
 
   @ApiOperation({ summary: 'Approval Decision Report' })
