@@ -148,6 +148,18 @@ async function main() {
         roleType: UserRoleType.SUPER_ADMIN,
       },
     });
+  } else if (superAdminExisting.roleType !== UserRoleType.SUPER_ADMIN) {
+    // Create-only left this row behind. The UserRoleType remap mapped it to
+    // EMPLOYEE, and because isSuperAdmin short-circuits the permissions guard
+    // nothing failed loudly - the platform operator simply had the wrong role
+    // everywhere that reads roleType rather than the flag. Reconciled here for
+    // the same reason the company users are: a seed that only creates cannot
+    // repair what it created wrong.
+    await prisma.user.update({
+      where: { id: superAdminExisting.id },
+      data: { roleType: UserRoleType.SUPER_ADMIN },
+    });
+    console.log('   reconciled super admin roleType -> SUPER_ADMIN');
   }
   console.log('✅ Super admin seeded  →  admin@erp.com / admin123');
 

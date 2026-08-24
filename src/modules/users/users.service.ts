@@ -4,20 +4,72 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
 
+/** The shape every user read returns. Declared once so the platform-scoped
+ * readers cannot quietly diverge from the tenant-scoped ones. */
+const USER_SELECT = {
+  id: true, name: true, email: true, isActive: true, createdAt: true,
+  roleType: true, departmentId: true,
+  department: { select: { id: true, name: true } },
+  userRoles: { select: { role: { select: { id: true, name: true } } } },
+  userModules: { select: { module: { select: { id: true, name: true, slug: true } } } },
+} as const;
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Users who belong to no company: the platform operators.
+   *
+   * `findAll` filters on a concrete companyId, and in SQL a comparison against
+   * NULL never matches, so these rows were excluded from every list for every
+   * company — permanently invisible, with no endpoint that could show them.
+   * They need their own read path rather than a loosened tenant filter: a
+   * company user must keep seeing only their own tenant.
+   */
+  async findPlatformUsers() {
+    return this.prisma.user.findMany({
+      where: { companyId: null, deletedAt: null },
+      select: { ...USER_SELECT, isSuperAdmin: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Every user in the installation, each carrying the company it belongs to.
+   *
+   * The platform layer has no cross-company read path, which is the single gap
+   * behind both "the Super Admin cannot see users" and "the Super Admin cannot
+   * see an approval queue spanning tenants". This is that path; the approval
+   * inbox is built on the same idea.
+   */
+  async findAllAcrossCompanies(search?: string) {
+    return this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { email: { contains: search, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        ...USER_SELECT,
+        isSuperAdmin: true,
+        companyId: true,
+        company: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: [{ companyId: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
   async findAll(companyId: string) {
     return this.prisma.user.findMany({
       where: { companyId, deletedAt: null },
-      select: {
-        id: true, name: true, email: true, isActive: true, createdAt: true,
-        roleType: true, departmentId: true,
-        department: { select: { id: true, name: true } },
-        userRoles: { select: { role: { select: { id: true, name: true } } } },
-        userModules: { select: { module: { select: { id: true, name: true, slug: true } } } }
-      },
+      select: USER_SELECT,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -25,13 +77,7 @@ export class UsersService {
   async findOne(id: string, companyId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, companyId, deletedAt: null },
-      select: {
-        id: true, name: true, email: true, isActive: true, createdAt: true,
-        roleType: true, departmentId: true,
-        department: { select: { id: true, name: true } },
-        userRoles: { select: { role: { select: { id: true, name: true } } } },
-        userModules: { select: { module: { select: { id: true, name: true, slug: true } } } }
-      },
+      select: USER_SELECT,
     });
     if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;

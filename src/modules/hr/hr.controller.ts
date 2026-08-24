@@ -10,16 +10,8 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { ModuleAccessGuard } from '../../common/guards/module-access.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/permissions.decorator';
+import { resolveCompanyId } from '../../common/tenancy/resolve-company-id';
 import { RequireModule } from '../../common/decorators/module-access.decorator';
-
-// Super admins supply ?companyId; company users use their JWT companyId.
-function resolveCompanyId(user: any, qCompanyId?: string): string {
-  if (user.isSuperAdmin) {
-    if (!qCompanyId) throw new BadRequestException('Super admin must specify ?companyId');
-    return qCompanyId;
-  }
-  return user.companyId;
-}
 
 @UseGuards(JwtAuthGuard, PermissionsGuard, ModuleAccessGuard)
 @RequireModule('hr')

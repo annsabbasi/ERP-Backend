@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -6,15 +6,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/permissions.decorator';
-
-// Super admins pass ?companyId=<id>; company users always use their JWT companyId.
-function resolveCompanyId(user: any, qCompanyId?: string): string {
-  if (user.isSuperAdmin) {
-    if (!qCompanyId) throw new BadRequestException('Super admin must specify ?companyId');
-    return qCompanyId;
-  }
-  return user.companyId;
-}
+import { resolveCompanyId } from '../../common/tenancy/resolve-company-id';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('users')
@@ -23,7 +15,28 @@ export class UsersController {
 
   @RequirePermission('administration.view')
   @Get()
-  findAll(@CurrentUser() user: any, @Query('companyId') qCompanyId?: string) {
+  findAll(
+    @CurrentUser() user: any,
+    @Query('companyId') qCompanyId?: string,
+    @Query('scope') scope?: string,
+    @Query('search') search?: string,
+  ) {
+    // Scopes only a platform operator may ask for. A company user naming one
+    // is refused rather than quietly downgraded to their own tenant, so a bug
+    // in a client cannot turn into a cross-tenant read.
+    if (scope === 'platform' || scope === 'all') {
+      if (!user.isSuperAdmin) {
+        throw new ForbiddenException(
+          `The "${scope}" scope is for platform operators. You can only list users in your own company.`,
+        );
+      }
+      return scope === 'platform'
+        ? this.usersService.findPlatformUsers()
+        : this.usersService.findAllAcrossCompanies(search);
+    }
+    if (scope) {
+      throw new BadRequestException(`Unknown scope "${scope}". Use "platform" or "all".`);
+    }
     return this.usersService.findAll(resolveCompanyId(user, qCompanyId));
   }
 
