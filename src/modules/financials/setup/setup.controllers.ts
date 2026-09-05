@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Query,
   UseGuards,
@@ -73,6 +74,38 @@ export class ExchangeRatesController extends TenantCrudController({
     @Body() body: { rates: Dto.CreateExchangeRateDto[] },
   ) {
     return this.service.bulkUpsert(user.companyId as string, body.rates ?? []);
+  }
+
+  /**
+   * One month of quotes, shaped as the Exchange Rates grid draws it: a row per
+   * day, a column per currency.
+   *
+   * The window used to be expected to page the flat list and bucket it itself,
+   * which meant a month with more quotes than the page size silently lost rows
+   * off the bottom of the grid.
+   */
+  @ApiOperation({ summary: 'Exchange Rates grid for one month' })
+  @RequirePermission('financials.exchange_rate.view')
+  @Get('grid')
+  grid(
+    @CurrentUser() user: AuthedUser,
+    @Query('year', ParseIntPipe) year: number,
+    @Query('month', ParseIntPipe) month: number,
+    @Query('base') base?: string,
+  ) {
+    return this.service.monthGrid(user.companyId as string, year, month, base ?? 'USD');
+  }
+
+  @ApiOperation({ summary: 'Clear one quote (currency + day)' })
+  @RequirePermission('financials.exchange_rate.delete')
+  @Delete('cell')
+  clearCell(
+    @CurrentUser() user: AuthedUser,
+    @Query('target') target: string,
+    @Query('date') date: string,
+    @Query('base') base?: string,
+  ) {
+    return this.service.clearCell(user.companyId as string, target, date, base ?? 'USD');
   }
 }
 

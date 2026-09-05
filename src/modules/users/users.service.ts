@@ -99,7 +99,10 @@ export class UsersService {
         passwordHash,
         companyId,
         roleType: dto.roleType,
-        departmentId: dto.departmentId
+        departmentId: dto.departmentId,
+        // Accepted by the DTO, so it must actually be applied. Dropping it
+        // meant a user created as inactive came back able to sign in.
+        ...(typeof dto.isActive === 'boolean' ? { isActive: dto.isActive } : {}),
       },
       select: { id: true, name: true, email: true, isActive: true, createdAt: true },
     });
@@ -129,7 +132,7 @@ export class UsersService {
     return this.findOne(user.id, companyId);
   }
 
-  async update(id: string, dto: UpdateUserDto, companyId: string) {
+  async update(id: string, dto: UpdateUserDto, companyId: string, actor: GrantActor) {
     await this.findOne(id, companyId);
     const data: any = {};
     if (dto.name) data.name = dto.name;
@@ -154,16 +157,41 @@ export class UsersService {
       }
     }
 
+    // Module access on an update goes through the same approval gate `create`
+    // uses. It previously did not: this method deleted every `user_modules` row
+    // and rewrote it from the payload, so anyone who could edit a user could
+    // hand themselves or anyone else every module with no review. Creating a
+    // user with no modules and then editing them was a complete bypass of the
+    // control, reachable from the ordinary Users window.
+    //
+    // The two directions are deliberately asymmetric:
+    //   • Granting is a request. It only becomes access once approved, so a
+    //     pending grant is not access.
+    //   • Revoking is immediate. Making a revocation wait for approval would
+    //     leave access live exactly while someone had decided it should not be
+    //     — the unsafe direction to queue.
     if (dto.moduleIds) {
       if (dto.moduleIds.length) {
         await this.assertModulesEnabledForCompany(companyId, dto.moduleIds);
       }
-      await this.prisma.userModule.deleteMany({ where: { userId: id } });
-      if (dto.moduleIds.length) {
-        await this.prisma.userModule.createMany({
-          data: dto.moduleIds.map(moduleId => ({ userId: id, moduleId })),
-          skipDuplicates: true,
+
+      const current = await this.prisma.userModule.findMany({
+        where: { userId: id },
+        select: { moduleId: true },
+      });
+      const held = new Set(current.map((m) => m.moduleId));
+      const wanted = new Set(dto.moduleIds);
+
+      const toRevoke = [...held].filter((m) => !wanted.has(m));
+      if (toRevoke.length) {
+        await this.prisma.userModule.deleteMany({
+          where: { userId: id, moduleId: { in: toRevoke } },
         });
+      }
+
+      const toRequest = [...wanted].filter((m) => !held.has(m));
+      for (const moduleId of toRequest) {
+        await this.moduleGrants.request(companyId, actor, { userId: id, moduleId });
       }
     }
 

@@ -161,6 +161,16 @@ const FINE_GRAINED: PermissionDef[] = [
   ...standardSet('administration', 'administration.user_group', 'user groups'),
   ...standardSet('administration', 'administration.user_defaults', 'user defaults groups'),
   ...standardSet('administration', 'administration.alert', 'alerts'),
+  ...standardSet('administration', 'administration.index', 'economic indexes'),
+
+  // License and Utilities split view from the privileged verb rather than
+  // taking the standard five: importing a license or running a period-end
+  // closing is not "update", and folding them into it would hand every user who
+  // may edit a setup catalog the ability to post a closing journal.
+  { key: 'administration.license.view',     resource: 'administration.license',   action: 'view',    moduleSlug: 'administration', description: 'View licenses, seat allocation and the support log' },
+  { key: 'administration.license.manage',   resource: 'administration.license',   action: 'manage',  moduleSlug: 'administration', description: 'Import licenses, assign seats, generate add-on identifiers' },
+  { key: 'administration.utilities.view',   resource: 'administration.utilities', action: 'view',    moduleSlug: 'administration', description: 'Run Utilities reports and previews' },
+  { key: 'administration.utilities.execute', resource: 'administration.utilities', action: 'execute', moduleSlug: 'administration', description: 'Execute period-end closing, log cleanup and client disconnects' },
 
   // Approvals split submit/decide from manage: raising a document for approval
   // and approving one are different privileges from designing the process.

@@ -290,6 +290,78 @@ export class ExchangeRatesService extends TenantCrudService {
     );
     return { upserted: results.length, rates: results };
   }
+
+  /**
+   * One month shaped as the Exchange Rates grid draws it.
+   *
+   * The columns are the company's active currencies rather than whichever
+   * currencies happen to have a quote that month — otherwise a column appears
+   * and disappears as the operator pages between months, and there is nowhere
+   * to type the first rate for a currency that has none yet.
+   */
+  async monthGrid(companyId: string, year: number, month: number, baseCurrency = 'USD') {
+    const cid = this.requireCompany(companyId);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new BadRequestException(`Month ${month} is out of range — expected 1-12.`);
+    }
+    if (!Number.isInteger(year) || year < 1900 || year > 2999) {
+      throw new BadRequestException(`Year ${year} is out of range.`);
+    }
+
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 0)); // day 0 of next month = last of this
+    const daysInMonth = end.getUTCDate();
+
+    const [currencies, rows] = await Promise.all([
+      this.prisma.currency.findMany({
+        where: { companyId: cid, isActive: true, code: { not: baseCurrency } },
+        orderBy: { code: 'asc' },
+        select: { code: true, name: true, decimals: true },
+      }),
+      this.prisma.exchangeRate.findMany({
+        where: { companyId: cid, baseCurrency, date: { gte: start, lte: end } },
+        select: { id: true, targetCurrency: true, date: true, rate: true, source: true },
+      }),
+    ]);
+
+    const byDay = new Map<number, Map<string, { id: string; rate: string; source: string | null }>>();
+    for (const r of rows) {
+      const day = r.date.getUTCDate();
+      if (!byDay.has(day)) byDay.set(day, new Map());
+      byDay.get(day)!.set(r.targetCurrency, {
+        id: r.id,
+        rate: r.rate.toString(),
+        source: r.source,
+      });
+    }
+
+    const days = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const found = byDay.get(day);
+      const cells: Record<string, { id: string; rate: string; source: string | null } | null> = {};
+      for (const c of currencies) cells[c.code] = found?.get(c.code) ?? null;
+      return {
+        day,
+        date: new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10),
+        cells,
+      };
+    });
+
+    return { year, month, baseCurrency, currencies, days };
+  }
+
+  /** Clears one quote. A cleared cell is "no quote", which is not a rate of 0. */
+  async clearCell(companyId: string, targetCurrency: string, date: string, baseCurrency = 'USD') {
+    const cid = this.requireCompany(companyId);
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) throw new BadRequestException(`"${date}" is not a valid date.`);
+    const day = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+
+    const removed = await this.prisma.exchangeRate.deleteMany({
+      where: { companyId: cid, baseCurrency, targetCurrency, date: day },
+    });
+    return { removed: removed.count, targetCurrency, date: day.toISOString().slice(0, 10) };
+  }
 }
 
 // ─── ACCOUNT DETERMINATION ────────────────────────────────────────────────────

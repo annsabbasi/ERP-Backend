@@ -33,6 +33,15 @@ export class CompaniesController {
     return this.companies.findAll();
   }
 
+  /**
+   * Declared before `:id` on purpose — Nest matches routes in declaration
+   * order, so a later `available` would be swallowed by the `:id` param.
+   */
+  @Get('available')
+  available(@CurrentUser() user: any) {
+    return this.companies.available(user ?? {});
+  }
+
   @RequirePermission('administration.view')
   @Get(':id')
   findOne(@Param('id') id: string) {

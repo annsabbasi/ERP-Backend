@@ -89,6 +89,63 @@ export const SETTINGS_DEFAULTS: Record<string, Record<string, unknown>> = {
     fontSize: 11,
     backgroundColor: '#ececec',
   },
+  // The remaining General Settings tabs. Their full control list lives in the
+  // client's field schema; the keys other server code reads are declared here so
+  // a server-side `get()` has a sane fallback instead of undefined.
+  resources: {
+    defaultResourceWarehouse: '',
+    autoAddWarehousesToResources: true,
+  },
+  cockpit: {
+    cockpitStyle: 'fiori',
+    kpiRefreshSeconds: 300,
+  },
+  cost_accounting: {
+    useMultidimensions: false,
+    displayDistributionRules: 'unified',
+    // 'block' would stop a posting that is otherwise valid, so the shipped
+    // default warns instead; a company that wants the harder rule opts in.
+    missingRuleBehaviour: 'warning',
+  },
+  hide_functions: {},
+  qr_codes: {
+    enableQrCodes: false,
+    qrCodeContent: 'documentNumber',
+    qrCodeSizePx: 120,
+  },
+  security: {
+    passwordMinLength: 8,
+    passwordRequireUppercase: true,
+    passwordRequireNumber: true,
+    passwordRequireSymbol: false,
+    passwordExpiryDays: 0,
+    passwordHistoryCount: 3,
+    maxFailedAttempts: 5,
+    lockoutMinutes: 15,
+    sessionIdleMinutes: 0,
+    requireMfaForAdmins: false,
+    auditSensitiveReads: false,
+  },
+  // Print Preferences — the General tab plus the per-document overrides the
+  // Print Preferences window writes.
+  print_preferences: {
+    maxRowsPerPage: 99,
+    printWithVerticalCompression: 100,
+    topMarginCm: 0,
+    bottomMarginCm: 0,
+    maxRowsPerPageInExport: 10,
+    printingLayoutSerialNo: 'serial_no',
+    printTextAsPicture: false,
+    printOnLetterPaper: false,
+    printGenerationMessagePld: true,
+    printGenerationMessageCrystal: true,
+    printDraftWatermark: true,
+    generatePdfWhenPrinting: false,
+    printCancelledWatermark: true,
+    useSystemPrintPreference: false,
+    useAttachmentsFolderForExport: false,
+    attachExportedPdfsToDocuments: false,
+  },
 };
 
 @Injectable()

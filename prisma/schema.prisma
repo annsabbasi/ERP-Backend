@@ -155,6 +155,15 @@ model Company {
   attachments           Attachment[]
   idempotencyKeys       IdempotencyKey[]
 
+  // ── Administration: Exchange Rates & Indexes, License, Utilities ──
+  financialIndexes      FinancialIndex[]
+  financialIndexValues  FinancialIndexValue[]
+  licenses              CompanyLicense[]
+  licenseAssignments    LicenseAssignment[]
+  addOnIdentifiers      AddOnIdentifier[]
+  supportUserLogs       SupportUserLogEntry[]
+  periodEndClosingRuns  PeriodEndClosingRun[]
+
   @@map("companies")
 }
 
@@ -275,6 +284,10 @@ model User {
   periodsClosed         FiscalPeriod[]           @relation("PeriodClosedBy")
   settingsUpdated       CompanySetting[]         @relation("SettingUpdatedBy")
   employeeRecord        Employee?                @relation("EmployeeUser")
+  licenseAssignments    LicenseAssignment[]
+  addOnIdentifiers      AddOnIdentifier[]        @relation("AddOnGeneratedBy")
+  supportUserLogs       SupportUserLogEntry[]
+  periodEndClosingRuns  PeriodEndClosingRun[]    @relation("PeriodEndExecutedBy")
 
   @@unique([email, companyId])
   @@index([companyId])
@@ -3894,4 +3907,202 @@ model FixedAssetTransaction {
 
   @@index([assetId, postingDate])
   @@map("fixed_asset_transactions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMINISTRATION — EXCHANGE RATES & INDEXES (Indexes tab)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// A named economic index (CPI, WPI, a construction cost index, …). The window
+// shows one column per index and one row per month of the selected year, so
+// values are stored per (index, year, month) rather than per date: an index is
+// published monthly, and a DateTime would invite two rows for the same month
+// that disagree.
+model FinancialIndex {
+  id          String   @id @default(uuid())
+  companyId   String
+  code        String    // "CP", "CPI", "WPI" — the grid's column header
+  name        String
+  description String?
+  baseYear    Int?      // year the index is normalised to (value 100)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  values  FinancialIndexValue[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  // Target for the tenant-scoped composite FK on the values below.
+  @@unique([companyId, id])
+  @@map("financial_indexes")
+}
+
+model FinancialIndexValue {
+  id        String   @id @default(uuid())
+  companyId String
+  indexId   String
+  year      Int
+  month     Int       // 1-12
+  value     Decimal  @db.Decimal(18, 6)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  index   FinancialIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+
+  @@unique([indexId, year, month])
+  @@index([companyId, year])
+  @@map("financial_index_values")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMINISTRATION — LICENSE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum AddOnType {
+  DEVELOPMENT
+  IMPLEMENTATION
+  SOLUTION
+}
+
+// One imported license file per company. `components` carries the per-module
+// entitlement counts the Components tab lists; assignments below consume them.
+model CompanyLicense {
+  id                 String   @id @default(uuid())
+  companyId          String
+  licenseKey         String    // the "License" field on the Allocation tab
+  licenseServer      String?   // host the client points at, e.g. "192.168.109.6"
+  port               Int?      @default(40000)
+  hardwareKey        String?
+  installationNumber String?
+  systemNumber       String?
+  validFrom          DateTime?
+  validTo            DateTime?
+  isActive           Boolean  @default(true)
+  importedAt         DateTime @default(now())
+  importedFileName   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  components  LicenseComponent[]
+  assignments LicenseAssignment[]
+
+  @@unique([companyId, licenseKey])
+  @@index([companyId])
+  @@map("company_licenses")
+}
+
+model LicenseComponent {
+  id         String   @id @default(uuid())
+  licenseId  String
+  code       String    // "B1INDIRECT_HDB", "PROFESSIONAL", …
+  name       String
+  totalCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  license     CompanyLicense      @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  assignments LicenseAssignment[]
+
+  @@unique([licenseId, code])
+  @@map("license_components")
+}
+
+// A seat handed to a user. "Used" and "Available" on the Allocation tab are
+// counted from these rows rather than stored, so the two can never disagree.
+model LicenseAssignment {
+  id           String   @id @default(uuid())
+  companyId    String
+  licenseId    String
+  componentId  String
+  userId       String
+  assignedAt   DateTime @default(now())
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  license   CompanyLicense   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  component LicenseComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([componentId, userId])
+  @@index([companyId])
+  @@index([userId])
+  @@map("license_assignments")
+}
+
+model AddOnIdentifier {
+  id               String    @id @default(uuid())
+  companyId        String
+  addOnName        String
+  addOnType        AddOnType @default(DEVELOPMENT)
+  partnerNamespace String?
+  identifier       String     // the generated value shown in the window
+  generatedById    String?
+  createdAt        DateTime  @default(now())
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  generatedBy User?   @relation("AddOnGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, identifier])
+  @@index([companyId])
+  @@map("add_on_identifiers")
+}
+
+model SupportUserLogEntry {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String?
+  action     String
+  detail     String?
+  metadata   Json?
+  occurredAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, occurredAt])
+  @@map("support_user_log")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMINISTRATION — UTILITIES: PERIOD-END CLOSING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum PeriodEndClosingStatus {
+  PREVIEW
+  EXECUTED
+  FAILED
+}
+
+// One run of the Period-End Closing utility. The preview and the execution are
+// the same row: a run is created as PREVIEW and promoted to EXECUTED once its
+// journal is posted, so the "Previous Report" button has something to show
+// whether or not the operator went through with it.
+model PeriodEndClosingRun {
+  id                       String                 @id @default(uuid())
+  companyId                String
+  fromPeriodId             String
+  toPeriodId               String
+  retainedEarningsAccountId String
+  closingAccountId          String?
+  usePrimaryClosingAccount  Boolean               @default(true)
+  status                   PeriodEndClosingStatus @default(PREVIEW)
+  // Per-account balances the run moved, kept so the report reprints unchanged
+  // even after later postings shift the live balances.
+  lines                    Json
+  totalDebit               Decimal                @db.Decimal(20, 4) @default(0)
+  totalCredit              Decimal                @db.Decimal(20, 4) @default(0)
+  journalEntryId           String?
+  errorMessage             String?
+  executedById             String?
+  executedAt               DateTime?
+  createdAt                DateTime               @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  executedBy User?   @relation("PeriodEndExecutedBy", fields: [executedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@map("period_end_closing_runs")
 }

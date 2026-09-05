@@ -23,13 +23,20 @@ export function resolveCompanyId(
   queryCompanyId?: string,
 ): string {
   if (user.isSuperAdmin) {
-    if (!queryCompanyId) {
-      throw new BadRequestException(
-        'This request needs a company. As a platform operator you are not inside one, ' +
-          'so choose the company you are administering and retry with ?companyId=<id>.',
-      );
-    }
-    return queryCompanyId;
+    // An explicit `?companyId` still wins — it is the most specific thing the
+    // caller said. Otherwise fall back to whatever the guard already resolved
+    // from the `X-Company-Id` header, which is how the Choose Company window
+    // names the tenant a platform operator is administering. Without this
+    // fallback every route using this helper would keep demanding a query
+    // param even once a company had been chosen.
+    if (queryCompanyId) return queryCompanyId;
+    if (user.companyId) return user.companyId;
+
+    throw new BadRequestException(
+      'This request needs a company. As a platform operator you are not inside one, ' +
+        'so choose the company you are administering in Administration → Choose Company ' +
+        '(or retry with ?companyId=<id>).',
+    );
   }
   return user.companyId as string;
 }

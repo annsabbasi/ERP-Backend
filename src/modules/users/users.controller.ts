@@ -55,7 +55,9 @@ export class UsersController {
   @RequirePermission('administration.update')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: any, @Query('companyId') qCompanyId?: string) {
-    return this.usersService.update(id, dto, resolveCompanyId(user, qCompanyId));
+    // The actor is passed through because a module grant on this payload is
+    // routed for approval, and the approval record has to name who asked.
+    return this.usersService.update(id, dto, resolveCompanyId(user, qCompanyId), user);
   }
 
   @RequirePermission('administration.delete')

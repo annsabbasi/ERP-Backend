@@ -43,6 +43,53 @@ export class CompaniesService {
     });
   }
 
+  /**
+   * The companies the caller may act inside — what the Choose Company grid lists.
+   *
+   * A platform operator sees every tenant; a company user sees only their own.
+   * Deliberately a separate route from `findAll()`: that one is super-admin-only
+   * and returns billing detail, and Choose Company must also work for a company
+   * user, who then simply has a single-row grid.
+   */
+  async available(user: { isSuperAdmin?: boolean; companyId?: string | null }) {
+    const where: Prisma.CompanyWhereInput = user.isSuperAdmin
+      ? {}
+      : { id: user.companyId ?? '__none__' };
+
+    const rows = await this.prisma.company.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        isActive: true,
+        country: true,
+        currency: true,
+        locale: true,
+        timezone: true,
+        industry: true,
+        fiscalYearStart: true,
+        createdAt: true,
+        _count: { select: { users: true, branches: true } },
+        companyModules: {
+          where: { isEnabled: true },
+          select: { module: { select: { slug: true, name: true } } },
+        },
+      },
+    });
+
+    // The grid's columns are SAP's: Company Name / Database Name / Localization
+    // / Version. `slug` is this platform's stand-in for a database name — it is
+    // the stable per-tenant identifier a user recognises.
+    return rows.map((c) => ({
+      ...c,
+      databaseName: c.slug,
+      localization: c.country ?? c.locale ?? '—',
+      moduleCount: c.companyModules.length,
+    }));
+  }
+
   async findOne(id: string) {
     const company = await this.prisma.company.findUnique({
       where: { id },

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AdministrationModule } from '../administration/administration.module';
 
 import { AccountsController } from './accounts/accounts.controller';
@@ -66,7 +66,10 @@ const setupControllers = [
   // Journal posting allocates document numbers, which the Administration
   // module owns. Importing it (rather than duplicating a numbering service)
   // keeps a single allocator, so numbers cannot collide across modules.
-  imports: [AdministrationModule],
+  //
+  // The dependency now runs both ways — Administration's Period-End Closing
+  // posts through JournalEntriesService — so both sides use forwardRef.
+  imports: [forwardRef(() => AdministrationModule)],
   controllers: [
     AccountsController,
     FiscalPeriodsController,
