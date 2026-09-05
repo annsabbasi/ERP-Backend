@@ -128,13 +128,14 @@ describe('period-end closing', () => {
     // NotFoundError deep in setup instead of saying what was actually absent —
     // and would have gone on hiding the fact that a freshly seeded company had
     // no equity account at all, which made Period-End Closing unusable.
-    retained = accounts.find((a) => a.code === '3200')!;
-    if (!retained) {
+    const retainedEarnings = accounts.find((a) => a.code === '3200');
+    if (!retainedEarnings) {
       throw new Error(
         'Account 3200 (Retained Earnings) is missing. Period-End Closing carries the net result ' +
           'there, so a company without it cannot close a period. Run `npm run prisma:seed`.',
       );
     }
+    retained = retainedEarnings;
 
     const period = await prisma.fiscalPeriod.findFirstOrThrow({
       where: { companyId: h.companyId, subPeriodType: 'MONTHS', status: 'OPEN' },

@@ -40,14 +40,20 @@ describe('ledgerStatusWhere', () => {
 describe('no hand-written POSTED filter on ledger aggregations', () => {
   const ROOT = join(__dirname, '..', '..');
 
-  /** Files allowed to name POSTED directly: they set status, not filter on it. */
-  const ALLOWED = [
-    join('financials', 'ledger-status.ts'),
-    join('financials', 'journal-entries', 'journal-entries.service.ts'),
-    join('financials', 'ar-ap'),
-    join('financials', 'fixed-assets'),
-  ];
-
+  /**
+   * No exemptions.
+   *
+   * There was an allow-list here naming `ar-ap` and `fixed-assets` as whole
+   * directories. Neither aggregates journal lines, so it hid nothing today —
+   * but a directory-wide exemption silently covers the first file anyone adds
+   * to it, which is precisely the blind spot this guard exists to remove.
+   *
+   * It turned out to be unnecessary in full: every file that genuinely
+   * aggregates journal lines already goes through the helper, and files that
+   * merely *set* `status: POSTED` when creating an entry are never matched,
+   * because the check only looks inside aggregation calls. If a real exemption
+   * is ever needed, name the single file — never a directory.
+   */
   const walk = (dir: string, out: string[] = []): string[] => {
     for (const name of readdirSync(dir)) {
       const full = join(dir, name);
@@ -121,7 +127,6 @@ describe('no hand-written POSTED filter on ledger aggregations', () => {
     const offenders: string[] = [];
 
     for (const file of walk(ROOT)) {
-      if (ALLOWED.some((a) => file.includes(a))) continue;
       const src = stripComments(readFileSync(file, 'utf8'));
 
       for (const block of aggregationCalls(src)) {
