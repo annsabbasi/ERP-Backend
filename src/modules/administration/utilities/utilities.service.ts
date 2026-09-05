@@ -5,12 +5,12 @@ import {
 } from '@nestjs/common';
 import {
   AccountType,
-  JournalEntryStatus,
   PeriodEndClosingStatus,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JournalEntriesService } from '../../financials/journal-entries/journal-entries.service';
+import { ledgerStatusWhere } from '../../financials/ledger-status';
 import { NumberingService } from '../numbering/numbering.service';
 
 const ZERO = new Prisma.Decimal(0);
@@ -68,13 +68,25 @@ export class UtilitiesService {
     }
 
     // Grouped in the database; the ledger is never pulled into Node.
+    //
+    // The status clause comes from `ledgerStatusWhere` and must never be
+    // hand-written as `status: POSTED`. Reversing an entry does not remove it:
+    // it posts a mirror entry and both rows stay, so filtering on POSTED alone
+    // drops the original while keeping its reversal and every balance shifts by
+    // the reversal amount in the wrong direction.
+    //
+    // That is worse here than in a report. `executePeriodEndClosing` recomputes
+    // this and posts the result as retained earnings, and the entry still
+    // passes its balance check — because `netResult` is derived from the same
+    // corrupted sums, so both sides are wrong by the same amount. Preview and
+    // Execute would agree with each other and disagree with the ledger.
     const rows = await this.prisma.journalLine.groupBy({
       by: ['accountId'],
       where: {
         companyId,
         entry: {
           companyId,
-          status: JournalEntryStatus.POSTED,
+          ...ledgerStatusWhere(),
           date: { gte: from.startDate, lte: to.endDate },
         },
         account: { type: { in: [AccountType.INCOME, AccountType.EXPENSE] } },

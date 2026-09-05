@@ -245,7 +245,15 @@ export class ApprovalsService {
    * Returns `required: false` when nothing matches, which the caller treats as
    * "post it straight away".
    */
-  async submit(companyId: string, originatorId: string, dto: SubmitForApprovalDto) {
+  /**
+   * The templates that would gate this document, without creating anything.
+   *
+   * Split out of `submit` so a caller can ask "will this be routed?" ahead of
+   * time and get the same answer `submit` will give. Duplicating the selection
+   * at the call site would let the two drift, and a preflight that disagrees
+   * with the real thing is worse than no preflight.
+   */
+  async matchingTemplates(companyId: string, originatorId: string, dto: SubmitForApprovalDto) {
     const now = new Date();
     const templates = await this.prisma.approvalTemplate.findMany({
       where: {
@@ -263,13 +271,30 @@ export class ApprovalsService {
       },
     });
 
-    const matched = templates.filter((t) => {
+    return templates.filter((t) => {
       // No originators listed means the template watches everyone.
       const watchesOriginator =
         t.originators.length === 0 || t.originators.some((o) => o.userId === originatorId);
       if (!watchesOriginator) return false;
       return this.termsMatch(t.terms as Terms, dto.document);
     });
+  }
+
+  /**
+   * Whether a document would actually be routed.
+   *
+   * A template with no stages cannot gate anything, so `submit` skips it —
+   * meaning a company can have a matching template and still end up with
+   * `required: false`. This mirrors that, so a preflight cannot report
+   * "routable" for a template `submit` will silently pass over.
+   */
+  async wouldRoute(companyId: string, originatorId: string, dto: SubmitForApprovalDto) {
+    const matched = await this.matchingTemplates(companyId, originatorId, dto);
+    return matched.some((t) => t.stages.length > 0);
+  }
+
+  async submit(companyId: string, originatorId: string, dto: SubmitForApprovalDto) {
+    const matched = await this.matchingTemplates(companyId, originatorId, dto);
 
     if (!matched.length) {
       return { required: false, requests: [] as unknown[] };

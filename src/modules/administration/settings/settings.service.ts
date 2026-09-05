@@ -148,6 +148,14 @@ export const SETTINGS_DEFAULTS: Record<string, Record<string, unknown>> = {
   },
 };
 
+/**
+ * Settings group holding the Company Details window's SAP-shaped fields.
+ *
+ * Named here rather than in the client so the server and the window cannot
+ * disagree about where those values live.
+ */
+export const COMPANY_DETAILS_GROUP = 'company_details';
+
 @Injectable()
 export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -239,6 +247,59 @@ export class SettingsService {
         branding: dto.branding as Prisma.InputJsonValue | undefined,
       },
     });
+  }
+
+  /**
+   * Saves the Company Details window as one unit.
+   *
+   * The window's data lives in two places: the `companies` row for the values
+   * posting routines read, and the `company_details` settings group for the
+   * address, tax registration and initialization fields. Written as two
+   * requests, the first could commit and the second fail — leaving the window
+   * showing an error over a save that had half happened, with no way for the
+   * user to tell which half.
+   *
+   * One transaction, so the window's report and the database agree.
+   */
+  async saveCompanyDetails(
+    companyId: string,
+    userId: string,
+    dto: { company?: UpdateCompanyDetailsDto; details?: Record<string, unknown> },
+  ) {
+    const detailEntries = Object.entries(dto.details ?? {});
+
+    await this.prisma.$transaction(async (tx) => {
+      if (dto.company && Object.keys(dto.company).length) {
+        await tx.company.update({
+          where: { id: companyId },
+          data: {
+            ...dto.company,
+            branding: dto.company.branding as Prisma.InputJsonValue | undefined,
+          },
+        });
+      }
+
+      for (const [key, value] of detailEntries) {
+        await tx.companySetting.upsert({
+          where: {
+            companyId_group_key: { companyId, group: COMPANY_DETAILS_GROUP, key },
+          },
+          create: {
+            companyId,
+            group: COMPANY_DETAILS_GROUP,
+            key,
+            value: value as Prisma.InputJsonValue,
+            updatedById: userId,
+          },
+          update: { value: value as Prisma.InputJsonValue, updatedById: userId },
+        });
+      }
+    });
+
+    return {
+      company: await this.getCompanyDetails(companyId),
+      details: await this.getGroup(companyId, COMPANY_DETAILS_GROUP),
+    };
   }
 
   // ── Document settings ──────────────────────────────────────────────────────

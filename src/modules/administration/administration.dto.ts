@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { AlertFrequency, AlertPriority, ApprovalDecision } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
@@ -12,6 +13,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 // ─── COMPANY SETTINGS ─────────────────────────────────────────────────────────
@@ -54,6 +56,26 @@ export class UpdateCompanyDetailsDto {
   @ApiPropertyOptional() @IsOptional() @IsString() defaultTaxRecoverableAccountId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() defaultRevenueAccountId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() defaultExpenseAccountId?: string;
+}
+
+/**
+ * Company Details saved as one unit.
+ *
+ * The window writes to two places — the `companies` row for what the ledger
+ * reads, and a settings group for the address/tax/initialization fields. Sending
+ * them as two requests meant the first could commit and the second fail, leaving
+ * the window reporting an error over a half-applied save. One request, one
+ * transaction.
+ */
+export class SaveCompanyDetailsDto {
+  @ApiPropertyOptional({ description: 'Fields stored on the company record itself' })
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => UpdateCompanyDetailsDto)
+  company?: UpdateCompanyDetailsDto;
+
+  @ApiPropertyOptional({
+    description: 'SAP address / tax / initialization fields, stored as a settings group',
+  })
+  @IsOptional() @IsObject() details?: Record<string, unknown>;
 }
 
 export class UpsertDocumentSettingsDto {

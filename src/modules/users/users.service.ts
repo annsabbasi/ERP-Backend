@@ -183,13 +183,26 @@ export class UsersService {
       const wanted = new Set(dto.moduleIds);
 
       const toRevoke = [...held].filter((m) => !wanted.has(m));
+      const toRequest = [...wanted].filter((m) => !held.has(m));
+
+      // Every grant is checked before anything is written.
+      //
+      // `request()` refuses on several ordinary conditions — no approval
+      // template, a grant already pending, the module not enabled. Revoking
+      // first and discovering that on the next grant left the revocations
+      // applied while the caller got a 409 and reasonably concluded the edit
+      // had not saved. Validating up front means a rejected edit changes
+      // nothing at all.
+      for (const moduleId of toRequest) {
+        await this.moduleGrants.assertGrantable(companyId, actor, { userId: id, moduleId });
+      }
+
       if (toRevoke.length) {
         await this.prisma.userModule.deleteMany({
           where: { userId: id, moduleId: { in: toRevoke } },
         });
       }
 
-      const toRequest = [...wanted].filter((m) => !held.has(m));
       for (const moduleId of toRequest) {
         await this.moduleGrants.request(companyId, actor, { userId: id, moduleId });
       }

@@ -48,6 +48,15 @@ export class SystemInitializationController {
     return this.settings.updateCompanyDetails(user.companyId as string, dto);
   }
 
+  @ApiOperation({
+    summary: 'Save the Company Details window (company row + detail fields) in one transaction',
+  })
+  @RequirePermission('administration.update')
+  @Put('company-details/save')
+  saveCompany(@CurrentUser() user: AuthedUser, @Body() dto: Dto.SaveCompanyDetailsDto) {
+    return this.settings.saveCompanyDetails(user.companyId as string, user.sub, dto);
+  }
+
   @ApiOperation({ summary: 'All settings groups, defaults merged with overrides' })
   @RequirePermission('administration.view')
   @Get('settings')

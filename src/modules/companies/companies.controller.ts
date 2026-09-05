@@ -34,9 +34,18 @@ export class CompaniesController {
   }
 
   /**
-   * Declared before `:id` on purpose — Nest matches routes in declaration
-   * order, so a later `available` would be swallowed by the `:id` param.
+   * Companies the caller may act inside — the Choose Company grid.
+   *
+   * Declared before `:id` on purpose: Nest matches routes in declaration order,
+   * so a later `available` would be swallowed by the `:id` param.
+   *
+   * Deliberately gated on plain `administration.view` rather than
+   * `@SuperAdminOnly()`: a company user has to be able to open Choose Company
+   * too, and the service scopes them to their own company. The decorator is
+   * here so the route's authorization is stated rather than left implicit —
+   * every other route on this controller declares one.
    */
+  @RequirePermission('administration.view')
   @Get('available')
   available(@CurrentUser() user: any) {
     return this.companies.available(user ?? {});

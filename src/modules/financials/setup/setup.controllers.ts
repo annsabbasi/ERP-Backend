@@ -26,7 +26,9 @@ import * as Dto from './setup.dto';
 // added as extra methods on the subclass.
 
 @ApiTags('Financials — Currencies')
-@RequireModule('financials')
+// Also reachable with `administration`: the Exchange Rates & Indexes window is
+// an Administration screen and fills its currency picker from here.
+@RequireModule('financials', 'administration')
 @Controller('financials/currencies')
 export class CurrenciesController extends TenantCrudController({
   permissionResource: 'financials.currency',
@@ -38,7 +40,10 @@ export class CurrenciesController extends TenantCrudController({
 }
 
 @ApiTags('Financials — Exchange Rates')
-@RequireModule('financials')
+// Surfaced inside Administration → Exchange Rates & Indexes, whose other tab is
+// gated on `administration`. Gating this half on `financials` alone left that
+// window with one working tab and one that answered 403.
+@RequireModule('financials', 'administration')
 @Controller('financials/exchange-rates')
 export class ExchangeRatesController extends TenantCrudController({
   permissionResource: 'financials.exchange_rate',

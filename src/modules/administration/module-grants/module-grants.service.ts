@@ -91,6 +91,72 @@ export class ModuleGrantsService {
     return { autoApproved: false, ...outcome };
   }
 
+  /**
+   * Runs every check `request` would, without writing anything.
+   *
+   * Exists so a caller that is about to make several changes at once can find
+   * out up front whether all of them will be accepted. `UsersService.update`
+   * revokes modules and requests grants in the same edit; without this it
+   * revoked first and then discovered on the third grant that the request was
+   * going to be refused, leaving the revocations applied under an error the
+   * admin reasonably read as "nothing saved".
+   *
+   * This narrows the window rather than closing it — the grant is still a
+   * separate write afterwards, so a concurrent change between the two can still
+   * make it fail. It removes the ordinary, reproducible failures (already held,
+   * already pending, no template, module not enabled), which are the ones that
+   * actually happen.
+   */
+  async assertGrantable(
+    companyId: string,
+    actor: GrantActor,
+    dto: { userId: string; moduleId: string },
+  ): Promise<void> {
+    const { user, module } = await this.validate(companyId, dto.userId, dto.moduleId);
+
+    const already = await this.prisma.userModule.findUnique({
+      where: { userId_moduleId: { userId: dto.userId, moduleId: dto.moduleId } },
+    });
+    if (already) {
+      throw new ConflictException(`${user.email} already has the ${module.name} module.`);
+    }
+
+    const pending = await this.findPending(companyId, dto.userId, dto.moduleId);
+    if (pending) {
+      throw new ConflictException(
+        `A request to give ${user.email} the ${module.name} module is already awaiting approval.`,
+      );
+    }
+
+    // A platform operator's grant is recorded as approved rather than routed,
+    // so it needs no template and this check does not apply to them.
+    if (actor.isSuperAdmin) return;
+
+    // Asked through the approvals service rather than re-querying templates
+    // here, so this cannot answer differently from the `submit` that follows.
+    // Template matching depends on the originator, the validity window and the
+    // template's terms, none of which a duplicated "is there a template?" query
+    // would take into account.
+    const snapshot: UserModuleGrantSnapshot = {
+      userId: dto.userId,
+      moduleId: dto.moduleId,
+      userEmail: user.email,
+      moduleSlug: module.slug,
+    };
+    const routable = await this.approvals.wouldRoute(companyId, actor.sub, {
+      documentType: USER_MODULE_GRANT,
+      documentId: `${dto.userId}:${dto.moduleId}`,
+      document: snapshot as unknown as Record<string, unknown>,
+    } as never);
+
+    if (!routable) {
+      throw new BadRequestException(
+        'No approval template covers module grants for this company, so the grant cannot be ' +
+          'reviewed. Add one naming the approver before granting module access.',
+      );
+    }
+  }
+
   /** Pending grant requests for one company. */
   async pending(companyId: string) {
     return this.prisma.approvalRequest.findMany({

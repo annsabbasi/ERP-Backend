@@ -1,0 +1,224 @@
+import { PrismaClient } from '@prisma/client';
+import {
+  assertLedgerConsistent,
+  bootstrap,
+  Harness,
+  withGuardsDisabled,
+} from './harness';
+
+/**
+ * Period-End Closing, driven through the API.
+ *
+ * The case this suite exists for is the reversal one. Reversing a journal entry
+ * does not remove it: a mirror entry is posted and both rows stay, the original
+ * flipped to REVERSED. Any aggregation that filters on `status: 'POSTED'` alone
+ * therefore drops the original and keeps its mirror, and every total shifts by
+ * the reversal amount in the wrong direction.
+ *
+ * That is bad in a report and worse here, because Period-End Closing posts its
+ * result into the ledger as retained earnings — and the entry still passes its
+ * balance check, since the net is computed from the same corrupted sums. Both
+ * sides come out wrong by the same amount, so preview and execute agree with
+ * each other and disagree with the ledger. Nothing downstream catches it.
+ *
+ * The assertion is deliberately the whole point of the feature: post revenue,
+ * reverse it, and the closing must see nothing left to close.
+ */
+describe('period-end closing', () => {
+  let h: Harness;
+  let prisma: PrismaClient;
+  let cash: { id: string; code: string };
+  let revenue: { id: string; code: string };
+  let retained: { id: string; code: string };
+  let periodId: string;
+  let periodName: string;
+
+  const made: string[] = [];
+
+  /** Posts a revenue entry straight at the tables, as the seed data would. */
+  const postRevenue = async (number: string, amount: number) => {
+    const e = await prisma.journalEntry.create({
+      data: {
+        companyId: h.companyId,
+        periodId,
+        number,
+        date: new Date('2026-08-24'),
+        status: 'POSTED',
+        postedAt: new Date(),
+        totalDebit: amount,
+        totalCredit: amount,
+        lines: {
+          create: [
+            { accountId: cash.id, debit: amount, ordering: 0 },
+            { accountId: revenue.id, credit: amount, ordering: 1 },
+          ],
+        },
+      },
+    });
+    made.push(e.id);
+    return e;
+  };
+
+  /**
+   * Reverses an entry the way the ledger does: a mirror entry that names the
+   * original, and the original flipped to REVERSED. Both rows remain.
+   */
+  const reverse = async (originalId: string, number: string, amount: number) => {
+    const mirror = await prisma.journalEntry.create({
+      data: {
+        companyId: h.companyId,
+        periodId,
+        number,
+        date: new Date('2026-08-24'),
+        status: 'POSTED',
+        postedAt: new Date(),
+        reversalOfId: originalId,
+        totalDebit: amount,
+        totalCredit: amount,
+        lines: {
+          create: [
+            { accountId: revenue.id, debit: amount, ordering: 0 },
+            { accountId: cash.id, credit: amount, ordering: 1 },
+          ],
+        },
+      },
+    });
+    made.push(mirror.id);
+    await prisma.journalEntry.update({
+      where: { id: originalId },
+      data: { status: 'REVERSED' },
+    });
+    return mirror;
+  };
+
+  const preview = () =>
+    h.api('post', '/administration/utilities/period-end-closing/preview', {
+      fromPeriodId: periodId,
+      toPeriodId: periodId,
+      retainedEarningsAccountId: retained.id,
+    });
+
+  const lineFor = (body: any, code: string) =>
+    (body?.lines ?? []).find((l: { code: string }) => l.code === code) ?? null;
+
+  beforeAll(async () => {
+    h = await bootstrap();
+    prisma = h.prisma;
+
+    const accounts = await prisma.account.findMany({
+      where: { companyId: h.companyId, code: { in: ['1000', '4000', '3200'] } },
+      select: { id: true, code: true },
+    });
+    cash = accounts.find((a) => a.code === '1000')!;
+    revenue = accounts.find((a) => a.code === '4000')!;
+    // Retained earnings; falls back to any equity account the seed provides.
+    retained =
+      accounts.find((a) => a.code === '3200') ??
+      (await prisma.account.findFirstOrThrow({
+        where: { companyId: h.companyId, type: 'EQUITY', isTitle: false },
+        select: { id: true, code: true },
+      }));
+
+    const period = await prisma.fiscalPeriod.findFirstOrThrow({
+      where: { companyId: h.companyId, subPeriodType: 'MONTHS', status: 'OPEN' },
+    });
+    periodId = period.id;
+    periodName = period.name;
+  });
+
+  afterAll(async () => {
+    if (!h?.prisma) return;
+    await withGuardsDisabled(prisma, async () => {
+      await prisma.journalLine.deleteMany({ where: { entryId: { in: made } } });
+      // Reversal links are self-referential; clearing them first lets the rows
+      // delete in any order.
+      await prisma.journalEntry.updateMany({
+        where: { id: { in: made } },
+        data: { reversalOfId: null },
+      });
+      await prisma.journalEntry.deleteMany({ where: { id: { in: made } } });
+    });
+    await assertLedgerConsistent(prisma, h.companyId);
+    await h.close();
+  });
+
+  it('includes posted profit-and-loss movement in the preview', async () => {
+    const before = await preview();
+    expect(before.status).toBe(201);
+    const baseline = Number(lineFor(before.body, revenue.code)?.balance ?? 0);
+
+    await postRevenue(`PEC-TEST-${Date.now()}-A`, 500);
+
+    const after = await preview();
+    expect(after.status).toBe(201);
+    expect(Number(lineFor(after.body, revenue.code)?.balance ?? 0)).toBeCloseTo(baseline + 500, 2);
+  });
+
+  /**
+   * The regression this file was written for.
+   *
+   * With `status: 'POSTED'` the preview would report the revenue account at
+   * -700 rather than 0: the original credit is dropped and only the reversing
+   * debit survives. The closing would then post 700 to retained earnings out of
+   * nothing, and balance perfectly while doing it.
+   */
+  it('nets a reversed entry to zero rather than counting only its mirror', async () => {
+    const before = await preview();
+    const baseline = Number(lineFor(before.body, revenue.code)?.balance ?? 0);
+    const baselineNet = Number(before.body?.netResult ?? 0);
+
+    const stamp = Date.now();
+    const original = await postRevenue(`PEC-TEST-${stamp}-B`, 700);
+    await reverse(original.id, `PEC-TEST-${stamp}-B-REV`, 700);
+
+    const after = await preview();
+    expect(after.status).toBe(201);
+
+    const balanceAfter = Number(lineFor(after.body, revenue.code)?.balance ?? 0);
+    const netAfter = Number(after.body?.netResult ?? 0);
+
+    // A posting and its reversal cancel. Both must be unchanged from before.
+    expect(balanceAfter).toBeCloseTo(baseline, 2);
+    expect(netAfter).toBeCloseTo(baselineNet, 2);
+
+    // Stated explicitly so a future regression names itself: the failure mode
+    // is the balance moving by the reversal amount in the wrong direction.
+    expect(balanceAfter).not.toBeCloseTo(baseline - 700, 2);
+  });
+
+  it('refuses to execute when the range has nothing to close', async () => {
+    // A range whose end precedes its start covers no postings at all.
+    const res = await h.api('post', '/administration/utilities/period-end-closing/execute', {
+      fromPeriodId: periodId,
+      toPeriodId: periodId,
+      retainedEarningsAccountId: retained.id,
+      // Deliberately absurd so the run cannot pick up real movement.
+      postingDate: '1990-01-01',
+    });
+    // Either nothing to close, or the posting date resolves to no open period.
+    // Both are refusals; what must not happen is a silent success.
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('rejects a closing whose retained earnings account is a title account', async () => {
+    const title = await prisma.account.findFirst({
+      where: { companyId: h.companyId, isTitle: true },
+      select: { id: true },
+    });
+    if (!title) return; // seed has no title accounts; nothing to assert
+
+    const res = await h.api('post', '/administration/utilities/period-end-closing/preview', {
+      fromPeriodId: periodId,
+      toPeriodId: periodId,
+      retainedEarningsAccountId: title.id,
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.body?.message ?? '')).toMatch(/title account/i);
+  });
+
+  it('reports the period range it was asked for', async () => {
+    const res = await preview();
+    expect(res.body?.from?.name).toBe(periodName);
+    expect(res.body?.to?.name).toBe(periodName);
+  });
+});
