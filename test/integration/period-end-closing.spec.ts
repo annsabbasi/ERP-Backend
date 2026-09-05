@@ -32,8 +32,19 @@ describe('period-end closing', () => {
   let retained: { id: string; code: string };
   let periodId: string;
   let periodName: string;
+  /**
+   * A date inside the period under test.
+   *
+   * Taken from the period rather than hard-coded. A fixed literal passed
+   * type-checking and then reported zero movement, because the seed's first
+   * open monthly period is January and the entries were dated August — outside
+   * the range the closing was asked about.
+   */
+  let postingDate: Date;
 
   const made: string[] = [];
+  /** Title accounts created as negative fixtures, removed in teardown. */
+  const titleAccountIds: string[] = [];
 
   /** Posts a revenue entry straight at the tables, as the seed data would. */
   const postRevenue = async (number: string, amount: number) => {
@@ -42,7 +53,7 @@ describe('period-end closing', () => {
         companyId: h.companyId,
         periodId,
         number,
-        date: new Date('2026-08-24'),
+        date: postingDate,
         status: 'POSTED',
         postedAt: new Date(),
         totalDebit: amount,
@@ -69,7 +80,7 @@ describe('period-end closing', () => {
         companyId: h.companyId,
         periodId,
         number,
-        date: new Date('2026-08-24'),
+        date: postingDate,
         status: 'POSTED',
         postedAt: new Date(),
         reversalOfId: originalId,
@@ -111,19 +122,26 @@ describe('period-end closing', () => {
     });
     cash = accounts.find((a) => a.code === '1000')!;
     revenue = accounts.find((a) => a.code === '4000')!;
-    // Retained earnings; falls back to any equity account the seed provides.
-    retained =
-      accounts.find((a) => a.code === '3200') ??
-      (await prisma.account.findFirstOrThrow({
-        where: { companyId: h.companyId, type: 'EQUITY', isTitle: false },
-        select: { id: true, code: true },
-      }));
+
+    // Named exactly, with no fallback. The first version fell back to "any
+    // equity account", which turned a missing seed into a confusing
+    // NotFoundError deep in setup instead of saying what was actually absent —
+    // and would have gone on hiding the fact that a freshly seeded company had
+    // no equity account at all, which made Period-End Closing unusable.
+    retained = accounts.find((a) => a.code === '3200')!;
+    if (!retained) {
+      throw new Error(
+        'Account 3200 (Retained Earnings) is missing. Period-End Closing carries the net result ' +
+          'there, so a company without it cannot close a period. Run `npm run prisma:seed`.',
+      );
+    }
 
     const period = await prisma.fiscalPeriod.findFirstOrThrow({
       where: { companyId: h.companyId, subPeriodType: 'MONTHS', status: 'OPEN' },
     });
     periodId = period.id;
     periodName = period.name;
+    postingDate = period.startDate;
   });
 
   afterAll(async () => {
@@ -138,6 +156,11 @@ describe('period-end closing', () => {
       });
       await prisma.journalEntry.deleteMany({ where: { id: { in: made } } });
     });
+    // Fixture accounts never carry postings, so they delete without touching
+    // the guards.
+    if (titleAccountIds.length) {
+      await prisma.account.deleteMany({ where: { id: { in: titleAccountIds } } });
+    }
     await assertLedgerConsistent(prisma, h.companyId);
     await h.close();
   });
@@ -200,12 +223,31 @@ describe('period-end closing', () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
+  /**
+   * The title account is created here rather than looked for in the seed.
+   *
+   * The first version opened with `if (!title) return;` and no seeded account
+   * has `isTitle`, so it reported green while asserting nothing at all — the
+   * same empty-guard failure this file's other test exists to prevent. A
+   * negative fixture is the test's own to build; skipping the assertion when
+   * the fixture is absent is not a skip, it is a false pass.
+   *
+   * This is deliberately different from the retained-earnings account, which
+   * belongs in the seed: that one is data the feature needs to work in
+   * production, not a prop for one assertion.
+   */
   it('rejects a closing whose retained earnings account is a title account', async () => {
-    const title = await prisma.account.findFirst({
-      where: { companyId: h.companyId, isTitle: true },
+    const title = await prisma.account.create({
+      data: {
+        companyId: h.companyId,
+        code: `TITLE-${Date.now()}`,
+        name: 'Header account (test fixture)',
+        type: 'EQUITY',
+        isTitle: true,
+      },
       select: { id: true },
     });
-    if (!title) return; // seed has no title accounts; nothing to assert
+    titleAccountIds.push(title.id);
 
     const res = await h.api('post', '/administration/utilities/period-end-closing/preview', {
       fromPeriodId: periodId,

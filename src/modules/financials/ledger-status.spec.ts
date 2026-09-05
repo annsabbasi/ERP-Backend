@@ -73,6 +73,50 @@ describe('no hand-written POSTED filter on ledger aggregations', () => {
   const stripComments = (src: string) =>
     src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
+  const AGGREGATIONS = ['journalLine.groupBy', 'journalLine.aggregate', 'journalLine.findMany'];
+
+  /**
+   * The argument block of every journal-line aggregation in a source file.
+   *
+   * Checking per call rather than per file matters: the first version asked
+   * only whether `ledgerStatusWhere` appeared *somewhere* in the file, so a
+   * file that used the helper in one query and hard-coded POSTED in another
+   * passed clean. Brace-matching from the opening `{` gives each call its own
+   * text to judge.
+   */
+  const aggregationCalls = (src: string): string[] => {
+    const blocks: string[] = [];
+
+    for (const marker of AGGREGATIONS) {
+      let from = 0;
+      for (;;) {
+        const hit = src.indexOf(marker, from);
+        if (hit === -1) break;
+        from = hit + marker.length;
+
+        const open = src.indexOf('{', from);
+        if (open === -1) break;
+
+        let depth = 0;
+        let end = -1;
+        for (let i = open; i < src.length; i++) {
+          if (src[i] === '{') depth++;
+          else if (src[i] === '}') {
+            depth--;
+            if (depth === 0) { end = i; break; }
+          }
+        }
+        if (end === -1) break;
+        blocks.push(src.slice(open, end + 1));
+        from = end;
+      }
+    }
+    return blocks;
+  };
+
+  const hardCodesPosted = (block: string) =>
+    /status:\s*JournalEntryStatus\.POSTED/.test(block) || /status:\s*['"]POSTED['"]/.test(block);
+
   it('every journalLine aggregation goes through ledgerStatusWhere', () => {
     const offenders: string[] = [];
 
@@ -80,36 +124,53 @@ describe('no hand-written POSTED filter on ledger aggregations', () => {
       if (ALLOWED.some((a) => file.includes(a))) continue;
       const src = stripComments(readFileSync(file, 'utf8'));
 
-      // Only files that aggregate journal lines are in scope. A service that
-      // merely reads one entry by id is not making a balance.
-      const aggregates =
-        src.includes('journalLine.groupBy') ||
-        src.includes('journalLine.aggregate') ||
-        src.includes('journalLine.findMany');
-      if (!aggregates) continue;
-
-      const hardCodesPosted =
-        /status:\s*JournalEntryStatus\.POSTED/.test(src) ||
-        /status:\s*['"]POSTED['"]/.test(src);
-
-      if (hardCodesPosted && !src.includes('ledgerStatusWhere')) {
-        offenders.push(file.replace(ROOT, '').replace(/\\/g, '/'));
+      for (const block of aggregationCalls(src)) {
+        if (hardCodesPosted(block) && !block.includes('ledgerStatusWhere')) {
+          offenders.push(file.replace(ROOT, '').replace(/\\/g, '/'));
+          break;
+        }
       }
     }
 
     expect(offenders).toEqual([]);
   });
 
-  /** The guard above is only worth having if it fails on the real mistake. */
-  it('the guard itself detects a hand-written POSTED filter', () => {
-    const bad = stripComments(`
+  /**
+   * The guard is only worth having if it fails on the real mistake.
+   *
+   * Both cases below are ones an earlier version let through: a file whose
+   * prose mentions the helper, and a file that genuinely uses it in one query
+   * while hard-coding POSTED in another.
+   */
+  it('detects a hand-written POSTED filter despite a comment naming the helper', () => {
+    const src = stripComments(`
       // ledgerStatusWhere is mentioned here but never called.
       const rows = await this.prisma.journalLine.groupBy({
         where: { entry: { status: JournalEntryStatus.POSTED } },
       });
     `);
-    expect(bad.includes('journalLine.groupBy')).toBe(true);
-    expect(/status:\s*JournalEntryStatus\.POSTED/.test(bad)).toBe(true);
-    expect(bad.includes('ledgerStatusWhere')).toBe(false);
+    const blocks = aggregationCalls(src);
+    expect(blocks).toHaveLength(1);
+    expect(hardCodesPosted(blocks[0])).toBe(true);
+    expect(blocks[0].includes('ledgerStatusWhere')).toBe(false);
+  });
+
+  it('detects a bad query in a file whose other query uses the helper', () => {
+    const src = stripComments(`
+      const good = await this.prisma.journalLine.groupBy({
+        where: { entry: { ...ledgerStatusWhere() } },
+      });
+      const bad = await this.prisma.journalLine.aggregate({
+        where: { entry: { status: JournalEntryStatus.POSTED } },
+      });
+    `);
+    const blocks = aggregationCalls(src);
+    expect(blocks).toHaveLength(2);
+
+    const flagged = blocks.filter((b) => hardCodesPosted(b) && !b.includes('ledgerStatusWhere'));
+    expect(flagged).toHaveLength(1);
+    // File-scoped checking would have found `ledgerStatusWhere` present and
+    // passed the whole file.
+    expect(src.includes('ledgerStatusWhere')).toBe(true);
   });
 });

@@ -301,6 +301,12 @@ async function main() {
     { code: '1200', name: 'Input Tax',           type: AccountType.ASSET },
     { code: '2000', name: 'Accounts Payable',    type: AccountType.LIABILITY, isControl: true },
     { code: '2100', name: 'Output Tax',          type: AccountType.LIABILITY },
+    // Equity. Period-End Closing carries the year's net result here, so a
+    // company with no equity account cannot close a period at all — the
+    // Retained Earnings picker in that window comes up empty and the feature is
+    // unreachable. Required setup, exactly like the control accounts above.
+    { code: '3000', name: 'Share Capital',       type: AccountType.EQUITY },
+    { code: '3200', name: 'Retained Earnings',   type: AccountType.EQUITY },
     { code: '4000', name: 'Sales Revenue',       type: AccountType.INCOME },
     { code: '5000', name: 'Operating Expenses',  type: AccountType.EXPENSE },
   ];
@@ -324,6 +330,10 @@ async function main() {
     { area: AccountDeterminationArea.PURCHASING, key: 'expense',         code: '5000' },
     { area: AccountDeterminationArea.PURCHASING, key: 'tax_receivable',  code: '1200' },
     { area: AccountDeterminationArea.GENERAL,    key: 'cash',            code: '1000' },
+    // Where Period-End Closing sends the net result. Named through the
+    // determination table like every other posting target, so a company can
+    // repoint it without the closing routine hard-coding an account code.
+    { area: AccountDeterminationArea.GENERAL,    key: 'retained_earnings', code: '3200' },
   ];
   for (const d of DETERMINATIONS) {
     const accountId = accountsByCode.get(d.code)!;
