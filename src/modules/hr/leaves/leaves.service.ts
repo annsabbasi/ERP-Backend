@@ -16,6 +16,7 @@ import {
   AdjustBalanceDto,
   CreateLeaveTypeDto,
   DecideLeaveRequestDto,
+  ReplaceLeaveDateRangesDto,
   SubmitLeaveRequestDto,
   UpdateLeaveTypeDto,
 } from './dto/leave.dto';
@@ -50,6 +51,7 @@ export class LeavesService {
   listTypes(companyId: string) {
     return this.prisma.leaveType.findMany({
       where: { companyId },
+      include: { dateRanges: { orderBy: { ordering: 'asc' } } },
       orderBy: [{ isActive: 'desc' }, { code: 'asc' }],
     });
   }
@@ -72,6 +74,24 @@ export class LeavesService {
         requiresApproval: dto.requiresApproval ?? true,
         workflowKey: dto.workflowKey,
         isActive: dto.isActive ?? true,
+        totalLeavesInYear: dto.totalLeavesInYear as any,
+        totalLeavesInYearForTrainer: dto.totalLeavesInYearForTrainer as any,
+        leaveCategory: dto.leaveCategory,
+        applicableDuringProbation: dto.applicableDuringProbation ?? false,
+        encashable: dto.encashable ?? false,
+        minBalanceForEncash: dto.minBalanceForEncash as any,
+        maxLeaveToEncash: dto.maxLeaveToEncash as any,
+        payableLeave: dto.payableLeave ?? false,
+        maxMonthlyApplications: dto.maxMonthlyApplications as any,
+        minContinuousDays: dto.minContinuousDays as any,
+        maxContinuousDays: dto.maxContinuousDays as any,
+        minContinuousDurationProb: dto.minContinuousDurationProb as any,
+        maxContinuousDurationProb: dto.maxContinuousDurationProb as any,
+        effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : undefined,
+        carryForwardToNextYear: dto.carryForwardToNextYear ?? false,
+        maxLeaveCarryForward: dto.maxLeaveCarryForward as any,
+        isClosed: dto.isClosed ?? false,
+        remarks: dto.remarks,
       },
     });
     await this.audit.record({
@@ -99,6 +119,24 @@ export class LeavesService {
         requiresApproval: dto.requiresApproval ?? undefined,
         workflowKey: dto.workflowKey ?? undefined,
         isActive: dto.isActive ?? undefined,
+        totalLeavesInYear: (dto.totalLeavesInYear as any) ?? undefined,
+        totalLeavesInYearForTrainer: (dto.totalLeavesInYearForTrainer as any) ?? undefined,
+        leaveCategory: dto.leaveCategory ?? undefined,
+        applicableDuringProbation: dto.applicableDuringProbation ?? undefined,
+        encashable: dto.encashable ?? undefined,
+        minBalanceForEncash: (dto.minBalanceForEncash as any) ?? undefined,
+        maxLeaveToEncash: (dto.maxLeaveToEncash as any) ?? undefined,
+        payableLeave: dto.payableLeave ?? undefined,
+        maxMonthlyApplications: (dto.maxMonthlyApplications as any) ?? undefined,
+        minContinuousDays: (dto.minContinuousDays as any) ?? undefined,
+        maxContinuousDays: (dto.maxContinuousDays as any) ?? undefined,
+        minContinuousDurationProb: (dto.minContinuousDurationProb as any) ?? undefined,
+        maxContinuousDurationProb: (dto.maxContinuousDurationProb as any) ?? undefined,
+        effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : undefined,
+        carryForwardToNextYear: dto.carryForwardToNextYear ?? undefined,
+        maxLeaveCarryForward: (dto.maxLeaveCarryForward as any) ?? undefined,
+        isClosed: dto.isClosed ?? undefined,
+        remarks: dto.remarks ?? undefined,
       },
     });
     await this.audit.record({
@@ -107,6 +145,50 @@ export class LeavesService {
       before: before as any, after: updated as any, ip: meta.ip, module: 'hr-payroll',
     });
     return updated;
+  }
+
+  async removeType(companyId: string, id: string, meta: AuditMeta) {
+    const before = await this.prisma.leaveType.findFirst({ where: { id, companyId } });
+    if (!before) throw new NotFoundException(`Leave type ${id} not found`);
+    const inUse = await this.prisma.leaveBalance.count({ where: { leaveTypeId: id } })
+      + await this.prisma.leaveRequest.count({ where: { leaveTypeId: id } });
+    if (inUse) {
+      const deactivated = await this.prisma.leaveType.update({ where: { id }, data: { isActive: false } });
+      return { message: `Leave type ${id} deactivated (still referenced by ${inUse} record(s))`, leaveType: deactivated };
+    }
+    await this.prisma.leaveType.delete({ where: { id } });
+    await this.audit.record({
+      companyId, actorId: meta.actorId,
+      action: 'hr.leave_type.deleted', refType: 'leave_type', refId: id,
+      before: before as any, ip: meta.ip, module: 'hr-payroll',
+    });
+    return { message: `Leave type ${id} deleted` };
+  }
+
+  // ── Date ranges (Leave Master's small grid) ─────────────────────────────────
+
+  async replaceDateRanges(companyId: string, leaveTypeId: string, dto: ReplaceLeaveDateRangesDto, meta: AuditMeta) {
+    const type = await this.prisma.leaveType.findFirst({ where: { id: leaveTypeId, companyId } });
+    if (!type) throw new NotFoundException(`Leave type ${leaveTypeId} not found`);
+
+    await this.prisma.$transaction([
+      this.prisma.leaveTypeDateRange.deleteMany({ where: { leaveTypeId } }),
+      this.prisma.leaveTypeDateRange.createMany({
+        data: dto.rows.map((row, i) => ({
+          leaveTypeId,
+          fromDate: new Date(row.fromDate),
+          toDate: new Date(row.toDate),
+          isLocked: row.isLocked ?? false,
+          ordering: i,
+        })),
+      }),
+    ]);
+    await this.audit.record({
+      companyId, actorId: meta.actorId,
+      action: 'hr.leave_type.date_ranges_replaced', refType: 'leave_type', refId: leaveTypeId,
+      after: dto.rows as any, ip: meta.ip, module: 'hr-payroll',
+    });
+    return this.prisma.leaveTypeDateRange.findMany({ where: { leaveTypeId }, orderBy: { ordering: 'asc' } });
   }
 
   // ── Balances ─────────────────────────────────────────────────────────────
@@ -220,6 +302,10 @@ export class LeavesService {
         endDate: end,
         days: dto.days as any,
         reason: dto.reason,
+        leaveDurationType: dto.leaveDurationType ?? 'Full',
+        signedBy: dto.signedBy,
+        contactNo: dto.contactNo,
+        preparedBy: dto.preparedBy,
         status: type.requiresApproval ? LeaveRequestStatus.PENDING : LeaveRequestStatus.APPROVED,
       },
     });
@@ -272,7 +358,7 @@ export class LeavesService {
     return request;
   }
 
-  async approve(companyId: string, requestId: string, _dto: DecideLeaveRequestDto, meta: AuditMeta) {
+  async approve(companyId: string, requestId: string, dto: DecideLeaveRequestDto, meta: AuditMeta) {
     const req = await this.requireRequest(companyId, requestId);
     if (req.status !== LeaveRequestStatus.PENDING) {
       throw new BadRequestException(`Request is ${req.status}, cannot approve`);
@@ -286,6 +372,7 @@ export class LeavesService {
         status: LeaveRequestStatus.APPROVED,
         approvedById: meta.actorId ?? undefined,
         approvedAt: new Date(),
+        approvedByName: dto.approvedByName ?? undefined,
       },
     });
     await this.applyApproval(requestId);

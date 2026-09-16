@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -77,6 +78,14 @@ export class AttendanceController {
   @Get('employees/:employeeId/shifts')
   employeeShifts(@Param('employeeId') employeeId: string) {
     return this.shifts.assignmentsForEmployee(this.tenant.requireCompanyId(), employeeId);
+  }
+
+  @RequirePermission('hr.shift.manage')
+  @Delete('shifts/:id')
+  removeShift(@Param('id') id: string, @CurrentUser() user: any, @Req() req: Request) {
+    return this.shifts.remove(this.tenant.requireCompanyId(), id, {
+      actorId: user?.sub ?? null, ip: req.ip,
+    });
   }
 
   // ── Attendance ────────────────────────────────────────────────────────────

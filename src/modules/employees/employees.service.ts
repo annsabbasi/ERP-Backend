@@ -77,6 +77,9 @@ export class EmployeesService {
           branch: { select: { id: true, name: true } },
           positionRef: { select: { id: true, title: true } },
           manager: { select: { id: true, name: true } },
+          employeeCategory: { select: { id: true, code: true, name: true } },
+          grade: { select: { id: true, code: true, description: true } },
+          currentShift: { select: { id: true, code: true, name: true } },
         },
       }),
     ]);
@@ -93,6 +96,9 @@ export class EmployeesService {
         manager: { select: { id: true, name: true } },
         reports: { select: { id: true, name: true, status: true } },
         contracts: { where: { isActive: true }, orderBy: { startDate: 'desc' }, take: 1 },
+        employeeCategory: { select: { id: true, code: true, name: true } },
+        grade: { select: { id: true, code: true, description: true } },
+        currentShift: { select: { id: true, code: true, name: true } },
       },
     });
     if (!employee) throw new NotFoundException(`Employee ${id} not found`);
@@ -133,8 +139,34 @@ export class EmployeesService {
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         status: dto.status ?? EmployeeStatus.ACTIVE,
         customFields: dto.customFields === undefined ? undefined : (dto.customFields as Prisma.InputJsonValue),
+        fatherName: dto.fatherName,
+        gender: dto.gender,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+        originalDateOfBirth: dto.originalDateOfBirth ? new Date(dto.originalDateOfBirth) : undefined,
+        nationality: dto.nationality,
+        mobilePhone2: dto.mobilePhone2,
+        dateOfJoining: dto.dateOfJoining ? new Date(dto.dateOfJoining) : undefined,
+        insurancePolicyNo: dto.insurancePolicyNo,
+        pfNo: dto.pfNo,
+        esiNo: dto.esiNo,
+        otherInfo: dto.otherInfo,
+        fuelLiters: dto.fuelLiters as any,
+        address1: dto.address1,
+        address2: dto.address2,
+        address3: dto.address3,
+        city: dto.city,
+        pinCode: dto.pinCode,
+        state: dto.state,
+        sectionType: dto.sectionType,
+        locationProjectSite: dto.locationProjectSite,
+        employeeCategoryId: dto.employeeCategoryId ?? null,
+        gradeId: dto.gradeId ?? null,
+        currentShiftId: dto.currentShiftId ?? null,
       },
-      include: { department: true, positionRef: true, branch: true },
+      include: {
+        department: true, positionRef: true, branch: true,
+        employeeCategory: true, grade: true, currentShift: true,
+      },
     });
 
     await this.audit.record({
@@ -177,8 +209,34 @@ export class EmployeesService {
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         status: dto.status ?? undefined,
         customFields: dto.customFields === undefined ? undefined : (dto.customFields as Prisma.InputJsonValue),
+        fatherName: dto.fatherName ?? undefined,
+        gender: dto.gender ?? undefined,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+        originalDateOfBirth: dto.originalDateOfBirth ? new Date(dto.originalDateOfBirth) : undefined,
+        nationality: dto.nationality ?? undefined,
+        mobilePhone2: dto.mobilePhone2 ?? undefined,
+        dateOfJoining: dto.dateOfJoining ? new Date(dto.dateOfJoining) : undefined,
+        insurancePolicyNo: dto.insurancePolicyNo ?? undefined,
+        pfNo: dto.pfNo ?? undefined,
+        esiNo: dto.esiNo ?? undefined,
+        otherInfo: dto.otherInfo ?? undefined,
+        fuelLiters: (dto.fuelLiters as any) ?? undefined,
+        address1: dto.address1 ?? undefined,
+        address2: dto.address2 ?? undefined,
+        address3: dto.address3 ?? undefined,
+        city: dto.city ?? undefined,
+        pinCode: dto.pinCode ?? undefined,
+        state: dto.state ?? undefined,
+        sectionType: dto.sectionType ?? undefined,
+        locationProjectSite: dto.locationProjectSite ?? undefined,
+        employeeCategoryId: dto.employeeCategoryId === undefined ? undefined : dto.employeeCategoryId,
+        gradeId: dto.gradeId === undefined ? undefined : dto.gradeId,
+        currentShiftId: dto.currentShiftId === undefined ? undefined : dto.currentShiftId,
       },
-      include: { department: true, positionRef: true, branch: true },
+      include: {
+        department: true, positionRef: true, branch: true,
+        employeeCategory: true, grade: true, currentShift: true,
+      },
     });
 
     await this.audit.record({
@@ -285,6 +343,18 @@ export class EmployeesService {
     if (dto.managerId) {
       const m = await this.prisma.employee.findFirst({ where: { id: dto.managerId, companyId } });
       if (!m) throw new BadRequestException(`Manager (employee) ${dto.managerId} not found`);
+    }
+    if (dto.employeeCategoryId) {
+      const c = await this.prisma.employeeCategory.findFirst({ where: { id: dto.employeeCategoryId, companyId } });
+      if (!c) throw new BadRequestException(`Employee category ${dto.employeeCategoryId} not found`);
+    }
+    if (dto.gradeId) {
+      const g = await this.prisma.grade.findFirst({ where: { id: dto.gradeId, companyId } });
+      if (!g) throw new BadRequestException(`Grade ${dto.gradeId} not found`);
+    }
+    if (dto.currentShiftId) {
+      const s = await this.prisma.shift.findFirst({ where: { id: dto.currentShiftId, companyId } });
+      if (!s) throw new BadRequestException(`Shift ${dto.currentShiftId} not found`);
     }
   }
 

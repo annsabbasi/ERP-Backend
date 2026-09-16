@@ -47,6 +47,10 @@ export class CreateShiftDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  remarks?: string;
 }
 
 export class UpdateShiftDto {
@@ -57,6 +61,7 @@ export class UpdateShiftDto {
   @IsInt() @Min(0) @Max(240) @IsOptional() @Type(() => Number) breakMinutes?: number;
   @IsArray() @IsOptional() @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true }) workDays?: number[];
   @IsBoolean() @IsOptional() isActive?: boolean;
+  @IsString() @IsOptional() remarks?: string;
 }
 
 export class AssignShiftDto {

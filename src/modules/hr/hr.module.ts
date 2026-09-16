@@ -14,6 +14,32 @@ import { OnboardingController } from './onboarding/onboarding.controller';
 import { OnboardingService } from './onboarding/onboarding.service';
 import { PositionsController } from './positions/positions.controller';
 import { PositionsService } from './positions/positions.service';
+import {
+  EmployeeCategoriesController,
+  GradesController,
+  LoanTypesController,
+  PayPeriodsController,
+  TaxFormulasController,
+} from './payroll-masters/payroll-masters.controllers';
+import {
+  EmployeeCategoriesService,
+  GradesService,
+  LoanTypesService,
+  PayPeriodsService,
+  TaxFormulasService,
+} from './payroll-masters/payroll-masters.services';
+import {
+  AttendanceSheetsController,
+  PayrollRunsController,
+  PayrollAdjustmentsController,
+  EmployeeLoansController,
+} from './transactions/transactions.controllers';
+import {
+  AttendanceSheetsService,
+  PayrollRunsService,
+  PayrollAdjustmentsService,
+  EmployeeLoansService,
+} from './transactions/transactions.services';
 
 @Module({
   controllers: [
@@ -23,6 +49,15 @@ import { PositionsService } from './positions/positions.service';
     LeavesController,
     AttendanceController,
     OnboardingController,
+    EmployeeCategoriesController,
+    GradesController,
+    LoanTypesController,
+    PayPeriodsController,
+    TaxFormulasController,
+    AttendanceSheetsController,
+    PayrollRunsController,
+    PayrollAdjustmentsController,
+    EmployeeLoansController,
   ],
   providers: [
     HrService,
@@ -32,6 +67,15 @@ import { PositionsService } from './positions/positions.service';
     AttendanceService,
     ShiftsService,
     OnboardingService,
+    EmployeeCategoriesService,
+    GradesService,
+    LoanTypesService,
+    PayPeriodsService,
+    TaxFormulasService,
+    AttendanceSheetsService,
+    PayrollRunsService,
+    PayrollAdjustmentsService,
+    EmployeeLoansService,
   ],
   exports: [
     HrService,
@@ -41,6 +85,15 @@ import { PositionsService } from './positions/positions.service';
     AttendanceService,
     ShiftsService,
     OnboardingService,
+    EmployeeCategoriesService,
+    GradesService,
+    LoanTypesService,
+    PayPeriodsService,
+    TaxFormulasService,
+    AttendanceSheetsService,
+    PayrollRunsService,
+    PayrollAdjustmentsService,
+    EmployeeLoansService,
   ],
 })
 export class HrModule {}

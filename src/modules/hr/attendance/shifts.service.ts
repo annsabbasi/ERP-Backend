@@ -49,6 +49,7 @@ export class ShiftsService {
         isOvernight: dto.isOvernight ?? false,
         breakMinutes: dto.breakMinutes ?? 0,
         workDays: dto.workDays,
+        remarks: dto.remarks,
         isActive: dto.isActive ?? true,
       },
     });
@@ -71,6 +72,7 @@ export class ShiftsService {
         isOvernight: dto.isOvernight ?? undefined,
         breakMinutes: dto.breakMinutes ?? undefined,
         workDays: dto.workDays ?? undefined,
+        remarks: dto.remarks ?? undefined,
         isActive: dto.isActive ?? undefined,
       },
     });

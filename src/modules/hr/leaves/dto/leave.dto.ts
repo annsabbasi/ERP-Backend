@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -8,6 +10,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { LeaveAccrualMode } from '@prisma/client';
 
@@ -57,6 +60,26 @@ export class CreateLeaveTypeDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  // ── SAP-style Leave Master fields ──
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) totalLeavesInYear?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) totalLeavesInYearForTrainer?: number;
+  @IsString() @IsOptional() leaveCategory?: string;
+  @IsBoolean() @IsOptional() applicableDuringProbation?: boolean;
+  @IsBoolean() @IsOptional() encashable?: boolean;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) minBalanceForEncash?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxLeaveToEncash?: number;
+  @IsBoolean() @IsOptional() payableLeave?: boolean;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxMonthlyApplications?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) minContinuousDays?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxContinuousDays?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) minContinuousDurationProb?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxContinuousDurationProb?: number;
+  @IsDateString() @IsOptional() effectiveFrom?: string;
+  @IsBoolean() @IsOptional() carryForwardToNextYear?: boolean;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxLeaveCarryForward?: number;
+  @IsBoolean() @IsOptional() isClosed?: boolean;
+  @IsString() @IsOptional() remarks?: string;
 }
 
 export class UpdateLeaveTypeDto {
@@ -70,6 +93,39 @@ export class UpdateLeaveTypeDto {
   @IsBoolean() @IsOptional() requiresApproval?: boolean;
   @IsString() @IsOptional() workflowKey?: string;
   @IsBoolean() @IsOptional() isActive?: boolean;
+
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) totalLeavesInYear?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) totalLeavesInYearForTrainer?: number;
+  @IsString() @IsOptional() leaveCategory?: string;
+  @IsBoolean() @IsOptional() applicableDuringProbation?: boolean;
+  @IsBoolean() @IsOptional() encashable?: boolean;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) minBalanceForEncash?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxLeaveToEncash?: number;
+  @IsBoolean() @IsOptional() payableLeave?: boolean;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxMonthlyApplications?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) minContinuousDays?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxContinuousDays?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) minContinuousDurationProb?: number;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxContinuousDurationProb?: number;
+  @IsDateString() @IsOptional() effectiveFrom?: string;
+  @IsBoolean() @IsOptional() carryForwardToNextYear?: boolean;
+  @IsNumber() @Min(0) @IsOptional() @Type(() => Number) maxLeaveCarryForward?: number;
+  @IsBoolean() @IsOptional() isClosed?: boolean;
+  @IsString() @IsOptional() remarks?: string;
+}
+
+export class LeaveDateRangeRowDto {
+  @IsDateString() fromDate: string;
+  @IsDateString() toDate: string;
+  @IsBoolean() @IsOptional() isLocked?: boolean;
+}
+
+export class ReplaceLeaveDateRangesDto {
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => LeaveDateRangeRowDto)
+  rows: LeaveDateRangeRowDto[];
 }
 
 export class AdjustBalanceDto {
@@ -109,10 +165,20 @@ export class SubmitLeaveRequestDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  // ── HR Payroll → Transactions → Leave Application (SAP-style fields) ──
+  @IsString() @IsOptional() leaveDurationType?: string; // "Full" | "Half"
+  @IsString() @IsOptional() signedBy?: string;
+  @IsString() @IsOptional() contactNo?: string;
+  @IsString() @IsOptional() preparedBy?: string;
 }
 
 export class DecideLeaveRequestDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedByName?: string;
 }

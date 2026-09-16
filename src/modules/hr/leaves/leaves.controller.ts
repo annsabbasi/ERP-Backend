@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -17,6 +19,7 @@ import {
   AdjustBalanceDto,
   CreateLeaveTypeDto,
   DecideLeaveRequestDto,
+  ReplaceLeaveDateRangesDto,
   SubmitLeaveRequestDto,
   UpdateLeaveTypeDto,
 } from './dto/leave.dto';
@@ -54,6 +57,27 @@ export class LeavesController {
     @Req() req: Request,
   ) {
     return this.leaves.updateType(this.tenant.requireCompanyId(), id, dto, {
+      actorId: user?.sub ?? null, ip: req.ip,
+    });
+  }
+
+  @RequirePermission('hr.leave_type.manage')
+  @Delete('types/:id')
+  removeType(@Param('id') id: string, @CurrentUser() user: any, @Req() req: Request) {
+    return this.leaves.removeType(this.tenant.requireCompanyId(), id, {
+      actorId: user?.sub ?? null, ip: req.ip,
+    });
+  }
+
+  @RequirePermission('hr.leave_type.manage')
+  @Put('types/:id/date-ranges')
+  replaceDateRanges(
+    @Param('id') id: string,
+    @Body() dto: ReplaceLeaveDateRangesDto,
+    @CurrentUser() user: any,
+    @Req() req: Request,
+  ) {
+    return this.leaves.replaceDateRanges(this.tenant.requireCompanyId(), id, dto, {
       actorId: user?.sub ?? null, ip: req.ip,
     });
   }
