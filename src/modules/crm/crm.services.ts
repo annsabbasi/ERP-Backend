@@ -119,7 +119,10 @@ export class SalesEmployeesService extends TenantCrudService {
       commissionGroup: { select: { id: true, code: true, name: true, commissionPercent: true } },
       territory: { select: { id: true, name: true } },
       user: { select: { id: true, name: true, email: true } },
-      employee: { select: { id: true, firstName: true, lastName: true } },
+      // Employee carries a single `name`, not firstName/lastName — selecting
+      // the latter made Prisma reject every list query, so Administration →
+      // Sales Employees/Buyers answered 400 and never opened.
+      employee: { select: { id: true, name: true, employeeNumber: true } },
       _count: { select: { partners: true, opportunities: true } },
     },
   };
