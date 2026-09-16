@@ -280,13 +280,19 @@ export class LeavesService {
     dto: SubmitLeaveRequestDto,
     meta: AuditMeta,
   ): Promise<LeaveRequest> {
-    const emp = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
-      include: { manager: { select: { userId: true } } },
-    });
+    // Submitting a leave request is a long chain of round trips (lookups,
+    // create, balance reservation, workflow start, audit). Against a hosted
+    // database that chain was measured at ~13s — inside the client's 15s
+    // timeout by barely a second. These two lookups do not depend on each
+    // other, so they go together rather than one after the other.
+    const [emp, type] = await Promise.all([
+      this.prisma.employee.findFirst({
+        where: { id: employeeId, companyId },
+        include: { manager: { select: { userId: true } } },
+      }),
+      this.prisma.leaveType.findFirst({ where: { id: dto.leaveTypeId, companyId, isActive: true } }),
+    ]);
     if (!emp) throw new NotFoundException(`Employee ${employeeId} not found`);
-
-    const type = await this.prisma.leaveType.findFirst({ where: { id: dto.leaveTypeId, companyId, isActive: true } });
     if (!type) throw new BadRequestException(`Leave type not available`);
 
     const start = new Date(dto.startDate);
