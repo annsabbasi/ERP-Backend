@@ -853,6 +853,7 @@ model LeaveRequest {
   @@index([companyId])
   @@index([employeeId, status])
   @@index([leaveTypeId])
+  @@index([companyId, status, startDate, endDate])
   @@map("leave_requests")
 }
 
@@ -1148,6 +1149,27 @@ model PayrollRunLine {
   hra                Decimal? @db.Decimal(19, 4)
   bigCity            Decimal? @db.Decimal(19, 4)
   eligibleHra        Decimal? @db.Decimal(19, 4)
+
+  // ── Computed payslip: earnings → deductions → net pay ──
+  // Everything below is derived by PayrollRunsService.generateLines from the
+  // employee's grade pay scale, the period's attendance sheet, approved leave,
+  // the loan installment schedule, the tax formula and the monthly adjustment
+  // document. Stored rather than recomputed on read so a posted run keeps the
+  // numbers it was approved with, even if a master is edited afterwards.
+  grossPay             Decimal? @db.Decimal(19, 4)
+  perDayRate           Decimal? @db.Decimal(19, 4)
+  paidLeaveDays        Decimal? @db.Decimal(19, 4)
+  unpaidLeaveDays      Decimal? @db.Decimal(19, 4)
+  lopDeduction         Decimal? @db.Decimal(19, 4)
+  loanDeduction        Decimal? @db.Decimal(19, 4)
+  taxableGross         Decimal? @db.Decimal(19, 4)
+  taxDeduction         Decimal? @db.Decimal(19, 4)
+  adjustmentAdditions  Decimal? @db.Decimal(19, 4)
+  adjustmentDeductions Decimal? @db.Decimal(19, 4)
+  totalEarnings        Decimal? @db.Decimal(19, 4)
+  totalDeductions      Decimal? @db.Decimal(19, 4)
+  netPay               Decimal? @db.Decimal(19, 4)
+
   ordering           Int      @default(0)
 
   payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
@@ -1268,6 +1290,7 @@ model EmployeeLoanInstallment {
   loan EmployeeLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@index([loanId])
+  @@index([dueDate])
   @@map("employee_loan_installments")
 }
 

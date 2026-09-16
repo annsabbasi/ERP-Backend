@@ -1,5 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { LeaveRequestStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  computePayslip,
+  inclusiveDays,
+  num,
+  splitLeave,
+  type LeaveWindow,
+} from './payroll-calculation';
 import { TenantCrudOptions, TenantCrudService } from '../../../common/crud/tenant-crud.service';
 import {
   ReplaceAttendanceSheetLinesDto,
@@ -86,45 +94,89 @@ export class AttendanceSheetsService extends TenantCrudService {
     }
     const from: Date = new Date(sheet.fromDate);
     const to: Date = new Date(sheet.toDate);
-    const totalDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / dayMs) + 1);
+    const totalDays = inclusiveDays(from, to);
 
-    const employees = await this.prisma.employee.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        isActive: true,
-        ...(sheet.branchId ? { branchId: sheet.branchId } : {}),
-      },
-      select: { id: true, employeeNumber: true },
-      orderBy: { employeeNumber: 'asc' },
-    });
+    const payPeriod = sheet.payPeriodId
+      ? await this.prisma.payPeriod.findFirst({ where: { id: sheet.payPeriodId, companyId } })
+      : null;
+    // Pay is costed against the period's working days, not its calendar days —
+    // using 31 where the period declares 22 understates every per-day rate.
+    const workingDays = payPeriod?.workingDays ?? totalDays;
 
-    const presentCounts = await this.prisma.attendanceEntry.groupBy({
-      by: ['employeeId'],
-      where: { companyId, date: { gte: from, lte: to }, status: { not: 'MISSED' } },
-      _count: { _all: true },
-    });
+    const [employees, presentCounts, leaves] = await Promise.all([
+      this.prisma.employee.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          isActive: true,
+          ...(sheet.branchId ? { branchId: sheet.branchId } : {}),
+        },
+        select: { id: true, employeeNumber: true },
+        orderBy: { employeeNumber: 'asc' },
+      }),
+      this.prisma.attendanceEntry.groupBy({
+        by: ['employeeId'],
+        where: { companyId, date: { gte: from, lte: to }, status: { not: 'MISSED' } },
+        _count: { _all: true },
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: {
+          companyId,
+          status: { in: [LeaveRequestStatus.APPROVED, LeaveRequestStatus.TAKEN] },
+          startDate: { lte: to },
+          endDate: { gte: from },
+        },
+        include: { leaveType: { select: { paid: true } } },
+      }),
+    ]);
+
     const presentByEmployee = new Map(presentCounts.map((p) => [p.employeeId, p._count._all]));
 
+    const leavesByEmployee = new Map<string, LeaveWindow[]>();
+    for (const l of leaves) {
+      const list = leavesByEmployee.get(l.employeeId) ?? [];
+      list.push({
+        startDate: l.startDate,
+        endDate: l.endDate,
+        days: l.days,
+        paid: l.leaveType?.paid ?? true,
+      });
+      leavesByEmployee.set(l.employeeId, list);
+    }
+
     const rows = employees.map((emp, i) => {
-      const present = presentByEmployee.get(emp.id) ?? 0;
-      const lop = Math.max(totalDays - present, 0);
+      const leave = splitLeave(leavesByEmployee.get(emp.id) ?? [], from, to);
+      const tracked = presentByEmployee.has(emp.id);
+
+      // Absence is only inferred for employees the company actually clocks.
+      // Deriving it for everyone marked each employee absent for the entire
+      // period at any site without biometrics, which is where the "everyone is
+      // 31 days LOP" payroll came from.
+      const present = tracked
+        ? (presentByEmployee.get(emp.id) as number)
+        : Math.max(workingDays - leave.paidDays - leave.unpaidDays, 0);
+
+      const lop = Math.max(
+        Math.round((workingDays - present - leave.paidDays) * 10000) / 10000,
+        0,
+      );
+
       return {
         sheetId,
         employeeId: emp.id,
         idNo: emp.employeeNumber ?? null,
         totalDays: totalDays as any,
-        workingDays: totalDays as any,
+        workingDays: workingDays as any,
         presentDays: present as any,
         lopDays: lop as any,
-        payableLeaves: 0 as any,
+        payableLeaves: leave.paidDays as any,
         otHours: 0 as any,
         shortTimeHours: 0 as any,
         normalOtHours: 0 as any,
         sunday: 0 as any,
         misBioMaterDays: 0 as any,
         compOffDays: 0 as any,
-        annualLeave: 0 as any,
+        annualLeave: leave.paidDays as any,
         halfDayLeave: 0 as any,
         ordering: i,
       };
@@ -213,42 +265,129 @@ export class PayrollRunsService extends TenantCrudService {
   async generateLines(companyId: string, runId: string) {
     const run = await this.findOne(companyId, runId) as any;
 
-    const employees = await this.prisma.employee.findMany({
-      where: { companyId, deletedAt: null, isActive: true },
-      include: { grade: { include: { payScale: { orderBy: { stage: 'asc' }, take: 1 } } } },
-      orderBy: { employeeNumber: 'asc' },
-    });
-
-    const attendanceByEmployee = new Map<string, any>();
-    if (run.payPeriodId) {
-      const sheet = await this.prisma.monthlyAttendanceSheet.findFirst({
-        where: { companyId, payPeriodId: run.payPeriodId },
-        orderBy: { updatedAt: 'desc' },
-        include: { lines: true },
-      });
-      if (sheet) for (const l of sheet.lines) attendanceByEmployee.set(l.employeeId, l);
-    }
+    // The period bounds decide which leave, which loan installments and which
+    // adjustment document belong to this run. Fall back to the run's own dates
+    // when it is not tied to a PayPeriod.
     const payPeriod = run.payPeriodId
       ? await this.prisma.payPeriod.findFirst({ where: { id: run.payPeriodId, companyId } })
       : null;
+    const from = new Date(payPeriod?.fromDate ?? run.fromDate ?? run.documentDate);
+    const to = new Date(payPeriod?.toDate ?? run.toDate ?? run.documentDate);
+    const totalDays = inclusiveDays(from, to);
+    const workingDays = payPeriod?.workingDays ?? totalDays;
+
+    // One round trip each, in parallel — these do not depend on one another,
+    // and running them in sequence was most of this endpoint's latency.
+    const [employees, sheet, leaves, installments, adjustment, taxFormulas] =
+      await Promise.all([
+        this.prisma.employee.findMany({
+          where: { companyId, deletedAt: null, isActive: true },
+          include: { grade: { include: { payScale: { orderBy: { stage: 'asc' }, take: 1 } } } },
+          orderBy: { employeeNumber: 'asc' },
+        }),
+        run.payPeriodId
+          ? this.prisma.monthlyAttendanceSheet.findFirst({
+              where: { companyId, payPeriodId: run.payPeriodId },
+              orderBy: { updatedAt: 'desc' },
+              include: { lines: true },
+            })
+          : Promise.resolve(null),
+        // Only leave that actually happened reduces pay: a PENDING request is
+        // not yet a fact, and a REJECTED or CANCELLED one never was.
+        this.prisma.leaveRequest.findMany({
+          where: {
+            companyId,
+            status: { in: [LeaveRequestStatus.APPROVED, LeaveRequestStatus.TAKEN] },
+            startDate: { lte: to },
+            endDate: { gte: from },
+          },
+          include: { leaveType: { select: { paid: true } } },
+        }),
+        this.prisma.employeeLoanInstallment.findMany({
+          where: {
+            dueDate: { gte: from, lte: to },
+            status: { not: 'Paid' },
+            loan: { companyId, isActive: true, approved: true, status: { not: 'Cancelled' } },
+          },
+          include: { loan: { select: { employeeId: true } } },
+        }),
+        run.payPeriodId
+          ? this.prisma.payrollAdjustment.findFirst({
+              where: { companyId, payPeriodId: run.payPeriodId },
+              orderBy: { updatedAt: 'desc' },
+              include: { lines: true },
+            })
+          : Promise.resolve(null),
+        this.prisma.taxFormula.findMany({
+          where: { companyId, isActive: true },
+          include: { slabs: { orderBy: { ordering: 'asc' } } },
+        }),
+      ]);
+
+    const attendanceByEmployee = new Map<string, any>();
+    if (sheet) for (const l of sheet.lines) attendanceByEmployee.set(l.employeeId, l);
+
+    const adjustmentByEmployee = new Map<string, any>();
+    if (adjustment) for (const l of adjustment.lines) adjustmentByEmployee.set(l.employeeId, l);
+
+    const leavesByEmployee = new Map<string, LeaveWindow[]>();
+    for (const l of leaves) {
+      const list = leavesByEmployee.get(l.employeeId) ?? [];
+      list.push({
+        startDate: l.startDate,
+        endDate: l.endDate,
+        days: l.days,
+        paid: l.leaveType?.paid ?? true,
+      });
+      leavesByEmployee.set(l.employeeId, list);
+    }
+
+    const loanDueByEmployee = new Map<string, number>();
+    for (const inst of installments) {
+      const empId = inst.loan.employeeId;
+      loanDueByEmployee.set(empId, (loanDueByEmployee.get(empId) ?? 0) + num(inst.amount));
+    }
+
+    // A formula tied to the employee's category wins; otherwise the company's
+    // single un-scoped formula applies. No formula at all means no tax line,
+    // rather than a silent zero that looks like a computed result.
+    const taxByCategory = new Map<string, typeof taxFormulas[number]>();
+    let defaultFormula: typeof taxFormulas[number] | null = null;
+    for (const f of taxFormulas) {
+      if (f.employeeCategoryId) taxByCategory.set(f.employeeCategoryId, f);
+      else if (!defaultFormula) defaultFormula = f;
+    }
 
     const rows = employees.map((emp, i) => {
-      const stage = emp.grade?.payScale?.[0];
+      const stage = emp.grade?.payScale?.[0] ?? null;
       const att = attendanceByEmployee.get(emp.id);
-      const totalDaysWorking = att?.workingDays ?? payPeriod?.workingDays ?? null;
-      const lopDays = att?.lopDays ?? 0;
-      const totalDaysWorked = att?.presentDays ?? null;
-      const payLeaves = att?.payableLeaves ?? 0;
-      const paidDays = totalDaysWorked != null ? Number(totalDaysWorked) + Number(payLeaves) : null;
+      const adj = adjustmentByEmployee.get(emp.id) ?? null;
+      const formula =
+        (emp.employeeCategoryId ? taxByCategory.get(emp.employeeCategoryId) : null) ??
+        defaultFormula;
+
+      const leave = splitLeave(leavesByEmployee.get(emp.id) ?? [], from, to);
+      const slip = computePayslip({
+        stage,
+        workingDays: att?.workingDays != null ? num(att.workingDays) : workingDays,
+        totalDays,
+        presentDays: att?.presentDays != null ? num(att.presentDays) : null,
+        leave,
+        loanDue: loanDueByEmployee.get(emp.id) ?? 0,
+        adjustment: adj,
+        taxBands: formula?.slabs ?? [],
+        taxMonths: formula?.noOfMonths ?? 12,
+      });
+
       return {
         payrollRunId: runId,
         employeeId: emp.id,
         employeeType: run.employeeType ?? null,
-        totalDaysWorking: totalDaysWorking as any,
-        lopDays: lopDays as any,
-        totalDaysWorked: totalDaysWorked as any,
-        paidDays: paidDays as any,
-        payLeaves: payLeaves as any,
+        totalDaysWorking: slip.totalDaysWorking as any,
+        lopDays: slip.lopDays as any,
+        totalDaysWorked: slip.totalDaysWorked as any,
+        paidDays: slip.paidDays as any,
+        payLeaves: slip.paidLeaveDays as any,
         basic: (stage?.basicPay ?? null) as any,
         entertainment: 0 as any,
         eligibleBasic: (stage?.basicPay ?? null) as any,
@@ -258,6 +397,19 @@ export class PayrollRunsService extends TenantCrudService {
         hra: (stage?.hra ?? null) as any,
         bigCity: 0 as any,
         eligibleHra: (stage?.hra ?? null) as any,
+        grossPay: slip.grossPay as any,
+        perDayRate: slip.perDayRate as any,
+        paidLeaveDays: slip.paidLeaveDays as any,
+        unpaidLeaveDays: slip.unpaidLeaveDays as any,
+        lopDeduction: slip.lopDeduction as any,
+        loanDeduction: slip.loanDeduction as any,
+        taxableGross: slip.taxableGross as any,
+        taxDeduction: slip.taxDeduction as any,
+        adjustmentAdditions: slip.adjustmentAdditions as any,
+        adjustmentDeductions: slip.adjustmentDeductions as any,
+        totalEarnings: slip.totalEarnings as any,
+        totalDeductions: slip.totalDeductions as any,
+        netPay: slip.netPay as any,
         ordering: i,
       };
     });
