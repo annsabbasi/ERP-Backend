@@ -5,6 +5,7 @@ import {
   computePayslip,
   inclusiveDays,
   num,
+  rowTotals,
   splitLeave,
   type LeaveWindow,
 } from './payroll-calculation';
@@ -223,31 +224,55 @@ export class PayrollRunsService extends TenantCrudService {
     });
   }
 
+  /**
+   * Persists the grid exactly as entered, and (re)derives the four payslip
+   * aggregates from the row's own earnings/deduction fields rather than
+   * trusting anything the client sent for them — a manual edit to Basic or to
+   * Loan Ded. must move Total Earnings/Deductions and Net Pay, and a figure
+   * that decides someone's pay is never client-computed. See
+   * `rowTotals` for the shared formula the frontend mirrors for live display.
+   */
   async replaceLines(companyId: string, runId: string, dto: ReplacePayrollRunLinesDto) {
     await this.findOne(companyId, runId);
     await this.prisma.$transaction([
       this.prisma.payrollRunLine.deleteMany({ where: { payrollRunId: runId } }),
       this.prisma.payrollRunLine.createMany({
-        data: dto.rows.map((row, i) => ({
-          payrollRunId: runId,
-          employeeId: row.employeeId,
-          employeeType: row.employeeType,
-          totalDaysWorking: row.totalDaysWorking as any,
-          lopDays: row.lopDays as any,
-          totalDaysWorked: row.totalDaysWorked as any,
-          paidDays: row.paidDays as any,
-          payLeaves: row.payLeaves as any,
-          basic: row.basic as any,
-          entertainment: row.entertainment as any,
-          eligibleBasic: row.eligibleBasic as any,
-          conveyance: row.conveyance as any,
-          education: row.education as any,
-          eligibleConveyance: row.eligibleConveyance as any,
-          hra: row.hra as any,
-          bigCity: row.bigCity as any,
-          eligibleHra: row.eligibleHra as any,
-          ordering: i,
-        })),
+        data: dto.rows.map((row, i) => {
+          const totals = rowTotals(row);
+          return {
+            payrollRunId: runId,
+            employeeId: row.employeeId,
+            employeeType: row.employeeType,
+            totalDaysWorking: row.totalDaysWorking as any,
+            lopDays: row.lopDays as any,
+            totalDaysWorked: row.totalDaysWorked as any,
+            paidDays: row.paidDays as any,
+            payLeaves: row.payLeaves as any,
+            basic: row.basic as any,
+            entertainment: row.entertainment as any,
+            eligibleBasic: row.eligibleBasic as any,
+            conveyance: row.conveyance as any,
+            education: row.education as any,
+            eligibleConveyance: row.eligibleConveyance as any,
+            hra: row.hra as any,
+            bigCity: row.bigCity as any,
+            eligibleHra: row.eligibleHra as any,
+            perDayRate: row.perDayRate as any,
+            paidLeaveDays: row.paidLeaveDays as any,
+            unpaidLeaveDays: row.unpaidLeaveDays as any,
+            lopDeduction: row.lopDeduction as any,
+            loanDeduction: row.loanDeduction as any,
+            taxableGross: row.taxableGross as any,
+            taxDeduction: row.taxDeduction as any,
+            adjustmentAdditions: row.adjustmentAdditions as any,
+            adjustmentDeductions: row.adjustmentDeductions as any,
+            grossPay: totals.grossPay as any,
+            totalEarnings: totals.totalEarnings as any,
+            totalDeductions: totals.totalDeductions as any,
+            netPay: totals.netPay as any,
+            ordering: i,
+          };
+        }),
       }),
     ]);
     return this.getLines(companyId, runId);
@@ -367,6 +392,11 @@ export class PayrollRunsService extends TenantCrudService {
         defaultFormula;
 
       const leave = splitLeave(leavesByEmployee.get(emp.id) ?? [], from, to);
+      // lopDeduction/loanDeduction/taxDeduction still come from computePayslip
+      // — real attendance, the loan schedule and the tax slabs, not something
+      // a plain sum could reconstruct. Only the headline grossPay/totalEarnings
+      // /totalDeductions/netPay are then re-derived by `rowTotals` from the
+      // row's own visible cells, so Generate and a later plain Save agree.
       const slip = computePayslip({
         stage,
         workingDays: att?.workingDays != null ? num(att.workingDays) : workingDays,
@@ -379,6 +409,16 @@ export class PayrollRunsService extends TenantCrudService {
         taxMonths: formula?.noOfMonths ?? 12,
       });
 
+      const basic = stage?.basicPay ?? null;
+      const conveyance = stage?.conveyanceAllowance ?? null;
+      const hra = stage?.hra ?? null;
+      const totals = rowTotals({
+        basic, hra, conveyance, entertainment: 0, education: 0, bigCity: 0,
+        adjustmentAdditions: slip.adjustmentAdditions,
+        lopDeduction: slip.lopDeduction, loanDeduction: slip.loanDeduction,
+        taxDeduction: slip.taxDeduction, adjustmentDeductions: slip.adjustmentDeductions,
+      });
+
       return {
         payrollRunId: runId,
         employeeId: emp.id,
@@ -388,16 +428,15 @@ export class PayrollRunsService extends TenantCrudService {
         totalDaysWorked: slip.totalDaysWorked as any,
         paidDays: slip.paidDays as any,
         payLeaves: slip.paidLeaveDays as any,
-        basic: (stage?.basicPay ?? null) as any,
+        basic: basic as any,
         entertainment: 0 as any,
-        eligibleBasic: (stage?.basicPay ?? null) as any,
-        conveyance: (stage?.conveyanceAllowance ?? null) as any,
+        eligibleBasic: basic as any,
+        conveyance: conveyance as any,
         education: 0 as any,
-        eligibleConveyance: (stage?.conveyanceAllowance ?? null) as any,
-        hra: (stage?.hra ?? null) as any,
+        eligibleConveyance: conveyance as any,
+        hra: hra as any,
         bigCity: 0 as any,
-        eligibleHra: (stage?.hra ?? null) as any,
-        grossPay: slip.grossPay as any,
+        eligibleHra: hra as any,
         perDayRate: slip.perDayRate as any,
         paidLeaveDays: slip.paidLeaveDays as any,
         unpaidLeaveDays: slip.unpaidLeaveDays as any,
@@ -407,9 +446,10 @@ export class PayrollRunsService extends TenantCrudService {
         taxDeduction: slip.taxDeduction as any,
         adjustmentAdditions: slip.adjustmentAdditions as any,
         adjustmentDeductions: slip.adjustmentDeductions as any,
-        totalEarnings: slip.totalEarnings as any,
-        totalDeductions: slip.totalDeductions as any,
-        netPay: slip.netPay as any,
+        grossPay: totals.grossPay as any,
+        totalEarnings: totals.totalEarnings as any,
+        totalDeductions: totals.totalDeductions as any,
+        netPay: totals.netPay as any,
         ordering: i,
       };
     });

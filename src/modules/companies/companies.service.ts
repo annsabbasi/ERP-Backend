@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRoleType } from '@prisma/client';
@@ -8,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TemplateApplierService } from '../tenancy/template-applier.service';
+import { DemoDataSeederService } from '../tenancy/demo-data-seeder.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import {
@@ -24,10 +26,13 @@ interface AuditContext {
 
 @Injectable()
 export class CompaniesService {
+  private readonly logger = new Logger(CompaniesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionsService,
     private readonly templates: TemplateApplierService,
+    private readonly demoData: DemoDataSeederService,
     private readonly audit: AuditService,
   ) {}
 
@@ -187,9 +192,23 @@ export class CompaniesService {
   /**
    * Self-service-style onboarding flow (Section 4.3):
    *   1. Create the Company.
-   *   2. Create the Subscription on the chosen plan (TRIAL by default).
-   *   3. Apply the industry template (modules + roles + branding).
-   *   4. Provision the first Company Admin user.
+   *   2. Provision the first Company Admin user.
+   *   3. Create the Subscription on the chosen plan (TRIAL by default).
+   *   4. Apply the industry template (modules + roles + branding).
+   *
+   * All four steps run inside one transaction. They used to run as three
+   * separate transactions (company+user, then subscription, then template),
+   * which meant a failure partway through — including the P2028 timeout this
+   * replaced — could leave a company committed without its subscription or
+   * starting modules/roles, and with its slug permanently "taken" so the
+   * onboarding could not even be retried under the same name. One transaction
+   * makes onboarding all-or-nothing.
+   *
+   * That transaction only ever issues a fixed, small number of queries now —
+   * see `SubscriptionsService.createTx` and `TemplateApplierService.applyTx`,
+   * both of which batch what used to be per-module/per-role loops — so it
+   * comfortably finishes well inside the timeout regardless of how large a
+   * template or plan is.
    *
    * Returns the temporary admin password — the caller is expected to deliver
    * it via email or hand it off to the customer. (Email integration arrives in
@@ -199,48 +218,82 @@ export class CompaniesService {
     const slugClash = await this.prisma.company.findUnique({ where: { slug: dto.slug } });
     if (slugClash) throw new BadRequestException('Company slug already taken');
 
-    // Pre-validate the plan so we fail before creating the company row.
-    const plan = await this.prisma.plan.findUnique({ where: { key: dto.planKey } });
+    // Pre-validate the plan so we fail before creating the company row, and
+    // fetch its modules here so template application doesn't need its own
+    // round trip for them inside the transaction.
+    const plan = await this.prisma.plan.findUnique({
+      where: { key: dto.planKey },
+      include: { modules: true },
+    });
     if (!plan) throw new BadRequestException(`Unknown plan key: ${dto.planKey}`);
+    const planModuleIds = new Set(plan.modules.map((m) => m.moduleId));
 
     const tempPassword = dto.adminPassword ?? generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-    const company = await this.prisma.$transaction(async (tx) => {
-      const c = await tx.company.create({
-        data: {
-          name: dto.name,
-          slug: dto.slug,
-          industry: dto.industry,
-          country: dto.country,
-          currency: dto.currency,
-          locale: dto.locale,
-          timezone: dto.timezone,
-          fiscalYearStart: dto.fiscalYearStart,
-        },
-      });
-      await tx.user.create({
-        data: {
-          email: dto.adminEmail,
-          name: dto.adminName,
-          passwordHash,
-          companyId: c.id,
-          roleType: UserRoleType.COMPANY_ADMIN,
-          passwordChangedAt: new Date(),
-        },
-      });
-      return c;
-    });
+    let subscriptionStatus = '';
+    let adminUserId = '';
 
-    // Create the subscription (trial) — must happen BEFORE template application
-    // so the plan-gated module enablement has something to consult.
-    await this.subscriptions.create(
-      company.id,
-      { planKey: dto.planKey, billingInterval: dto.billingInterval, startInTrial: true },
-      audit,
+    const company = await this.prisma.$transaction(
+      async (tx) => {
+        const c = await tx.company.create({
+          data: {
+            name: dto.name,
+            slug: dto.slug,
+            industry: dto.industry,
+            country: dto.country,
+            currency: dto.currency,
+            locale: dto.locale,
+            timezone: dto.timezone,
+            fiscalYearStart: dto.fiscalYearStart,
+          },
+        });
+        const admin = await tx.user.create({
+          data: {
+            email: dto.adminEmail,
+            name: dto.adminName,
+            passwordHash,
+            companyId: c.id,
+            roleType: UserRoleType.COMPANY_ADMIN,
+            passwordChangedAt: new Date(),
+          },
+        });
+        adminUserId = admin.id;
+
+        // Subscription must be created BEFORE template application so the
+        // plan-gated module enablement has something to consult.
+        const created = await this.subscriptions.createTx(
+          tx,
+          c.id,
+          plan,
+          { billingInterval: dto.billingInterval, startInTrial: true },
+          audit.actorId,
+        );
+        subscriptionStatus = created.status;
+
+        await this.templates.applyTx(tx, c.id, dto.industry ?? 'generic', planModuleIds);
+
+        return c;
+      },
+      { timeout: 20_000, maxWait: 10_000 },
     );
 
-    await this.templates.apply(company.id, dto.industry ?? 'generic');
+    // Convenience data — enough rows in every Administration dropdown's
+    // backing table (users, departments, currencies, accounts, posting
+    // periods, numbering series, territories, approval stages/templates, a
+    // license, an alert) that the module is immediately usable rather than
+    // empty. Deliberately outside the transaction above and never allowed to
+    // fail onboarding: it is convenience data, not core business data.
+    try {
+      await this.demoData.seed(company.id, adminUserId);
+    } catch (e) {
+      this.logger.warn(`Demo data seeding failed for company ${company.id}: ${(e as Error).message}`);
+    }
+
+    await this.recordActivity(company.id, audit, 'subscription.created', {
+      planKey: plan.key,
+      status: subscriptionStatus,
+    });
     await this.recordActivity(company.id, audit, 'tenancy.company.onboarded', {
       slug: company.slug,
       industry: dto.industry,

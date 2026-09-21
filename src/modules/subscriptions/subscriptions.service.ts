@@ -70,42 +70,60 @@ export class SubscriptionsService {
 
     const plan = await this.plans.findByKey(dto.planKey);
 
+    const sub = await this.prisma.$transaction(
+      (tx) => this.createTx(tx, companyId, plan, dto, audit.actorId),
+      { timeout: 15_000 },
+    );
+
+    await this.recordActivity(companyId, audit, 'subscription.created', { planKey: plan.key, status: sub.status });
+    return this.findByCompany(companyId);
+  }
+
+  /**
+   * Core logic, usable inside a transaction the caller already owns.
+   *
+   * Company onboarding needs the subscription write to commit or roll back
+   * atomically with the company/user/template writes, so it cannot go through
+   * `create()`, which opens its own `$transaction`.
+   */
+  async createTx(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    plan: { id: string; trialDays: number },
+    opts: { billingInterval?: BillingInterval; startInTrial?: boolean; seatsOverride?: number },
+    actorId: string | null,
+  ) {
     const now = new Date();
-    const startInTrial = dto.startInTrial ?? plan.trialDays > 0;
+    const startInTrial = opts.startInTrial ?? plan.trialDays > 0;
     const trialEndsAt = startInTrial
       ? new Date(now.getTime() + plan.trialDays * 86_400_000)
       : null;
 
-    const billingInterval = dto.billingInterval ?? BillingInterval.MONTHLY;
+    const billingInterval = opts.billingInterval ?? BillingInterval.MONTHLY;
     const periodEnd = this.advancePeriodEnd(now, billingInterval);
 
-    const sub = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.subscription.create({
-        data: {
-          companyId,
-          planId: plan.id,
-          status: startInTrial ? SubscriptionStatus.TRIAL : SubscriptionStatus.ACTIVE,
-          billingInterval,
-          trialEndsAt,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-          seatsOverride: dto.seatsOverride,
-        },
-      });
-      await tx.subscriptionEvent.create({
-        data: {
-          subscriptionId: created.id,
-          fromStatus: null,
-          toStatus: created.status,
-          reason: 'created',
-          actorId: audit.actorId,
-        },
-      });
-      return created;
+    const created = await tx.subscription.create({
+      data: {
+        companyId,
+        planId: plan.id,
+        status: startInTrial ? SubscriptionStatus.TRIAL : SubscriptionStatus.ACTIVE,
+        billingInterval,
+        trialEndsAt,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        seatsOverride: opts.seatsOverride,
+      },
     });
-
-    await this.recordActivity(companyId, audit, 'subscription.created', { planKey: plan.key, status: sub.status });
-    return this.findByCompany(companyId);
+    await tx.subscriptionEvent.create({
+      data: {
+        subscriptionId: created.id,
+        fromStatus: null,
+        toStatus: created.status,
+        reason: 'created',
+        actorId,
+      },
+    });
+    return created;
   }
 
   async findByCompany(companyId: string) {

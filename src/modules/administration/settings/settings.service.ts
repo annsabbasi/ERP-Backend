@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateCompanyDetailsDto, UpsertSettingsDto } from '../administration.dto';
 
@@ -189,23 +190,43 @@ export class SettingsService {
    * a tab can save itself without clobbering settings owned by another tab.
    */
   async upsertGroup(companyId: string, userId: string, dto: UpsertSettingsDto) {
-    const entries = Object.entries(dto.values ?? {});
-    await this.prisma.$transaction(
-      entries.map(([key, value]) =>
-        this.prisma.companySetting.upsert({
-          where: { companyId_group_key: { companyId, group: dto.group, key } },
-          create: {
-            companyId,
-            group: dto.group,
-            key,
-            value: value as Prisma.InputJsonValue,
-            updatedById: userId,
-          },
-          update: { value: value as Prisma.InputJsonValue, updatedById: userId },
-        }),
-      ),
-    );
+    await this.bulkUpsertSettings(companyId, dto.group, Object.entries(dto.values ?? {}), userId);
     return this.getGroup(companyId, dto.group);
+  }
+
+  /**
+   * Upserts every (group, key) → value pair in one statement, inside the
+   * caller's transaction if one is given.
+   *
+   * A settings tab can carry anywhere from a handful to (Company Details)
+   * several dozen keys. Upserting them with one `tx.companySetting.upsert()`
+   * call per key — the previous approach — is a sequential round trip per
+   * key inside a single interactive transaction; against a cross-region
+   * pooled connection that alone blew through Prisma's 5s transaction budget
+   * for Company Details' ~58 keys (P2028). A single parameterized bulk
+   * `INSERT … ON CONFLICT DO UPDATE` does the same write in one round trip
+   * regardless of how many keys are being saved.
+   */
+  private async bulkUpsertSettings(
+    companyId: string,
+    group: string,
+    entries: [string, unknown][],
+    userId: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const defined = entries.filter(([, value]) => value !== undefined);
+    if (!defined.length) return;
+    const now = new Date();
+    const rows = defined.map(
+      ([key, value]) =>
+        Prisma.sql`(${randomUUID()}, ${companyId}, ${group}, ${key}, ${JSON.stringify(value)}::jsonb, ${userId}, ${now})`,
+    );
+    await tx.$executeRaw`
+      INSERT INTO company_settings (id, "companyId", "group", "key", "value", "updatedById", "updatedAt")
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT ("companyId", "group", "key")
+      DO UPDATE SET "value" = EXCLUDED."value", "updatedById" = EXCLUDED."updatedById", "updatedAt" = EXCLUDED."updatedAt"
+    `;
   }
 
   /** Restores a group (or one key) to its shipped default by deleting overrides. */
@@ -268,33 +289,22 @@ export class SettingsService {
   ) {
     const detailEntries = Object.entries(dto.details ?? {});
 
-    await this.prisma.$transaction(async (tx) => {
-      if (dto.company && Object.keys(dto.company).length) {
-        await tx.company.update({
-          where: { id: companyId },
-          data: {
-            ...dto.company,
-            branding: dto.company.branding as Prisma.InputJsonValue | undefined,
-          },
-        });
-      }
+    await this.prisma.$transaction(
+      async (tx) => {
+        if (dto.company && Object.keys(dto.company).length) {
+          await tx.company.update({
+            where: { id: companyId },
+            data: {
+              ...dto.company,
+              branding: dto.company.branding as Prisma.InputJsonValue | undefined,
+            },
+          });
+        }
 
-      for (const [key, value] of detailEntries) {
-        await tx.companySetting.upsert({
-          where: {
-            companyId_group_key: { companyId, group: COMPANY_DETAILS_GROUP, key },
-          },
-          create: {
-            companyId,
-            group: COMPANY_DETAILS_GROUP,
-            key,
-            value: value as Prisma.InputJsonValue,
-            updatedById: userId,
-          },
-          update: { value: value as Prisma.InputJsonValue, updatedById: userId },
-        });
-      }
-    });
+        await this.bulkUpsertSettings(companyId, COMPANY_DETAILS_GROUP, detailEntries, userId, tx);
+      },
+      { timeout: 15_000, maxWait: 10_000 },
+    );
 
     return {
       company: await this.getCompanyDetails(companyId),

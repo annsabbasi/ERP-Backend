@@ -211,45 +211,54 @@ export class UtilitiesService {
           },
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      const run = await tx.periodEndClosingRun.create({
-        data: {
-          companyId,
-          fromPeriodId: dto.fromPeriodId,
-          toPeriodId: dto.toPeriodId,
-          retainedEarningsAccountId: dto.retainedEarningsAccountId,
-          closingAccountId: dto.closingAccountId ?? null,
-          usePrimaryClosingAccount: dto.usePrimaryClosingAccount ?? true,
-          status: PeriodEndClosingStatus.PREVIEW,
-          lines: preview.lines as unknown as Prisma.InputJsonValue,
-          totalDebit: new Prisma.Decimal(preview.totalDebit),
-          totalCredit: new Prisma.Decimal(preview.totalCredit),
-          executedById: userId,
-        },
-      });
+    return this.prisma.$transaction(
+      async (tx) => {
+        const run = await tx.periodEndClosingRun.create({
+          data: {
+            companyId,
+            fromPeriodId: dto.fromPeriodId,
+            toPeriodId: dto.toPeriodId,
+            retainedEarningsAccountId: dto.retainedEarningsAccountId,
+            closingAccountId: dto.closingAccountId ?? null,
+            usePrimaryClosingAccount: dto.usePrimaryClosingAccount ?? true,
+            status: PeriodEndClosingStatus.PREVIEW,
+            lines: preview.lines as unknown as Prisma.InputJsonValue,
+            totalDebit: new Prisma.Decimal(preview.totalDebit),
+            totalCredit: new Prisma.Decimal(preview.totalCredit),
+            executedById: userId,
+          },
+        });
 
-      // Goes through the same posting path as every other module, so the
-      // closing gets the same balance checks, period resolution and numbering
-      // as a hand-keyed entry rather than a private route to the ledger.
-      const entry = await this.journals.postFromSource(tx, companyId, userId, {
-        date: postingDate,
-        source: 'period_end_closing',
-        sourceId: run.id,
-        description: `Period-end closing ${preview.from.name} → ${preview.to.name}`,
-        reference: run.id,
-        area: 'general',
-        lines: journalLines as never,
-      });
+        // Goes through the same posting path as every other module, so the
+        // closing gets the same balance checks, period resolution and numbering
+        // as a hand-keyed entry rather than a private route to the ledger.
+        const entry = await this.journals.postFromSource(tx, companyId, userId, {
+          date: postingDate,
+          source: 'period_end_closing',
+          sourceId: run.id,
+          description: `Period-end closing ${preview.from.name} → ${preview.to.name}`,
+          reference: run.id,
+          area: 'general',
+          lines: journalLines as never,
+        });
 
-      return tx.periodEndClosingRun.update({
-        where: { id: run.id },
-        data: {
-          status: PeriodEndClosingStatus.EXECUTED,
-          journalEntryId: entry.id,
-          executedAt: new Date(),
-        },
-      });
-    });
+        return tx.periodEndClosingRun.update({
+          where: { id: run.id },
+          data: {
+            status: PeriodEndClosingStatus.EXECUTED,
+            journalEntryId: entry.id,
+            executedAt: new Date(),
+          },
+        });
+      },
+      // Default is 5s. Against the cross-region pooled connection this app
+      // runs against, three round trips (create, numbering allocation +
+      // journal post, update) routinely exceed that — see the identical fix
+      // in SettingsService.saveCompanyDetails. Without this, Execute silently
+      // rolls back with a P2028 after the preview already succeeded, which
+      // looks to the operator like the button does nothing.
+      { timeout: 15_000, maxWait: 10_000 },
+    );
   }
 
   /** "Previous Report" — the runs already made, newest first. */

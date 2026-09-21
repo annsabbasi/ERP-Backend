@@ -315,3 +315,57 @@ export function computePayslip(input: PayslipInput): Payslip {
     netPay: money(totalEarnings - totalDeductions),
   };
 }
+
+// ─── Row totals (Payroll Process grid — Generate defaults, then free entry) ───
+
+/**
+ * The four "headline" figures the Payroll Process grid shows per row, always
+ * derived from that row's own visible/editable cells — never from the grade's
+ * hidden utility/medical/adhoc pay-scale components (those never had a column
+ * in this grid, so a figure built from them couldn't be verified by looking
+ * at the row, and a payslip total has to match what it's added up from).
+ *
+ * `generateLines` seeds basic/hra/conveyance from the grade and
+ * lopDeduction/loanDeduction/taxDeduction from real attendance/loan/tax data,
+ * then calls this same function so the number it returns is exactly what
+ * `replaceLines` recomputes if the row is saved untouched. The Payroll
+ * Process window mirrors this formula client-side for live-as-you-type
+ * totals — keep the two in sync.
+ */
+export interface RowEarnings {
+  basic?: Numish;
+  hra?: Numish;
+  conveyance?: Numish;
+  entertainment?: Numish;
+  education?: Numish;
+  bigCity?: Numish;
+  adjustmentAdditions?: Numish;
+  lopDeduction?: Numish;
+  loanDeduction?: Numish;
+  taxDeduction?: Numish;
+  adjustmentDeductions?: Numish;
+}
+
+export interface RowTotals {
+  grossPay: number;
+  totalEarnings: number;
+  totalDeductions: number;
+  netPay: number;
+}
+
+export function rowTotals(row: RowEarnings): RowTotals {
+  const grossPay = money(
+    num(row.basic) + num(row.hra) + num(row.conveyance) +
+    num(row.entertainment) + num(row.education) + num(row.bigCity),
+  );
+  const totalEarnings = money(grossPay + num(row.adjustmentAdditions));
+  const totalDeductions = money(
+    num(row.lopDeduction) + num(row.loanDeduction) + num(row.taxDeduction) + num(row.adjustmentDeductions),
+  );
+  return {
+    grossPay,
+    totalEarnings,
+    totalDeductions,
+    netPay: money(totalEarnings - totalDeductions),
+  };
+}

@@ -85,6 +85,20 @@ export class PayrollRunLineRowDto {
   @IsNumber() @IsOptional() @Type(() => Number) hra?: number;
   @IsNumber() @IsOptional() @Type(() => Number) bigCity?: number;
   @IsNumber() @IsOptional() @Type(() => Number) eligibleHra?: number;
+
+  // ── Payslip inputs a user can type over Generate's suggestion ──
+  // grossPay / totalEarnings / totalDeductions / netPay are deliberately NOT
+  // accepted here — they are always server-derived from the fields above in
+  // PayrollRunsService.replaceLines, never trusted from the client.
+  @IsNumber() @IsOptional() @Type(() => Number) perDayRate?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) paidLeaveDays?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) unpaidLeaveDays?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) lopDeduction?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) loanDeduction?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) taxableGross?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) taxDeduction?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) adjustmentAdditions?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) adjustmentDeductions?: number;
 }
 export class ReplacePayrollRunLinesDto {
   @IsArray()
