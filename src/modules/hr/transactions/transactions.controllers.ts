@@ -84,6 +84,24 @@ export class PayrollRunsController extends TenantCrudController({
   generate(@CurrentUser() user: AuthedUser, @Param('id') id: string) {
     return this.service.generateLines(user.companyId as string, id);
   }
+
+  @ApiOperation({ summary: 'Post a payroll run to the G/L (salary expense, salaries payable, tax payable, loan recovery)' })
+  @RequirePermission('finance.journal.post')
+  @Post(':id/post')
+  post(@CurrentUser() user: AuthedUser, @Param('id') id: string) {
+    return this.service.post(user.companyId as string, id, user.sub);
+  }
+
+  @ApiOperation({ summary: 'Cancel a posted payroll run by reversing its journal entry' })
+  @RequirePermission('finance.journal.post')
+  @Post(':id/cancel')
+  cancel(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+    @Body() dto: Dto.CancelPayrollRunDto,
+  ) {
+    return this.service.cancel(user.companyId as string, id, user.sub, dto);
+  }
 }
 
 // ─── PAYROLL MONTHLY ADJUSTMENTS ────────────────────────────────────────────────

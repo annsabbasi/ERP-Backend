@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { LeaveRequestStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { LeaveRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   computePayslip,
@@ -10,14 +10,39 @@ import {
   type LeaveWindow,
 } from './payroll-calculation';
 import { TenantCrudOptions, TenantCrudService } from '../../../common/crud/tenant-crud.service';
+import { JournalEntriesService } from '../../financials/journal-entries/journal-entries.service';
+import { JournalLineDto } from '../../financials/journal-entries/dto/journal-entry.dto';
+import { AccountDeterminationService } from '../../financials/setup/setup.services';
 import {
   ReplaceAttendanceSheetLinesDto,
   ReplacePayrollRunLinesDto,
   ReplacePayrollAdjustmentLinesDto,
   ReplaceLoanInstallmentsDto,
+  CancelPayrollRunDto,
 } from './transactions.dto';
 
 const dayMs = 24 * 60 * 60 * 1000;
+
+const D = (v: unknown) => new Prisma.Decimal((v as number | string) ?? 0);
+const ZERO = new Prisma.Decimal(0);
+const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toFixed(2));
+
+/**
+ * Which G/L account each side of a payroll posting lands on — keys into
+ * Administration → Setup → Financials → G/L Account Determination, area
+ * "PAYROLL", same pattern AR/AP's `DETERMINATION` map uses. Tax and loan
+ * accounts are only resolved when the run actually has that deduction, so a
+ * company that hasn't mapped `loan_receivable` can still post payroll for a
+ * period with no loan deductions in it.
+ */
+const PAYROLL_DETERMINATION = {
+  salaryExpense: { area: 'PAYROLL', key: 'salary_expense' },
+  salariesPayable: { area: 'PAYROLL', key: 'salaries_payable' },
+  taxPayable: { area: 'PAYROLL', key: 'tax_payable' },
+  loanReceivable: { area: 'PAYROLL', key: 'loan_receivable' },
+} as const;
+
+const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
 
 // ─── MONTHLY ATTENDANCE SHEET ───────────────────────────────────────────────────
 @Injectable()
@@ -202,10 +227,15 @@ export class PayrollRunsService extends TenantCrudService {
     filterableFields: ['status', 'payPeriodId'],
     include: {
       payPeriod: { select: { id: true, code: true, name: true } },
+      journalEntry: { select: { id: true, number: true, status: true } },
       _count: { select: { lines: true } },
     },
   };
-  constructor(prisma: PrismaService) { super(prisma); }
+  constructor(
+    prisma: PrismaService,
+    private readonly journals: JournalEntriesService,
+    private readonly determinations: AccountDeterminationService,
+  ) { super(prisma); }
 
   protected beforeWrite(dto: Record<string, unknown>): Record<string, unknown> {
     const out = super.beforeWrite(dto);
@@ -213,6 +243,11 @@ export class PayrollRunsService extends TenantCrudService {
     if (out.toDate) out.toDate = new Date(out.toDate as string);
     if (out.documentDate) out.documentDate = new Date(out.documentDate as string);
     return out;
+  }
+
+  private resolve(companyId: string, which: keyof typeof PAYROLL_DETERMINATION) {
+    const d = PAYROLL_DETERMINATION[which];
+    return this.determinations.resolve(companyId, d.area, d.key);
   }
 
   async getLines(companyId: string, runId: string) {
@@ -459,6 +494,126 @@ export class PayrollRunsService extends TenantCrudService {
       this.prisma.payrollRunLine.createMany({ data: rows }),
     ]);
     return this.getLines(companyId, runId);
+  }
+
+  /**
+   * Books the run to the G/L — this is the only place Payroll ever writes to
+   * `journal_lines`, same rule AR/AP's `SubledgerService` follows: no second
+   * route to the ledger, so the balance/period/immutability guards in
+   * `JournalEntriesService` cannot be bypassed from HR.
+   *
+   *   Dr  Salary expense     netPay + tax + loan   (salary actually earned this
+   *                                                  run — LOP and other ad-hoc
+   *                                                  deductions were never earned,
+   *                                                  so they're not an expense)
+   *   Cr  Salaries payable   net pay               (what's still owed to employees)
+   *   Cr  Tax payable        tax withheld           (only if any line has tax)
+   *   Cr  Loan receivable    loan recovered         (only if any line has a loan deduction)
+   *
+   * `netPay + tax + loan` is exactly `totalEarnings - lopDeduction -
+   * adjustmentDeductions` by construction of `rowTotals` — i.e. gross earnings
+   * minus everything that was never actually earned or owed to the employee —
+   * so the entry balances without a separate reconciling line.
+   *
+   * Net pay, tax and loan deductions are pulled from each line's already-computed
+   * totals (`replaceLines`/`generateLines` derive them via `rowTotals`) — posting
+   * never recomputes a payslip, it only sums what was already saved.
+   */
+  async post(companyId: string, runId: string, userId: string) {
+    const run = await this.findOne(companyId, runId) as any;
+    if (run.status === 'Posted') {
+      throw new ConflictException(`Payroll run ${run.jeNo ?? run.id} is already posted.`);
+    }
+    if (run.status === 'Cancelled') {
+      throw new ConflictException(`Payroll run ${run.jeNo ?? run.id} is cancelled and cannot be posted.`);
+    }
+
+    const lines = await this.prisma.payrollRunLine.findMany({ where: { payrollRunId: runId } });
+    if (!lines.length) {
+      throw new BadRequestException(
+        'This payroll run has no employee lines. Generate or add rows before posting.',
+      );
+    }
+
+    const totals = lines.reduce(
+      (acc, l) => ({
+        netPay: acc.netPay.plus(D(l.netPay)),
+        tax: acc.tax.plus(D(l.taxDeduction)),
+        loan: acc.loan.plus(D(l.loanDeduction)),
+      }),
+      { netPay: ZERO, tax: ZERO, loan: ZERO },
+    );
+
+    if (totals.netPay.lte(ZERO)) {
+      throw new BadRequestException('Total net pay for this run is zero — nothing to post.');
+    }
+
+    const [expenseAccount, payableAccount, taxAccount, loanAccount] = await Promise.all([
+      this.resolve(companyId, 'salaryExpense'),
+      this.resolve(companyId, 'salariesPayable'),
+      totals.tax.gt(ZERO) ? this.resolve(companyId, 'taxPayable') : Promise.resolve(null),
+      totals.loan.gt(ZERO) ? this.resolve(companyId, 'loanReceivable') : Promise.resolve(null),
+    ]);
+
+    const expenseAmount = totals.netPay.plus(totals.tax).plus(totals.loan);
+    const label = run.payMonth || run.jeNo || run.payPeriod?.name || runId;
+    const journalLines: JournalLineDto[] = [
+      { accountId: expenseAccount, debit: money(expenseAmount), description: `Salary expense — ${label}` },
+      { accountId: payableAccount, credit: money(totals.netPay), description: `Salaries payable — ${label}` },
+    ];
+    if (taxAccount) {
+      journalLines.push({ accountId: taxAccount, credit: money(totals.tax), description: `Tax withheld — ${label}` });
+    }
+    if (loanAccount) {
+      journalLines.push({ accountId: loanAccount, credit: money(totals.loan), description: `Loan recovered — ${label}` });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await this.journals.postFromSource(tx, companyId, userId, {
+        date: run.documentDate ?? new Date(),
+        source: 'payroll_run',
+        sourceId: run.id,
+        description: `Payroll run — ${label}`,
+        reference: run.jeNo || undefined,
+        area: 'general',
+        lines: journalLines,
+      });
+
+      return tx.payrollRun.update({
+        where: { id: runId },
+        data: { status: 'Posted', journalEntryId: entry.id, jeNo: entry.number },
+        ...this.readArgs(),
+      });
+    }, TX_OPTIONS);
+  }
+
+  /**
+   * Reverses the run's journal entry and flips it back to Cancelled — mirrors
+   * `ARInvoicesService.void`. The original posting is never edited, only offset,
+   * so the ledger keeps a full audit trail of the cancellation.
+   */
+  async cancel(companyId: string, runId: string, userId: string, dto: CancelPayrollRunDto = {}) {
+    const run = await this.findOne(companyId, runId) as any;
+    if (run.status !== 'Posted') {
+      throw new ConflictException(
+        `Only a posted payroll run can be cancelled; ${run.jeNo ?? run.id} is ${(run.status ?? 'open').toLowerCase()}.`,
+      );
+    }
+    if (!run.journalEntryId) {
+      throw new ConflictException(`Payroll run ${run.jeNo ?? run.id} has no linked journal entry to reverse.`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const reversal = await this.journals.reverseFromSource(tx, companyId, userId, run.journalEntryId, {
+        reason: dto.reason || `Cancellation of payroll run ${run.jeNo ?? run.id}`,
+      });
+
+      return tx.payrollRun.update({
+        where: { id: runId },
+        data: { status: 'Cancelled', cancellationJeNo: reversal.number },
+        ...this.readArgs(),
+      });
+    }, TX_OPTIONS);
   }
 }
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HrController } from './hr.controller';
 import { HrService } from './hr.service';
+import { FinancialsModule } from '../financials/financials.module';
 
 // Sub-areas (Section 6.3)
 import { AttendanceController } from './attendance/attendance.controller';
@@ -42,6 +43,10 @@ import {
 } from './transactions/transactions.services';
 
 @Module({
+  // Payroll posting reuses the ledger rather than writing its own GL access —
+  // see PayrollRunsService.post, which is built on JournalEntriesService and
+  // AccountDeterminationService the same way AR/AP is.
+  imports: [FinancialsModule],
   controllers: [
     HrController,
     PositionsController,

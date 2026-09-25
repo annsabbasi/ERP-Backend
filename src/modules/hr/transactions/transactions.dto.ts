@@ -108,6 +108,10 @@ export class ReplacePayrollRunLinesDto {
   rows: PayrollRunLineRowDto[];
 }
 
+export class CancelPayrollRunDto {
+  @IsString() @IsOptional() reason?: string;
+}
+
 // ─── PAYROLL MONTHLY ADJUSTMENTS ───────────────────────────────────────────────
 export class CreatePayrollAdjustmentDto {
   @IsString() @IsOptional() employeeType?: string;

@@ -1117,13 +1117,18 @@ model PayrollRun {
   documentDate     DateTime  @default(now())
   status           String?   @default("Open")
   cancellationJeNo String?
+  // Set when `post()` books this run to the G/L (see JournalEntry.payrollRun).
+  // `jeNo` above mirrors journalEntry.number for display/search; this is the
+  // real link `post`/`cancel` act on.
+  journalEntryId   String?   @unique
   remarks          String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  payPeriod PayPeriod?       @relation(fields: [payPeriodId], references: [id])
-  lines     PayrollRunLine[]
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payPeriod    PayPeriod?       @relation(fields: [payPeriodId], references: [id])
+  lines        PayrollRunLine[]
+  journalEntry JournalEntry?    @relation(fields: [journalEntryId], references: [id])
 
   @@index([companyId])
   @@index([payPeriodId])
@@ -1170,7 +1175,7 @@ model PayrollRunLine {
   totalDeductions      Decimal? @db.Decimal(19, 4)
   netPay               Decimal? @db.Decimal(19, 4)
 
-  ordering           Int      @default(0)
+  ordering Int @default(0)
 
   payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -2338,10 +2343,11 @@ model JournalEntry {
   reconciliationLines    InternalReconciliationLine[]
   fixedAssetTransactions FixedAssetTransaction[]
 
-  arInvoice ARInvoice?
-  arPayment ARPayment?
-  apBill    APBill?
-  apPayment APPayment?
+  arInvoice  ARInvoice?
+  arPayment  ARPayment?
+  apBill     APBill?
+  apPayment  APPayment?
+  payrollRun PayrollRun?
 
   currencyRef Currency @relation("journalEntries", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
 
@@ -3864,6 +3870,7 @@ enum AccountDeterminationArea {
   PURCHASING
   GENERAL
   INVENTORY
+  PAYROLL
 }
 
 model AccountDetermination {
