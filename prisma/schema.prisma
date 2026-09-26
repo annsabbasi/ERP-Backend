@@ -94,6 +94,7 @@ model Company {
   payrollRuns                  PayrollRun[]
   payrollAdjustments           PayrollAdjustment[]
   employeeLoans                EmployeeLoan[]
+  loanRecoveries               LoanRecovery[]
   accounts                     Account[]
   defaultArAccount             Account?                 @relation("CoDefaultAr", fields: [defaultArAccountId], references: [id], onDelete: Restrict)
   defaultApAccount             Account?                 @relation("CoDefaultAp", fields: [defaultApAccountId], references: [id], onDelete: Restrict)
@@ -895,9 +896,11 @@ model EmployeeCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employees  Employee[]
-  TaxFormula TaxFormula[]
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees          Employee[]
+  TaxFormula         TaxFormula[]
+  payrollRuns        PayrollRun[]
+  payrollAdjustments PayrollAdjustment[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -956,6 +959,10 @@ model LoanType {
   rateOfInterest     Decimal? @db.Decimal(19, 4)
   minRepaymentAmount Decimal? @db.Decimal(19, 4)
   maxInstallments    Int?
+  // Advance types only: cap as a % of the employee's monthly net pay, and
+  // whether a second advance may be open while one is unrecovered.
+  maxNetPayPercent   Decimal? @db.Decimal(9, 4)
+  allowMultipleOpen  Boolean  @default(false)
   remarks            String?
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
@@ -1106,32 +1113,43 @@ model AttendanceSheetLine {
 // (stage 1) and, when a Monthly Attendance Sheet exists for the same pay
 // period, that sheet's day counts — otherwise falls back to PayPeriod.workingDays.
 model PayrollRun {
-  id               String    @id @default(uuid())
-  companyId        String
-  employeeType     String?
-  payPeriodId      String?
-  payMonth         String?
-  fromDate         DateTime?
-  toDate           DateTime?
-  jeNo             String?
-  documentDate     DateTime  @default(now())
-  status           String?   @default("Open")
-  cancellationJeNo String?
+  id                 String    @id @default(uuid())
+  companyId          String
+  // Superseded by employeeCategoryId; kept only so history written before
+  // 20260926010000 stays readable. Nothing writes or filters on it.
+  employeeType       String?
+  // null = every active employee. Generate filters on it.
+  employeeCategoryId String?
+  // Regular | Supplementary | Off-cycle | Bonus. A Regular run must name a pay
+  // period (DB CHECK), and an employee may be in only one active Regular run
+  // per period (partial unique index on payroll_run_lines).
+  runType            String    @default("Regular")
+  payPeriodId        String?
+  payMonth           String?
+  fromDate           DateTime?
+  toDate             DateTime?
+  jeNo               String?
+  documentDate       DateTime  @default(now())
+  status             String?   @default("Open")
+  cancellationJeNo   String?
   // Set when `post()` books this run to the G/L (see JournalEntry.payrollRun).
   // `jeNo` above mirrors journalEntry.number for display/search; this is the
   // real link `post`/`cancel` act on.
-  journalEntryId   String?   @unique
-  remarks          String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  journalEntryId     String?   @unique
+  remarks            String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  payPeriod    PayPeriod?       @relation(fields: [payPeriodId], references: [id])
-  lines        PayrollRunLine[]
-  journalEntry JournalEntry?    @relation(fields: [journalEntryId], references: [id])
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payPeriod        PayPeriod?        @relation(fields: [payPeriodId], references: [id])
+  employeeCategory EmployeeCategory? @relation(fields: [employeeCategoryId], references: [id], onDelete: SetNull)
+  lines            PayrollRunLine[]
+  journalEntry     JournalEntry?     @relation(fields: [journalEntryId], references: [id])
+  recoveries       LoanRecovery[]
 
   @@index([companyId])
   @@index([payPeriodId])
+  @@index([employeeCategoryId])
   @@map("payroll_runs")
 }
 
@@ -1167,6 +1185,9 @@ model PayrollRunLine {
   unpaidLeaveDays      Decimal? @db.Decimal(19, 4)
   lopDeduction         Decimal? @db.Decimal(19, 4)
   loanDeduction        Decimal? @db.Decimal(19, 4)
+  // Salary advance recovered this run: its own column and its own JE credit
+  // (PAYROLL/advance_receivable), never folded into loanDeduction.
+  advanceDeduction     Decimal? @db.Decimal(19, 4)
   taxableGross         Decimal? @db.Decimal(19, 4)
   taxDeduction         Decimal? @db.Decimal(19, 4)
   adjustmentAdditions  Decimal? @db.Decimal(19, 4)
@@ -1177,8 +1198,19 @@ model PayrollRunLine {
 
   ordering Int @default(0)
 
-  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // Copies of the run's own fields, maintained by triggers on both tables
+  // (payroll_run_lines_sync_from_run / payroll_runs_sync_to_lines). They exist
+  // only so a partial unique index can say "one active Regular run per
+  // employee per period": an index cannot see columns of another table.
+  // Never written by application code.
+  companyId   String?
+  payPeriodId String?
+  runType     String?
+  runActive   Boolean @default(true)
+
+  payrollRun PayrollRun     @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  recoveries LoanRecovery[]
 
   @@unique([payrollRunId, employeeId])
   @@index([payrollRunId])
@@ -1190,22 +1222,28 @@ model PayrollRunLine {
 // applied on top of a Payroll Process run for the same pay period. Purely
 // user-entered — there is nothing to auto-generate here.
 model PayrollAdjustment {
-  id           String   @id @default(uuid())
-  companyId    String
-  employeeType String?
-  payPeriodId  String?
-  documentDate DateTime @default(now())
-  status       String?  @default("Open")
-  remarks      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  companyId          String
+  // Superseded by employeeCategoryId (20260926060000); kept for history only.
+  employeeType       String?
+  // null = the document applies to every employee. Payroll Generate prefers a
+  // document for the employee's own category over an "All" document.
+  employeeCategoryId String?
+  payPeriodId        String?
+  documentDate       DateTime @default(now())
+  status             String?  @default("Open")
+  remarks            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  payPeriod PayPeriod?              @relation(fields: [payPeriodId], references: [id])
-  lines     PayrollAdjustmentLine[]
+  company          Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payPeriod        PayPeriod?              @relation(fields: [payPeriodId], references: [id])
+  employeeCategory EmployeeCategory?       @relation(fields: [employeeCategoryId], references: [id], onDelete: SetNull)
+  lines            PayrollAdjustmentLine[]
 
   @@index([companyId])
   @@index([payPeriodId])
+  @@index([employeeCategoryId])
   @@map("payroll_adjustments")
 }
 
@@ -1273,6 +1311,7 @@ model EmployeeLoan {
   loanType           LoanType                  @relation(fields: [loanTypeId], references: [id])
   effectivePayPeriod PayPeriod?                @relation(fields: [effectivePayPeriodId], references: [id])
   installments       EmployeeLoanInstallment[]
+  recoveries         LoanRecovery[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1290,13 +1329,50 @@ model EmployeeLoanInstallment {
   year     Int?
   dueDate  DateTime?
   amount   Decimal   @db.Decimal(19, 4)
+  // Derived: Pending | Partially Paid | Paid, recomputed by the
+  // loan_recoveries_apply trigger from the recovery ledger. Never set directly.
   status   String?   @default("Pending")
 
-  loan EmployeeLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan       EmployeeLoan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  recoveries LoanRecovery[]
 
   @@index([loanId])
   @@index([dueDate])
   @@map("employee_loan_installments")
+}
+
+/// The single source of truth for how much of an installment has been
+/// recovered. Payroll deductions (source "payroll") and, from Phase 2, LOAN/ADV
+/// salary payments (source "payment") both write here, against the same
+/// balance. A row is never deleted or edited; undoing a recovery stamps
+/// reversedAt. The loan_recoveries_guard trigger locks the installment row
+/// and refuses any recovery that would take it past its amount, which is what
+/// makes a double recovery impossible even for two concurrent requests.
+model LoanRecovery {
+  id               String    @id @default(uuid())
+  companyId        String
+  loanId           String
+  installmentId    String
+  amount           Decimal   @db.Decimal(19, 4)
+  source           String // "payroll" | "payment"
+  payrollRunId     String?
+  payrollRunLineId String?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  reversedAt       DateTime?
+  reversedById     String?
+
+  company        Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  loan           EmployeeLoan            @relation(fields: [loanId], references: [id], onDelete: NoAction)
+  installment    EmployeeLoanInstallment @relation(fields: [installmentId], references: [id], onDelete: NoAction)
+  payrollRun     PayrollRun?             @relation(fields: [payrollRunId], references: [id], onDelete: NoAction)
+  payrollRunLine PayrollRunLine?         @relation(fields: [payrollRunLineId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([installmentId])
+  @@index([loanId])
+  @@index([payrollRunId])
+  @@map("loan_recoveries")
 }
 
 model EmployeeShift {
@@ -2164,6 +2240,13 @@ enum AccountSubtype {
   OPERATING_EXPENSE
   OTHER_INCOME
   OTHER_EXPENSE
+  // Payroll accounts (20260926000000_payroll_account_subtypes). A subtype is how
+  // payroll defaults find an existing account again without matching on names.
+  SALARY_EXPENSE
+  SALARIES_PAYABLE
+  WITHHOLDING_TAX_PAYABLE
+  EMPLOYEE_LOAN_RECEIVABLE
+  SALARY_ADVANCE_RECEIVABLE
 }
 
 model Account {
