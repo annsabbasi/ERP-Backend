@@ -1,0 +1,4 @@
+-- Placeholder for a migration that exists only in the live _prisma_migrations table.
+-- Live shows applied_steps_count = 0, empty logs and started_at = finished_at:
+-- it was recorded with `prisma migrate resolve --applied` and never executed SQL.
+-- This file only reconciles local history with the database; it changes nothing.
