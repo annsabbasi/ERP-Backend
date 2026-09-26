@@ -56,15 +56,24 @@ export class TemplateApplierService {
   ) {
     const template = getTemplate(templateKey);
 
+    // The template's profile is a default, not an override: a currency,
+    // locale, timezone or fiscal-year start the admin chose at onboarding (or
+    // set later, on a re-apply) wins. Overwriting them is how a company
+    // onboarded as PKR ended up posting its first payroll in USD.
+    const current = await tx.company.findUnique({
+      where: { id: companyId },
+      select: { currency: true, locale: true, timezone: true, fiscalYearStart: true },
+    });
+
     await tx.company.update({
       where: { id: companyId },
       data: {
         industry: template.key,
         templateApplied: template.key,
-        currency: template.profile?.currency ?? undefined,
-        locale: template.profile?.locale ?? undefined,
-        timezone: template.profile?.timezone ?? undefined,
-        fiscalYearStart: template.profile?.fiscalYearStart ?? undefined,
+        currency: current?.currency ?? template.profile?.currency ?? undefined,
+        locale: current?.locale ?? template.profile?.locale ?? undefined,
+        timezone: current?.timezone ?? template.profile?.timezone ?? undefined,
+        fiscalYearStart: current?.fiscalYearStart ?? template.profile?.fiscalYearStart ?? undefined,
         branding: template.terminology
           ? ({ terminologyOverrides: template.terminology } as Prisma.InputJsonValue)
           : undefined,

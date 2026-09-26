@@ -83,6 +83,10 @@ const FINE_GRAINED: PermissionDef[] = [
   { key: 'finance.invoice.approve', resource: 'finance.invoice', action: 'approve', moduleSlug: 'financials', description: 'Approve invoices above threshold' },
   { key: 'finance.journal.post',    resource: 'finance.journal', action: 'post',    moduleSlug: 'financials', description: 'Post journal entries' },
   { key: 'finance.period.close',    resource: 'finance.period',  action: 'close',   moduleSlug: 'financials', description: 'Close fiscal periods' },
+  // Money leaving the company (salary payments, loan/advance disbursement, tax
+  // remittance). Separate from journal posting: booking an obligation and
+  // paying it out are different duties.
+  { key: 'finance.payment.create',  resource: 'finance.payment', action: 'create',  moduleSlug: 'financials', description: 'Pay out salaries, disburse loans/advances, remit tax' },
 
   // Inventory — stock movements, adjustments
   { key: 'inventory.stock.adjust',   resource: 'inventory.stock', action: 'adjust',   moduleSlug: 'inventory', description: 'Adjust stock with documented reason' },
@@ -267,7 +271,28 @@ function presetForModule(moduleSlug: string, label: string): SystemSetDef[] {
   ];
 }
 
+/**
+ * Posting is not in any per-module preset — Financials "Manager" can edit the
+ * books' setup but was never given `finance.journal.post`, so only platform
+ * super admins could post a journal or a payroll run. This set is the posting
+ * duty on its own, plus read-only Payroll so an accountant can open Payroll
+ * Process to press Post (HR prepares; Finance posts).
+ */
+const ACCOUNTANT_SET: SystemSetDef = {
+  key: 'financials.accountant',
+  name: 'Financials — Accountant (posting)',
+  description: 'Post journal entries and payroll runs, and record payments. Read-only access to payroll.',
+  permissionKeys: [
+    'financials.view',
+    'financials.journal.view',
+    'finance.journal.post',
+    'finance.payment.create',
+    'hr.payroll.view',
+  ],
+};
+
 export const SYSTEM_PERMISSION_SETS: SystemSetDef[] = [
+  ACCOUNTANT_SET,
   ...presetForModule('administration', 'Administration'),
   ...presetForModule('financials', 'Financials'),
   ...presetForModule('hr', 'HR'),

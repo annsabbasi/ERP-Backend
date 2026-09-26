@@ -35,7 +35,23 @@ export const GENERIC_TEMPLATE: IndustryTemplate = {
         'hr-attendance.manager',
         'crm.manager',
         'reports.manager',
+        'hr-payroll.manager',
+        'financials.accountant',
       ],
+    },
+    {
+      // HR prepares payroll; it cannot post it (no finance.journal.post).
+      name: 'Payroll Officer',
+      description: 'Prepares payroll: runs, attendance, adjustments, loans. Cannot post to the G/L.',
+      defaultScope: PermissionScope.ALL,
+      permissionSetKeys: ['hr-payroll.power', 'hr.viewer'],
+    },
+    {
+      // Finance posts it: read-only Payroll plus the posting duty.
+      name: 'Accountant',
+      description: 'Posts journals and payroll runs and records payments; views payroll read-only.',
+      defaultScope: PermissionScope.ALL,
+      permissionSetKeys: ['financials.standard', 'financials.accountant'],
     },
     {
       name: 'Manager',

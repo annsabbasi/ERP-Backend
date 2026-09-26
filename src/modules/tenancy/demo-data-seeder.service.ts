@@ -71,6 +71,25 @@ export class DemoDataSeederService {
       this.step('license', () => this.seedLicense(companyId, adminUserId)),
       this.step('alert definition', () => this.seedAlert(companyId, adminUserId)),
     ]);
+
+    // Needs the accounts, currencies and categories above, so it runs last.
+    await this.step('payroll defaults', () => this.seedPayrollDefaults(companyId));
+  }
+
+  /**
+   * Pay periods, leave/loan types, the payroll G/L accounts and every account
+   * determination (PAYROLL plus the AR/AP/cash keys). The rules live in the
+   * database function `erp_apply_payroll_defaults` — the same one migration
+   * 20260926020000 applied to every company that already existed — so a
+   * company onboarded today gets exactly what the backfill gave the others,
+   * with no second copy of the rules here to drift.
+   */
+  private async seedPayrollDefaults(companyId: string) {
+    const rows = await this.prisma.$queryRaw<{ line: string }[]>`
+      SELECT erp_apply_payroll_defaults(${companyId}) AS line`;
+    const skipped = rows.filter((r) => r.line?.startsWith('SKIPPED'));
+    for (const r of skipped) this.logger.warn(`Payroll defaults for ${companyId}: ${r.line}`);
+    return rows.map((r) => r.line);
   }
 
   private async seedUserChain(
@@ -200,6 +219,11 @@ export class DemoDataSeederService {
    * `seedCurrencies`, or every insert here fails its FK check.
    */
   private async seedAccounts(companyId: string) {
+    // Accounts carry the company's own currency when it is one of the seeded
+    // ones — a PKR company's chart should not be USD by column default.
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { currency: true } });
+    const held = await this.prisma.currency.findFirst({ where: { companyId, code: company?.currency ?? '' } });
+    const currency = held ? held.code : 'USD';
     const titles: { code: string; name: string; type: AccountType }[] = [
       { code: '1000', name: 'Assets', type: AccountType.ASSET },
       { code: '2000', name: 'Liabilities', type: AccountType.LIABILITY },
@@ -212,7 +236,7 @@ export class DemoDataSeederService {
     // several hundred milliseconds, and this step used to be the largest
     // single contributor to onboarding latency.
     await this.prisma.account.createMany({
-      data: titles.map((t) => ({ companyId, code: t.code, name: t.name, type: t.type, isTitle: true })),
+      data: titles.map((t) => ({ companyId, code: t.code, name: t.name, type: t.type, isTitle: true, currency })),
       skipDuplicates: true,
     });
     const titleRows = await this.prisma.account.findMany({
@@ -245,6 +269,8 @@ export class DemoDataSeederService {
         subtype: l.subtype,
         isControl: l.isControl ?? false,
         parentId: ids[l.parent],
+        currency,
+        level: 2,
       })),
       skipDuplicates: true,
     });
