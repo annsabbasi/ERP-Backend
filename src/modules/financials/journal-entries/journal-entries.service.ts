@@ -30,6 +30,17 @@ const ZERO = new Prisma.Decimal(0);
  */
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
 
+/**
+ * Journal sources whose document has its own undo, which reverses the entry
+ * through `reverseFromSource` together with the document's state. The plain
+ * Reverse on the Journal Entry window refuses these.
+ */
+const SUBLEDGER_OWNED_SOURCES: Record<string, { document: string; undo: string }> = {
+  payroll_run: { document: 'a payroll run', undo: 'Use Cancel Posting in HR Payroll → Payroll Process' },
+  ar_invoice: { document: 'an A/R invoice', undo: 'Void the invoice in Sales – A/R' },
+  ap_bill: { document: 'an A/P invoice', undo: 'Void the bill in Purchasing – A/P' },
+};
+
 const DETAIL_INCLUDE = {
   lines: {
     orderBy: { ordering: 'asc' as const },
@@ -292,10 +303,27 @@ export class JournalEntriesService {
    * marks the original REVERSED. The original's rows are never touched.
    */
   async reverse(companyId: string, id: string, userId: string, dto: ReverseJournalEntryDto = {}) {
-    return this.prisma.$transaction(
+    // An entry a subledger document owns must be undone through that document,
+    // which reverses the journal *and* its own state in one transaction.
+    // Reversing it here left, e.g., a payroll run still "Posted" against a
+    // reversed entry, with its loan recoveries still counted as collected.
+    const owned = await this.prisma.journalEntry.findFirst({
+      where: { id, companyId },
+      select: { number: true, source: true },
+    });
+    const owner = owned ? SUBLEDGER_OWNED_SOURCES[owned.source ?? ''] : undefined;
+    if (owned && owner) {
+      throw new ConflictException(
+        `Journal entry ${owned.number} was posted by ${owner.document}. ${owner.undo} so the document is reversed with it.`,
+      );
+    }
+    const reversal = await this.prisma.$transaction(
       (tx) => this.reverseFromSource(tx, companyId, userId, id, dto),
       TX_OPTIONS,
     );
+    // The window shows the full entry; read it after the commit, not while
+    // the transaction (and its locks) is still open.
+    return this.findOne(companyId, reversal.id);
   }
 
   /**
@@ -314,9 +342,12 @@ export class JournalEntriesService {
     id: string,
     dto: ReverseJournalEntryDto = {},
   ) {
+    // Only what the reversal needs: the lines to mirror and whether it has
+    // already been reversed. The display include (accounts, partners, cost
+    // centres, …) cost six extra round trips inside the caller's transaction.
     const original = await tx.journalEntry.findFirst({
       where: { id, companyId },
-      include: DETAIL_INCLUDE,
+      include: { lines: { orderBy: { ordering: 'asc' } }, reversal: { select: { id: true, number: true } } },
     });
     if (!original) throw new NotFoundException(`Journal entry ${id} not found`);
 
@@ -337,7 +368,7 @@ export class JournalEntriesService {
     {
       const allocated = await this.numbering.allocate(tx, companyId, 'journal_entry');
 
-      const reversal = await tx.journalEntry.create({
+      const created = await tx.journalEntry.create({
         data: {
           companyId,
           periodId: period.id,
@@ -361,23 +392,26 @@ export class JournalEntriesService {
           totalDebit: original.totalCredit,
           totalCredit: original.totalDebit,
           reversalOfId: original.id,
-          lines: {
-            create: original.lines.map((l, i) => ({
-              accountId: l.accountId,
-              debit: l.credit,
-              credit: l.debit,
-              description: l.description,
-              bpId: l.bpId,
-              costCenterId: l.costCenterId,
-              distributionRuleId: l.distributionRuleId,
-              projectId: l.projectId,
-              taxCodeId: l.taxCodeId,
-              taxAmount: l.taxAmount ? new Prisma.Decimal(l.taxAmount).negated() : null,
-              ordering: i,
-            })),
-          },
         },
-        include: DETAIL_INCLUDE,
+      });
+      // Mirror lines in one statement rather than two round trips per line
+      // (see postFromSource).
+      await tx.journalLine.createMany({
+        data: original.lines.map((l, i) => ({
+          companyId,
+          entryId: created.id,
+          accountId: l.accountId,
+          debit: l.credit,
+          credit: l.debit,
+          description: l.description,
+          bpId: l.bpId,
+          costCenterId: l.costCenterId,
+          distributionRuleId: l.distributionRuleId,
+          projectId: l.projectId,
+          taxCodeId: l.taxCodeId,
+          taxAmount: l.taxAmount ? new Prisma.Decimal(l.taxAmount).negated() : null,
+          ordering: i,
+        })),
       });
 
       await tx.journalEntry.update({
@@ -386,7 +420,7 @@ export class JournalEntriesService {
       });
 
       await this.assertDeferredConstraints(tx);
-      return reversal;
+      return created;
     }
   }
 
@@ -439,7 +473,7 @@ export class JournalEntriesService {
     );
     const allocated = await this.numbering.allocate(tx, companyId, 'journal_entry');
 
-    return tx.journalEntry.create({
+    const created = await tx.journalEntry.create({
       data: {
         companyId,
         periodId: period.id,
@@ -458,9 +492,18 @@ export class JournalEntriesService {
         postedById: userId,
         totalDebit,
         totalCredit,
-        lines: { create: this.mapLines(input.lines) },
       },
     });
+    // The lines in one statement. A nested `lines: { create }` makes Prisma
+    // look each account up and insert each line separately — two round trips
+    // per line. The accounts were validated above; the composite FKs and the
+    // deferred balance guard still check every row.
+    await tx.journalLine.createMany({ data: this.lineRows(companyId, created.id, input.lines) });
+    // Same rule as create/reverse: a deferred ledger constraint must fail here,
+    // inside the caller's transaction, not silently at COMMIT after the caller
+    // has already been told the posting succeeded.
+    await this.assertDeferredConstraints(tx);
+    return created;
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────
@@ -489,6 +532,16 @@ export class JournalEntriesService {
   }
 
   private async validateLines(companyId: string, lines: JournalLineDto[]) {
+    // One query for every account and one for every business partner, instead
+    // of one (or two) per line. The per-line rules below are unchanged.
+    const bpIds = [...new Set(lines.map((l) => l.bpId).filter((x): x is string => !!x))];
+    const [accounts, partners] = await Promise.all([
+      this.accounts.assertPostableMany(companyId, lines.map((l) => l.accountId)),
+      bpIds.length
+        ? this.prisma.businessPartner.findMany({ where: { id: { in: bpIds }, companyId }, select: { id: true } })
+        : Promise.resolve([] as { id: string }[]),
+    ]);
+    const knownBp = new Set(partners.map((b) => b.id));
     for (const [i, l] of lines.entries()) {
       const debit = D(l.debit);
       const credit = D(l.credit);
@@ -504,21 +557,15 @@ export class JournalEntriesService {
         throw new BadRequestException(`Line ${i + 1}: debit and credit are both zero.`);
       }
 
-      const account = await this.accounts.assertPostable(companyId, l.accountId);
+      const account = accounts.get(l.accountId)!;
 
       if (account.isControl && !l.bpId) {
         throw new BadRequestException(
           `Line ${i + 1}: account ${account.code} is a control account and requires a business partner.`,
         );
       }
-      if (l.bpId) {
-        const bp = await this.prisma.businessPartner.findFirst({
-          where: { id: l.bpId, companyId },
-          select: { id: true },
-        });
-        if (!bp) {
-          throw new BadRequestException(`Line ${i + 1}: business partner not found in this company.`);
-        }
+      if (l.bpId && !knownBp.has(l.bpId)) {
+        throw new BadRequestException(`Line ${i + 1}: business partner not found in this company.`);
       }
       if (l.costCenterId && l.distributionRuleId) {
         throw new BadRequestException(
@@ -526,6 +573,29 @@ export class JournalEntriesService {
         );
       }
     }
+  }
+
+  /** Scalar rows for createMany — the same values mapLines connects. */
+  private lineRows(companyId: string, entryId: string, lines: JournalLineDto[]): Prisma.JournalLineCreateManyInput[] {
+    return lines.map((l, i) => ({
+      companyId,
+      entryId,
+      accountId: l.accountId,
+      debit: D(l.debit),
+      credit: D(l.credit),
+      description: l.description ?? null,
+      ordering: l.ordering ?? i,
+      bpId: l.bpId ?? null,
+      costCenterId: l.costCenterId ?? null,
+      distributionRuleId: l.distributionRuleId ?? null,
+      projectId: l.projectId ?? null,
+      taxCodeId: l.taxCodeId ?? null,
+      ...(l.taxAmount !== undefined ? { taxAmount: D(l.taxAmount) } : {}),
+      ...(l.dueDate ? { dueDate: new Date(l.dueDate) } : {}),
+      ref1: l.ref1 ?? null,
+      ref2: l.ref2 ?? null,
+      ref3: l.ref3 ?? null,
+    }));
   }
 
   private mapLines(lines: JournalLineDto[]): Prisma.JournalLineCreateWithoutEntryInput[] {

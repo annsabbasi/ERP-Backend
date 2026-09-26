@@ -215,6 +215,29 @@ export class AccountsService extends TenantCrudService {
     return acc;
   }
 
+  /**
+   * assertPostable for several accounts in one query — same rules, same
+   * messages, checked in the order given. A journal with five lines used to
+   * make five sequential round trips here, which on the hosted database is
+   * several seconds of a posting.
+   */
+  async assertPostableMany(companyId: string, accountIds: string[]) {
+    const rows = await this.prisma.account.findMany({
+      where: { id: { in: [...new Set(accountIds)] }, companyId },
+      select: { id: true, code: true, name: true, isTitle: true, isActive: true, isControl: true },
+    });
+    const byId = new Map(rows.map((a) => [a.id, a]));
+    for (const id of accountIds) {
+      const acc = byId.get(id);
+      if (!acc) throw new BadRequestException(`Account ${id} does not exist in this company`);
+      if (acc.isTitle) {
+        throw new BadRequestException(`Account ${acc.code} (${acc.name}) is a Title account and cannot be posted to directly.`);
+      }
+      if (!acc.isActive) throw new BadRequestException(`Account ${acc.code} (${acc.name}) is inactive.`);
+    }
+    return byId;
+  }
+
   // ── helpers ────────────────────────────────────────────────────────────────
   private async resolveLevel(companyId: string, parentId?: string | null): Promise<number> {
     if (!parentId) return 1;

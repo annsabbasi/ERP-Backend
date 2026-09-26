@@ -230,10 +230,25 @@ describe('computePayslip — other deductions', () => {
     });
     expect(slip.totalEarnings).toBeCloseTo(slip.grossPay + slip.adjustmentAdditions, 2);
     expect(slip.totalDeductions).toBeCloseTo(
-      slip.lopDeduction + slip.loanDeduction + slip.taxDeduction + slip.adjustmentDeductions,
+      slip.lopDeduction + slip.loanDeduction + slip.advanceDeduction + slip.taxDeduction + slip.adjustmentDeductions,
       2,
     );
     expect(slip.netPay).toBeCloseTo(slip.totalEarnings - slip.totalDeductions, 2);
+  });
+
+  it('deducts a salary advance on its own line, separate from the loan', () => {
+    const slip = computePayslip({ ...baseInput, loanDue: 4000, advanceDue: 10000 });
+    expect(slip.loanDeduction).toBe(4000);
+    expect(slip.advanceDeduction).toBe(10000);
+    expect(slip.totalDeductions).toBe(14000);
+    expect(slip.netPay).toBe(GROSS - 14000);
+  });
+
+  it('never charges absence for an employee with no attendance row (demo employees)', () => {
+    const slip = computePayslip({ ...baseInput, presentDays: null, leave: { paidDays: 0, unpaidDays: 0 } });
+    expect(slip.lopDays).toBe(0);
+    expect(slip.lopDeduction).toBe(0);
+    expect(slip.netPay).toBe(GROSS);
   });
 
   it('produces a zero payslip, not NaN, for an employee with no grade', () => {

@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -54,23 +55,30 @@ export class ReplaceAttendanceSheetLinesDto {
 }
 
 // ─── PAYROLL PROCESS (PayrollRun) ───────────────────────────────────────────────
+export const PAYROLL_RUN_TYPES = ['Regular', 'Supplementary', 'Off-cycle', 'Bonus'] as const;
+export type PayrollRunType = (typeof PAYROLL_RUN_TYPES)[number];
+
+/**
+ * status, jeNo, cancellationJeNo and journalEntryId are deliberately absent:
+ * only Post and Cancel may set them. Because the global ValidationPipe runs
+ * with forbidNonWhitelisted, a request that sends any of them is refused with
+ * a 400 rather than silently ignored. employeeType (free text) is replaced by
+ * employeeCategoryId.
+ */
 export class CreatePayrollRunDto {
-  @IsString() @IsOptional() employeeType?: string;
+  @IsUUID() @IsOptional() employeeCategoryId?: string | null;
+  @IsIn(PAYROLL_RUN_TYPES) @IsOptional() runType?: PayrollRunType;
   @IsUUID() @IsOptional() payPeriodId?: string;
   @IsString() @IsOptional() payMonth?: string;
   @IsDateString() @IsOptional() fromDate?: string;
   @IsDateString() @IsOptional() toDate?: string;
-  @IsString() @IsOptional() jeNo?: string;
   @IsDateString() @IsOptional() documentDate?: string;
-  @IsString() @IsOptional() status?: string;
-  @IsString() @IsOptional() cancellationJeNo?: string;
   @IsString() @IsOptional() remarks?: string;
 }
 export class UpdatePayrollRunDto extends PartialType(CreatePayrollRunDto) {}
 
 export class PayrollRunLineRowDto {
   @IsUUID() employeeId: string;
-  @IsString() @IsOptional() employeeType?: string;
   @IsNumber() @IsOptional() @Type(() => Number) totalDaysWorking?: number;
   @IsNumber() @IsOptional() @Type(() => Number) lopDays?: number;
   @IsNumber() @IsOptional() @Type(() => Number) totalDaysWorked?: number;
@@ -95,6 +103,7 @@ export class PayrollRunLineRowDto {
   @IsNumber() @IsOptional() @Type(() => Number) unpaidLeaveDays?: number;
   @IsNumber() @IsOptional() @Type(() => Number) lopDeduction?: number;
   @IsNumber() @IsOptional() @Type(() => Number) loanDeduction?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) advanceDeduction?: number;
   @IsNumber() @IsOptional() @Type(() => Number) taxableGross?: number;
   @IsNumber() @IsOptional() @Type(() => Number) taxDeduction?: number;
   @IsNumber() @IsOptional() @Type(() => Number) adjustmentAdditions?: number;
@@ -114,7 +123,8 @@ export class CancelPayrollRunDto {
 
 // ─── PAYROLL MONTHLY ADJUSTMENTS ───────────────────────────────────────────────
 export class CreatePayrollAdjustmentDto {
-  @IsString() @IsOptional() employeeType?: string;
+  /** null / absent = the document applies to all employees. */
+  @IsUUID() @IsOptional() employeeCategoryId?: string | null;
   @IsUUID() @IsOptional() payPeriodId?: string;
   @IsDateString() @IsOptional() documentDate?: string;
   @IsString() @IsOptional() status?: string;
@@ -172,12 +182,16 @@ export class CreateEmployeeLoanDto {
 }
 export class UpdateEmployeeLoanDto extends PartialType(CreateEmployeeLoanDto) {}
 
+/**
+ * No `status`: an installment's status is derived from the recovery ledger
+ * (loan_recoveries) by trigger, so it can never say Paid for money that was
+ * never recovered — or Pending for money that was.
+ */
 export class LoanInstallmentRowDto {
   @IsString() @IsOptional() month?: string;
   @IsInt() @IsOptional() @Type(() => Number) year?: number;
   @IsDateString() @IsOptional() dueDate?: string;
   @IsNumber() @Min(0) @Type(() => Number) amount: number;
-  @IsString() @IsOptional() status?: string;
 }
 export class ReplaceLoanInstallmentsDto {
   @IsArray()

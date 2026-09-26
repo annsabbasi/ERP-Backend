@@ -24,6 +24,16 @@ import { randomUUID } from 'node:crypto';
  * failures logs the full stack against a short reference that is also returned
  * to the caller — so a bug report carries something greppable.
  */
+/** Readable text for the CHECK constraints a user can actually run into. */
+const CHECK_MESSAGES: Record<string, string> = {
+  payroll_runs_regular_needs_period: 'A Regular payroll run needs a Pay Period.',
+  payroll_runs_run_type_check: 'Run type must be Regular, Supplementary, Off-cycle or Bonus.',
+  payroll_runs_status_check: 'That payroll run status is not allowed.',
+  loan_recoveries_amount_positive: 'A loan recovery must be a positive amount.',
+  loan_recoveries_source_check: 'A loan recovery must come from payroll or a payment.',
+  loan_recoveries_payroll_has_run: 'A payroll recovery must name its payroll run.',
+};
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
@@ -59,11 +69,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (mapped) {
         // Still worth logging: a constraint violation reaching the filter means
         // some service skipped its own validation.
-        this.logger.warn(
-          `${request.method} ${request.url} → ${mapped.status} (Prisma ${exception.code}) ${mapped.message}`,
-        );
-        return { ...mapped, reference: undefined };
+        const line = `${request.method} ${request.url} → ${mapped.status} (Prisma ${exception.code}) ${mapped.message}`;
+        if ((mapped as { log?: string }).log === 'error') this.logger.error(line);
+        else this.logger.warn(line);
+        return { status: mapped.status, message: mapped.message, reference: undefined };
       }
+    }
+
+    // Raised by the loan_recoveries_guard trigger; the services translate it
+    // with context, this catches any path that did not.
+    if ((exception as Error)?.message?.includes('LOAN_OVER_RECOVERY')) {
+      this.logger.warn(`${request.method} ${request.url} → 409 loan over-recovery refused by the database`);
+      return {
+        status: HttpStatus.CONFLICT,
+        message: 'That loan or advance installment has already been recovered.',
+        reference: undefined,
+      };
+    }
+
+    const dbRule = this.fromDatabaseRule(exception);
+    if (dbRule) {
+      this.logger.warn(`${request.method} ${request.url} → ${dbRule.status} (database rule) ${dbRule.message}`);
+      return { ...dbRule, reference: undefined };
     }
 
     if (exception instanceof Prisma.PrismaClientValidationError) {
@@ -88,6 +115,40 @@ export class AllExceptionsFilter implements ExceptionFilter {
     };
   }
 
+  /**
+   * A refusal raised inside Postgres — a CHECK constraint, or one of our
+   * triggers — reaches Prisma as a raw error (UnknownRequestError, or P2010 on
+   * a raw query) with no Prisma code the switch below knows. Left alone it was
+   * an anonymous 500, which is exactly how the original Payroll Process bug
+   * presented. Triggers tag their messages `ERP_RULE:`; those are written for a
+   * person and become a 409. A CHECK becomes a 400 naming the rule.
+   */
+  private fromDatabaseRule(exception: unknown): { status: number; message: string } | null {
+    const text = exception instanceof Error ? exception.message : '';
+    if (!text) return null;
+    const rule = /ERP_RULE:\s*(.+?)(?:\\"|"|\n|$)/.exec(text);
+    if (rule) {
+      const message = rule[1].replace(/^LOAN_OVER_RECOVERY\s*[—-]\s*/, 'Already recovered: ').trim();
+      return { status: HttpStatus.CONFLICT, message };
+    }
+    // The ledger guards (erp_journal_entry_guard / _line_guard) refuse with
+    // restrict_violation and a message already written for a person. Prisma
+    // reports it either as `code: "23001", message: "…"` (query engine) or as
+    // "Code: `23001`. Message: `…`" (raw query, P2010).
+    const pg =
+      /code:\s*\\?"(\w{5})\\?",\s*message:\s*\\?"(.+?)\\?",\s*severity/.exec(text) ??
+      /Code:\s*`(\w{5})`\.\s*Message:\s*`(.+?)`/.exec(text);
+    if (pg && pg[1] === '23001') {
+      return { status: HttpStatus.CONFLICT, message: pg[2].replace(/^ERROR:\s*/, '') };
+    }
+    const check = /violates check constraint \\?"([A-Za-z0-9_]+)\\?"/.exec(text);
+    if (check || /\b23514\b/.test(text)) {
+      const name = check?.[1] ?? '';
+      return { status: HttpStatus.BAD_REQUEST, message: CHECK_MESSAGES[name] ?? `This change breaks a data rule${name ? ` (${name})` : ''}.` };
+    }
+    return null;
+  }
+
   private fromPrisma(e: Prisma.PrismaClientKnownRequestError) {
     const target = (e.meta?.target as string[] | undefined)?.join(', ');
     switch (e.code) {
@@ -103,6 +164,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         };
       case 'P2025':
         return { status: HttpStatus.NOT_FOUND, message: 'Record not found.' };
+      case 'P2021':
+      case 'P2022':
+        // The code expects a table/column the database does not have: a
+        // migration was committed but never applied. This is exactly what made
+        // Payroll Process "Add" fail with an anonymous 500 — say so plainly.
+        return {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          message:
+            `The database schema is behind the application (missing ${String(e.meta?.table ?? e.meta?.column ?? 'object')}). ` +
+            'An administrator needs to run the pending database migrations.',
+          log: 'error' as const,
+        };
       case 'P2028':
         // Interactive transaction ran past its budget — usually latency, not logic.
         return {

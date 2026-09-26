@@ -7,7 +7,8 @@
  *     gross            = sum of the grade pay-scale components
  *     perDayRate       = gross / PayPeriod.workingDays
  *     lopDeduction     = perDayRate * (unpaid leave days + unexplained absence)
- *     loanDeduction    = installments falling due inside the period
+ *     loanDeduction    = loan installments outstanding up to the period end
+ *     advanceDeduction = salary-advance installments outstanding up to the period end
  *     taxDeduction     = progressive slab tax on the annualised taxable gross
  *     netPay           = gross + adjustment additions - all of the above
  *                        - adjustment deductions
@@ -217,8 +218,14 @@ export interface PayslipInput {
   /** Present days from the attendance sheet, or null when none was recorded. */
   presentDays: number | null;
   leave: LeaveSplit;
-  /** Installments whose dueDate falls in the period. */
+  /** Loan installments still outstanding with a dueDate up to the period end. */
   loanDue: number;
+  /**
+   * Salary-advance installments outstanding up to the period end. Kept apart
+   * from loanDue because an advance credits Salary Advance Receivable, not
+   * Employee Loan Receivable.
+   */
+  advanceDue?: number;
   adjustment: AdjustmentLine | null;
   taxBands: TaxBand[];
   taxMonths: number;
@@ -236,6 +243,7 @@ export interface Payslip {
   lopDays: number;
   lopDeduction: number;
   loanDeduction: number;
+  advanceDeduction: number;
   taxableGross: number;
   taxDeduction: number;
   adjustmentAdditions: number;
@@ -281,13 +289,14 @@ export function computePayslip(input: PayslipInput): Payslip {
   // the generated schedule — the accountant's number wins.
   const manualLoan = num(input.adjustment?.loanDeduction);
   const loanDeduction = money(manualLoan > 0 ? manualLoan : input.loanDue);
+  const advanceDeduction = money(input.advanceDue ?? 0);
 
   const taxableGross = money(Math.max(gross - lopDeduction + additions, 0));
   const taxDeduction = monthlyTax(taxableGross, input.taxBands, input.taxMonths);
 
   const totalEarnings = money(gross + additions);
   const totalDeductions = money(
-    lopDeduction + loanDeduction + taxDeduction + otherDeductions,
+    lopDeduction + loanDeduction + advanceDeduction + taxDeduction + otherDeductions,
   );
 
   const totalDaysWorked = input.presentDays === null
@@ -306,6 +315,7 @@ export function computePayslip(input: PayslipInput): Payslip {
     lopDays,
     lopDeduction,
     loanDeduction,
+    advanceDeduction,
     taxableGross,
     taxDeduction,
     adjustmentAdditions: additions,
@@ -342,6 +352,7 @@ export interface RowEarnings {
   adjustmentAdditions?: Numish;
   lopDeduction?: Numish;
   loanDeduction?: Numish;
+  advanceDeduction?: Numish;
   taxDeduction?: Numish;
   adjustmentDeductions?: Numish;
 }
@@ -360,7 +371,8 @@ export function rowTotals(row: RowEarnings): RowTotals {
   );
   const totalEarnings = money(grossPay + num(row.adjustmentAdditions));
   const totalDeductions = money(
-    num(row.lopDeduction) + num(row.loanDeduction) + num(row.taxDeduction) + num(row.adjustmentDeductions),
+    num(row.lopDeduction) + num(row.loanDeduction) + num(row.advanceDeduction) +
+    num(row.taxDeduction) + num(row.adjustmentDeductions),
   );
   return {
     grossPay,

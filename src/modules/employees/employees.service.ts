@@ -39,6 +39,7 @@ export class EmployeesService {
       branchId?: string;
       departmentId?: string;
       managerId?: string;
+      employeeCategoryId?: string;
       status?: EmployeeStatus;
       q?: string;
       page?: number;
@@ -51,6 +52,7 @@ export class EmployeesService {
       ...(opts.branchId ? { branchId: opts.branchId } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
       ...(opts.managerId ? { managerId: opts.managerId } : {}),
+      ...(opts.employeeCategoryId ? { employeeCategoryId: opts.employeeCategoryId } : {}),
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.q
         ? {

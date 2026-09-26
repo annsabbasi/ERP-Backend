@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantCrudOptions, TenantCrudService } from '../../../common/crud/tenant-crud.service';
 import { ReplaceGradePayScaleDto, ReplaceTaxSlabsDto } from './payroll-masters.dto';
@@ -97,6 +97,47 @@ export class PayPeriodsService extends TenantCrudService {
       throw new BadRequestException('Pay period "To Date" must be on or after "From Date".');
     }
     return out;
+  }
+
+  /** Fields a posted payroll run was computed from; changing them would silently restate it. */
+  private static readonly COSTING_FIELDS = ['fromDate', 'toDate', 'workingDays', 'payMonth', 'code'];
+
+  private async postedRunIn(companyId: string, periodId: string) {
+    return this.prisma.payrollRun.findFirst({
+      where: { companyId, payPeriodId: periodId, status: { in: ['Posted', 'Partially Paid', 'Paid'] } },
+      select: { jeNo: true, payMonth: true, id: true },
+    });
+  }
+
+  async update(companyId: string, id: string, dto: any) {
+    const touched = PayPeriodsService.COSTING_FIELDS.filter((f) => dto[f] !== undefined);
+    if (touched.length) {
+      const current = (await this.findOne(companyId, id)) as any;
+      const changed = touched.filter((f) => {
+        const before = current[f] instanceof Date ? current[f].toISOString().slice(0, 10) : current[f];
+        const after = f.endsWith('Date') && dto[f] ? String(dto[f]).slice(0, 10) : dto[f];
+        return String(before ?? '') !== String(after ?? '');
+      });
+      const posted = changed.length ? await this.postedRunIn(companyId, id) : null;
+      if (posted) {
+        throw new ConflictException(
+          `Payroll run ${posted.jeNo ?? posted.payMonth ?? posted.id} is posted for this pay period, so its ` +
+            `${changed.join(', ')} can no longer change. Cancel that posting first.`,
+        );
+      }
+    }
+    return super.update(companyId, id, dto);
+  }
+
+  async remove(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    const posted = await this.postedRunIn(companyId, id);
+    if (posted) {
+      throw new ConflictException(
+        `Payroll run ${posted.jeNo ?? posted.payMonth ?? posted.id} is posted for this pay period, so the period cannot be deleted.`,
+      );
+    }
+    return super.remove(companyId, id);
   }
 }
 
