@@ -38,6 +38,16 @@ interface AuditMeta {
  *      from Module 5). Approval callbacks update both the request status
  *      and the relevant balance.
  */
+/**
+ * What every leave-request response carries. The Leave Application window
+ * shows an action's answer as it is, so Submit/Approve/Reject/Cancel must
+ * return the employee and leave type just as the list does.
+ */
+const REQUEST_INCLUDE = {
+  employee: { select: { id: true, name: true, managerId: true } },
+  leaveType: { select: { id: true, code: true, name: true } },
+} as const;
+
 @Injectable()
 export class LeavesService {
   constructor(
@@ -266,10 +276,7 @@ export class LeavesService {
         ...(opts.employeeId ? { employeeId: opts.employeeId } : {}),
         ...(opts.status ? { status: opts.status } : {}),
       },
-      include: {
-        employee: { select: { id: true, name: true, managerId: true } },
-        leaveType: { select: { id: true, code: true, name: true } },
-      },
+      include: REQUEST_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -361,7 +368,7 @@ export class LeavesService {
       after: { employeeId, leaveTypeId: type.id, days: Number(dto.days) } as any,
       ip: meta.ip, module: 'hr',
     });
-    return request;
+    return this.findRequest(request.id);
   }
 
   async approve(companyId: string, requestId: string, dto: DecideLeaveRequestDto, meta: AuditMeta) {
@@ -388,7 +395,7 @@ export class LeavesService {
       refType: 'leave_request', refId: requestId,
       ip: meta.ip, module: 'hr',
     });
-    return this.prisma.leaveRequest.findUnique({ where: { id: requestId } });
+    return this.findRequest(requestId);
   }
 
   async reject(companyId: string, requestId: string, dto: DecideLeaveRequestDto, meta: AuditMeta) {
@@ -412,7 +419,7 @@ export class LeavesService {
       after: { reason: dto.reason } as any,
       ip: meta.ip, module: 'hr',
     });
-    return this.prisma.leaveRequest.findUnique({ where: { id: requestId } });
+    return this.findRequest(requestId);
   }
 
   async cancel(companyId: string, requestId: string, meta: AuditMeta) {
@@ -438,10 +445,15 @@ export class LeavesService {
       refType: 'leave_request', refId: requestId,
       ip: meta.ip, module: 'hr',
     });
-    return this.prisma.leaveRequest.findUnique({ where: { id: requestId } });
+    return this.findRequest(requestId);
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────
+
+  /** A request as the list returns it, so an action's answer can replace a list row. */
+  private findRequest(requestId: string) {
+    return this.prisma.leaveRequest.findUniqueOrThrow({ where: { id: requestId }, include: REQUEST_INCLUDE });
+  }
 
   private async requireRequest(companyId: string, id: string) {
     const req = await this.prisma.leaveRequest.findFirst({ where: { id, companyId } });
