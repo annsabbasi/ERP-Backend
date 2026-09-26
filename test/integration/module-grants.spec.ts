@@ -54,7 +54,10 @@ describe('module access grants', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'admin@erp.com', password: 'admin123' });
     platformToken = login.body?.data?.accessToken ?? login.body?.accessToken;
-    operatorId = (await prisma.user.findFirstOrThrow({ where: { isSuperAdmin: true } })).id;
+    // The operator who actually logged in — from the token's subject, not
+    // "the first super admin in the table", which breaks as soon as a database
+    // has more than one.
+    operatorId = JSON.parse(Buffer.from(platformToken.split('.')[1], 'base64').toString('utf8')).sub;
 
     // Purpose-built modules rather than borrowed real ones.
     //

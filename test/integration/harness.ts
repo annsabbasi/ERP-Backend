@@ -65,6 +65,9 @@ export async function bootstrap(): Promise<Harness> {
   const prisma = new PrismaClient();
   const server = app.getHttpServer();
 
+  // Before login, so the token carries it.
+  await ensureHarnessAccess(prisma);
+
   const login = await request(server)
     .post('/api/v1/auth/login')
     .send({ email: 'manager@demo.com', password: 'password123', companySlug: 'demo' });
@@ -104,6 +107,47 @@ export async function bootstrap(): Promise<Harness> {
       await app.close();
     },
   };
+}
+
+/**
+ * The suites act as the demo company's manager. Whether that user happens to
+ * hold the Financials module or the Utilities permissions depends on whatever
+ * database the suite is pointed at — a copy of live, for instance, has
+ * Financials disabled for Demo — and a refusal there showed up as four
+ * "environmental" failures that could just as well have hidden a real one.
+ * So the suite sets up the access it needs itself: the modules it exercises
+ * enabled for the company, and a fixture role holding every catalog
+ * permission. Disposable databases only (assertDisposableDatabase above).
+ */
+async function ensureHarnessAccess(prisma: PrismaClient) {
+  const company = await prisma.company.findUnique({ where: { slug: 'demo' } });
+  const user = company
+    ? await prisma.user.findFirst({ where: { email: 'manager@demo.com', companyId: company.id } })
+    : null;
+  if (!company || !user) return; // the login below reports the missing seed
+
+  const modules = await prisma.systemModule.findMany({
+    where: { slug: { in: ['administration', 'financials', 'banking', 'hr', 'hr-payroll', 'crm', 'purchasing', 'inventory'] } },
+  });
+  for (const m of modules) {
+    const existing = await prisma.companyModule.findFirst({ where: { companyId: company.id, moduleId: m.id } });
+    if (existing) {
+      if (!existing.isEnabled) await prisma.companyModule.update({ where: { id: existing.id }, data: { isEnabled: true } });
+    } else {
+      await prisma.companyModule.create({ data: { companyId: company.id, moduleId: m.id } });
+    }
+  }
+
+  const name = 'Integration fixture (all permissions)';
+  const role =
+    (await prisma.role.findFirst({ where: { companyId: company.id, name } })) ??
+    (await prisma.role.create({ data: { companyId: company.id, name, description: 'Created by test/integration/harness.ts' } }));
+  const perms = await prisma.permission.findMany({ select: { id: true } });
+  await prisma.rolePermission.createMany({
+    data: perms.map((p) => ({ roleId: role.id, permissionId: p.id })),
+    skipDuplicates: true,
+  });
+  await prisma.userRole.createMany({ data: [{ userId: user.id, roleId: role.id }], skipDuplicates: true });
 }
 
 /** The natural balance of one account, straight out of the reporting view. */
