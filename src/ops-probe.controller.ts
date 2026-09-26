@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Headers } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Headers, Query } from '@nestjs/common';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Public } from './common/decorators/public.decorator';
 import { PrismaService } from './modules/prisma/prisma.service';
@@ -17,7 +17,7 @@ export class OpsProbeController {
 
   @Public()
   @Get('db-rtt')
-  async dbRtt(@Headers('x-ops-probe') token?: string) {
+  async dbRtt(@Headers('x-ops-probe') token?: string, @Query('sleepMs') sleepMs?: string) {
     const given = Buffer.from(createHash('sha256').update(token ?? '').digest('hex'));
     if (!timingSafeEqual(given, Buffer.from(PROBE_SHA256))) throw new ForbiddenException();
     await this.prisma.$queryRawUnsafe('SELECT 1');
@@ -29,6 +29,6 @@ export class OpsProbeController {
     }
     t.sort((a, b) => a - b);
     const r = (n: number) => Math.round(n * 10) / 10;
-    return { region: process.env.VERCEL_REGION ?? null, samples: 20, minMs: r(t[0]), medianMs: r(t[10]), p90Ms: r(t[18]), maxMs: r(t[19]) };
+    return { region: process.env.VERCEL_REGION ?? null, heldMs: hold, samples: 20, minMs: r(t[0]), medianMs: r(t[10]), p90Ms: r(t[18]), maxMs: r(t[19]) };
   }
 }
