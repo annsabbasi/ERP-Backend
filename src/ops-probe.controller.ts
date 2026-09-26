@@ -20,6 +20,9 @@ export class OpsProbeController {
   async dbRtt(@Headers('x-ops-probe') token?: string, @Query('sleepMs') sleepMs?: string) {
     const given = Buffer.from(createHash('sha256').update(token ?? '').digest('hex'));
     if (!timingSafeEqual(given, Buffer.from(PROBE_SHA256))) throw new ForbiddenException();
+    // Optional: hold the request open to find the platform's real time limit.
+    const hold = Math.min(Math.max(Number(sleepMs) || 0, 0), 70_000);
+    if (hold) await new Promise((r) => setTimeout(r, hold));
     await this.prisma.$queryRawUnsafe('SELECT 1');
     const t: number[] = [];
     for (let i = 0; i < 20; i++) {
