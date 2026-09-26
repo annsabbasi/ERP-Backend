@@ -42,6 +42,7 @@ function makeService(
     payMonth: 'January 2026',
     documentDate: new Date('2026-01-31'),
     payPeriod: { id: 'pp-1', name: 'Jan 2026' },
+    updatedAt: new Date('2026-01-20T10:00:00Z'),
     ...runOverrides,
   };
 
@@ -100,7 +101,7 @@ function makeService(
     // lockRun's SELECT … FOR UPDATE. By default the lock sees what findOne saw;
     // tests override it to simulate another request having changed the run.
     $queryRaw: jest.fn(async (sql: TemplateStringsArray) =>
-      sql.join('').includes('employee_loan_installments') ? installmentRows : [{ status: (run as any).status }]),
+      sql.join('').includes('employee_loan_installments') ? installmentRows : [{ status: (run as any).status, updatedAt: (run as any).updatedAt }]),
   };
 
   const journals: any = {
@@ -346,10 +347,17 @@ describe('PayrollRunsService — server-side lock', () => {
 describe('PayrollRunsService — status is re-checked under the row lock', () => {
   it('post: another Post committed first → 409, and no second journal entry', async () => {
     const { service, prisma, journals } = makeService({}, [line(1000)]);
-    prisma.$queryRaw.mockResolvedValueOnce([{ status: 'Posted' }]);
+    prisma.$queryRaw.mockResolvedValueOnce([{ status: 'Posted', updatedAt: new Date('2026-01-20T10:00:00Z') }]);
     await expect(service.post(COMPANY_ID, RUN_ID, USER_ID)).rejects.toThrow(/already posted/);
     expect(journals.postFromSource).not.toHaveBeenCalled();
     expect(prisma.payrollRun.update).not.toHaveBeenCalled();
+  });
+
+  it('post: the header was saved between the read and the lock → 409, nothing posted', async () => {
+    const { service, prisma, journals } = makeService({}, [line(1000)]);
+    prisma.$queryRaw.mockResolvedValueOnce([{ status: 'Open', updatedAt: new Date('2026-01-20T10:05:00Z') }]);
+    await expect(service.post(COMPANY_ID, RUN_ID, USER_ID)).rejects.toThrow(/was changed while you were posting/);
+    expect(journals.postFromSource).not.toHaveBeenCalled();
   });
 
   it('post: lines are read after the lock, inside the transaction', async () => {

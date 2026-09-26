@@ -374,10 +374,15 @@ export class PayrollRunsService extends TenantCrudService {
    * The second caller now waits for the first, then sees what it did.
    */
   private async lockRun(tx: Prisma.TransactionClient, companyId: string, runId: string): Promise<string> {
-    const rows = await tx.$queryRaw<{ status: string | null }[]>`
-      SELECT "status" FROM "payroll_runs" WHERE "id" = ${runId} AND "companyId" = ${companyId} FOR UPDATE`;
+    return (await this.lockRunRow(tx, companyId, runId)).status;
+  }
+
+  /** lockRun, also returning when the run was last changed. */
+  private async lockRunRow(tx: Prisma.TransactionClient, companyId: string, runId: string) {
+    const rows = await tx.$queryRaw<{ status: string | null; updatedAt: Date }[]>`
+      SELECT "status", "updatedAt" FROM "payroll_runs" WHERE "id" = ${runId} AND "companyId" = ${companyId} FOR UPDATE`;
     if (!rows.length) throw new NotFoundException(`Payroll run ${runId} not found`);
-    return rows[0].status ?? OPEN;
+    return { status: rows[0].status ?? OPEN, updatedAt: rows[0].updatedAt };
   }
 
   /** assertOpen, against the status read under the lock. */
@@ -947,7 +952,16 @@ export class PayrollRunsService extends TenantCrudService {
       return await this.prisma.$transaction(async (tx) => {
         // Lock first, then read. A second Post waits here and then sees
         // "Posted"; a Save Grid waits for this commit and then sees "Posted".
-        this.assertPostable(run, await this.lockRun(tx, companyId, runId));
+        const locked = await this.lockRunRow(tx, companyId, runId);
+        this.assertPostable(run, locked.status);
+        // The header (document date, period, pay month) was read before the
+        // lock. If someone saved it in between, post nothing rather than a
+        // journal dated or labelled from the old values.
+        if (new Date(locked.updatedAt).getTime() !== new Date(run.updatedAt).getTime()) {
+          throw new ConflictException(
+            `Payroll run ${this.label(run)} was changed while you were posting it. Refresh it and post again.`,
+          );
+        }
 
         const lines = await tx.payrollRunLine.findMany({
           where: { payrollRunId: runId },
