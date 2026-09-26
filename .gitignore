@@ -41,3 +41,8 @@ Thumbs.db
 # Scratch files from schema audits
 _*.tmp.*
 _relmap.json
+
+# Local AI-assistant files: never committed
+.claude/
+CLAUDE.md
+CLAUDE.local.md
