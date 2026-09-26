@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import configuration from './config/configuration';
 import { AppController } from './app.controller';
+import { OpsProbeController } from './ops-probe.controller';
 import { AppService } from './app.service';
 
 // Common
@@ -100,7 +101,7 @@ import { HrModule } from './modules/hr/hr.module';
     OrdersModule,
     HrModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, OpsProbeController],
   providers: [
     AppService,
     // Global authentication & authorization. Routes opt out via @Public()
