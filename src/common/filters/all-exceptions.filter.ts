@@ -30,8 +30,15 @@ const CHECK_MESSAGES: Record<string, string> = {
   payroll_runs_run_type_check: 'Run type must be Regular, Supplementary, Off-cycle or Bonus.',
   payroll_runs_status_check: 'That payroll run status is not allowed.',
   loan_recoveries_amount_positive: 'A loan recovery must be a positive amount.',
-  loan_recoveries_source_check: 'A loan recovery must come from payroll or a payment.',
-  loan_recoveries_payroll_has_run: 'A payroll recovery must name its payroll run.',
+  loan_recoveries_source_check:
+    'A loan recovery must come from payroll or a payment.',
+  loan_recoveries_payroll_has_run:
+    'A payroll recovery must name its payroll run.',
+  monthly_attendance_sheets_status_check:
+    'An attendance sheet is Open or Approved.',
+  employee_payment_details_iban_format: 'That IBAN is not in IBAN format.',
+  employee_payment_details_account_no_format:
+    'An account number is 4–34 letters, digits or dashes.',
 };
 
 @Catch()

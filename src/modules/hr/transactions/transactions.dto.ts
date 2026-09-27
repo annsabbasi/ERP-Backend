@@ -16,6 +16,8 @@ import {
 } from 'class-validator';
 
 // ─── MONTHLY ATTENDANCE SHEET ───────────────────────────────────────────────────
+export const ATTENDANCE_SHEET_STATUSES = ['Open', 'Approved'] as const;
+
 export class CreateAttendanceSheetDto {
   @IsUUID() @IsOptional() branchId?: string;
   @IsUUID() @IsOptional() payPeriodId?: string;
@@ -23,7 +25,8 @@ export class CreateAttendanceSheetDto {
   @IsDateString() @IsOptional() toDate?: string;
   @IsString() @IsOptional() payPeriodMonth?: string;
   @IsString() @IsOptional() docType?: string;
-  @IsString() @IsOptional() status?: string;
+  /** QA D30: Open until HR approves it; only Approved sheets feed payroll. */
+  @IsIn(ATTENDANCE_SHEET_STATUSES) @IsOptional() status?: string;
   @IsInt() @IsOptional() @Type(() => Number) year?: number;
   @IsString() @IsOptional() remarks?: string;
 }

@@ -668,7 +668,7 @@ export class PayrollRunsService extends TenantCrudService {
 
     // One round trip each, in parallel — these do not depend on one another,
     // and running them in sequence was most of this endpoint's latency.
-    const [employees, sheet, leaves, installments, adjustments, taxFormulas] =
+    const [employees, sheets, leaves, installments, adjustments, taxFormulas] =
       await Promise.all([
         this.prisma.employee.findMany({
           where: {
@@ -680,13 +680,15 @@ export class PayrollRunsService extends TenantCrudService {
           include: { grade: { include: { payScale: { orderBy: { stage: 'asc' }, take: 1 } } } },
           orderBy: { employeeNumber: 'asc' },
         }),
+        // Every sheet of the period, one per branch (QA D30). Only the
+        // Approved ones are merged; the Open ones are named as warnings.
         run.payPeriodId
-          ? this.prisma.monthlyAttendanceSheet.findFirst({
+          ? this.prisma.monthlyAttendanceSheet.findMany({
               where: { companyId, payPeriodId: run.payPeriodId },
               orderBy: { updatedAt: 'desc' },
-              include: { lines: true },
+              include: { lines: true, branch: { select: { name: true } } },
             })
-          : Promise.resolve(null),
+          : Promise.resolve([]),
         // Only leave that actually happened reduces pay: a PENDING request is
         // not yet a fact, and a REJECTED or CANCELLED one never was.
         this.prisma.leaveRequest.findMany({
@@ -728,8 +730,8 @@ export class PayrollRunsService extends TenantCrudService {
     const unscaledIds = new Set(unscaled.map((u) => u.employeeId));
     const payable = employees.filter((e) => !excluded.has(e.id) && !unscaledIds.has(e.id));
 
-    const attendanceByEmployee = new Map<string, any>();
-    if (sheet) for (const l of sheet.lines) attendanceByEmployee.set(l.employeeId, l);
+    const { byEmployee: attendanceByEmployee, warnings: attendanceWarnings } =
+      mergeAttendanceSheets(sheets, employees, this.label(run));
 
     // An adjustment document for the employee's own category wins over an
     // "All employees" one; within each, the most recently updated document.
@@ -870,6 +872,7 @@ export class PayrollRunsService extends TenantCrudService {
         reason: `Already in Regular run ${c.runLabel} for this period`,
       })),
       noPayScale: unscaled,
+      warnings: attendanceWarnings,
     };
   }
 
@@ -884,13 +887,13 @@ export class PayrollRunsService extends TenantCrudService {
     const code = company?.currency?.trim();
     if (!code) {
       throw new BadRequestException(
-        'This company has no base currency. Set it under Administration → Company Details before posting payroll.',
+        'This company has no base currency. Set it under Administration → Setup → Financials → Currencies before posting payroll.',
       );
     }
     const master = await this.prisma.currency.findFirst({ where: { companyId, code }, select: { id: true } });
     if (!master) {
       throw new BadRequestException(
-        `The company currency ${code} is not in this company's currency master. Add it under Financials → Currencies before posting payroll.`,
+        `The company currency ${code} is not in this company's currency master. Add it under Administration → Setup → Financials → Currencies before posting payroll.`,
       );
     }
     return code;
@@ -1423,6 +1426,54 @@ export class PayrollRunsService extends TenantCrudService {
  * tagged LOAN_OVER_RECOVERY. It surfaces from Prisma as a raw database error;
  * this is where it becomes a 409 a user can act on.
  */
+/**
+ * The period's attendance, from every branch's sheet (QA D30). Only Approved
+ * sheets count; each Open one becomes a warning, because until it is approved
+ * its employees are treated as present. An employee on two Approved sheets is
+ * refused (409) naming both — which one to trust is HR's call, not payroll's.
+ * Lines of employees not in this run are ignored.
+ */
+export function mergeAttendanceSheets<L extends { employeeId: string }>(
+  sheets: {
+    id: string;
+    status: string;
+    branch: { name: string } | null;
+    lines: L[];
+  }[],
+  employees: { id: string; name: string; employeeNumber?: string | null }[],
+  periodLabel: string,
+): { byEmployee: Map<string, L>; warnings: string[] } {
+  const inRun = new Map(employees.map((e) => [e.id, e]));
+  const sheetLabel = (s: { id: string; branch: { name: string } | null }) =>
+    `the ${s.branch?.name ?? 'no-branch'} sheet (${s.id.slice(0, 8)})`;
+  const byEmployee = new Map<string, L>();
+  const from = new Map<string, (typeof sheets)[number]>();
+  const warnings: string[] = [];
+  for (const s of sheets) {
+    if (s.status !== 'Approved') {
+      warnings.push(
+        `Attendance: ${sheetLabel(s)} for ${periodLabel} is ${s.status} and was not used. ` +
+          'Approve it, then Generate again — until then its employees are treated as present.',
+      );
+      continue;
+    }
+    for (const line of s.lines) {
+      const emp = inRun.get(line.employeeId);
+      if (!emp) continue;
+      const earlier = from.get(line.employeeId);
+      if (earlier) {
+        throw new ConflictException(
+          `${emp.employeeNumber ? `${emp.employeeNumber} ` : ''}${emp.name} is on two approved attendance sheets for ` +
+            `${periodLabel}: ${sheetLabel(earlier)} and ${sheetLabel(s)}. Remove the employee from one of them, then Generate.`,
+        );
+      }
+      byEmployee.set(line.employeeId, line);
+      from.set(line.employeeId, s);
+    }
+  }
+  return { byEmployee, warnings };
+}
+
 export function translateRecoveryError(e: unknown): unknown {
   const text = e instanceof Error ? e.message : String(e);
   if (text.includes('LOAN_OVER_RECOVERY')) {

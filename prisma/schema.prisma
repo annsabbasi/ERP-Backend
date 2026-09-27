@@ -1066,7 +1066,9 @@ model MonthlyAttendanceSheet {
   toDate         DateTime?
   payPeriodMonth String?
   docType        String?
-  status         String?   @default("Open")
+  // Open | Approved (CHECK, 20260927020000). Only Approved sheets feed
+  // payroll (QA D30).
+  status         String    @default("Open")
   year           Int?
   remarks        String?
   createdAt      DateTime  @default(now())

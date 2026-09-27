@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ledgerStatusWhere } from '../ledger-status';
@@ -37,6 +42,77 @@ export class CurrenciesService extends TenantCrudService {
     uniqueBy: ['code'],
   };
   constructor(prisma: PrismaService) { super(prisma); }
+
+  /** The company's base currency (companies.currency) and whether it is in the master. */
+  async base(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: this.requireCompany(companyId) },
+      select: { currency: true },
+    });
+    const code = company?.currency ?? null;
+    const inMaster = code
+      ? !!(await this.prisma.currency.findFirst({
+          where: { companyId, code },
+          select: { id: true },
+        }))
+      : false;
+    const postedEntries = await this.prisma.journalEntry.count({
+      where: { companyId, status: 'POSTED' },
+    });
+    return { code, inMaster, postedEntries, canChange: postedEntries === 0 };
+  }
+
+  /**
+   * Makes a master currency the company's base currency. Refused once the
+   * company has posted journal entries: every entry, balance and report is
+   * in the base currency, so changing it afterwards would re-denominate the
+   * ledger without converting a single amount (QA D3 applies the same rule).
+   */
+  async makeBase(companyId: string, id: string) {
+    const cid = this.requireCompany(companyId);
+    const cur = await this.prisma.currency.findFirst({
+      where: { id, companyId: cid },
+    });
+    if (!cur) throw new NotFoundException(`Currency ${id} not found`);
+    if (!cur.isActive)
+      throw new BadRequestException(
+        `${cur.code} is inactive; activate it before making it the base currency.`,
+      );
+    const { code, postedEntries } = await this.base(cid);
+    if (code === cur.code) return this.base(cid);
+    if (postedEntries > 0) {
+      throw new ConflictException(
+        `The base currency is ${code ?? 'not set'} and the company already has ${postedEntries} posted journal ` +
+          'entr' +
+          (postedEntries === 1 ? 'y' : 'ies') +
+          ' in it. It cannot change without converting the ledger.',
+      );
+    }
+    await this.prisma.company.update({
+      where: { id: cid },
+      data: { currency: cur.code },
+    });
+    return this.base(cid);
+  }
+
+  /** The base currency cannot be deleted — every posting would lose its currency. */
+  async remove(companyId: string, id: string) {
+    const cid = this.requireCompany(companyId);
+    const cur = await this.prisma.currency.findFirst({
+      where: { id, companyId: cid },
+      select: { code: true },
+    });
+    const company = await this.prisma.company.findUnique({
+      where: { id: cid },
+      select: { currency: true },
+    });
+    if (cur && company?.currency === cur.code) {
+      throw new ConflictException(
+        `${cur.code} is the company's base currency and cannot be deleted.`,
+      );
+    }
+    return super.remove(cid, id);
+  }
 }
 
 @Injectable()

@@ -37,6 +37,26 @@ export class CurrenciesController extends TenantCrudController({
   updateDto: Dto.UpdateCurrencyDto,
 }) {
   constructor(protected readonly service: S.CurrenciesService) { super(); }
+
+  @ApiOperation({
+    summary:
+      "The company's base currency, whether it is in the master, and whether it may change",
+  })
+  @RequirePermission('financials.currency.view')
+  @Get('base')
+  base(@CurrentUser() user: AuthedUser) {
+    return this.service.base(user.companyId as string);
+  }
+
+  @ApiOperation({
+    summary:
+      'Make this currency the base currency (refused once anything is posted)',
+  })
+  @RequirePermission('financials.currency.update')
+  @Post(':id/make-base')
+  makeBase(@CurrentUser() user: AuthedUser, @Param('id') id: string) {
+    return this.service.makeBase(user.companyId as string, id);
+  }
 }
 
 @ApiTags('Financials — Exchange Rates')
