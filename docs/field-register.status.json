@@ -12,8 +12,8 @@
   "note": "every posting resolves its accounts here (PayrollRunsService.payrollAccounts, ar-ap DETERMINATION)"
  },
  "AttendanceSheetLine.annualLeave": {
-  "status": "Question",
-  "note": "not in D30. Proposal: reconcile against approved annual leave like payableLeaves (warning on mismatch), or remove"
+  "status": "Scheduled: QA D52 (step 4)",
+  "note": "reconciled against approved leave requests; mismatch is a warning on the run"
  },
  "AttendanceSheetLine.compOffDays": {
   "status": "Scheduled: QA D30 (step 4)",
@@ -176,8 +176,8 @@
   "note": "pay scale for Generate (generateLines → grade.payScale)"
  },
  "Employee.hireDate": {
-  "status": "Question",
-  "note": "duplicate of dateOfJoining (onboarding writes hireDate, the payroll screen dateOfJoining). Proposal: one date — dateOfJoining — with hireDate migrated into it (step 4)"
+  "status": "Scheduled: QA D46 (step 4)",
+  "note": "trigger-maintained mirror of dateOfJoining (other modules still read it); the UI shows one date"
  },
  "Employee.insurancePolicyNo": {
   "status": "Used — record data",
@@ -228,16 +228,16 @@
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
  },
  "Employee.position": {
-  "status": "Question",
-  "note": "free-text duplicate of positionId. Proposal: drop the text column from the screen (step 4)"
+  "status": "Scheduled: QA D47 (step 4)",
+  "note": "mirrored from the position master name; migration maps existing text to masters (creating missing ones) and lists them"
  },
  "Employee.positionId": {
   "status": "Used",
   "note": "position master link, contracts (hr/contracts, positions.service)"
  },
  "Employee.salary": {
-  "status": "Question",
-  "note": "not read by payroll — pay comes from the grade pay-scale stage (QA D27). Proposal: remove from the screen in step 4"
+  "status": "Removed",
+  "note": "QA D48: hidden in the UI and no longer written — superseded by the pay scale (D27); column kept for now (step 4)"
  },
  "Employee.sectionType": {
   "status": "Used — record data",
@@ -264,8 +264,8 @@
   "note": "category filter on runs, adjustment documents and tax formulas"
  },
  "EmployeeCategory.isActive": {
-  "status": "Scheduled: QA E (proposal) (step 4)",
-  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+  "status": "Scheduled: QA D56 (step 4)",
+  "note": "pickers offer active records only; existing documents show an inactive reference marked \"(inactive)\"; the server refuses new references to inactive masters"
  },
  "EmployeeCategory.name": {
   "status": "Used",
@@ -400,8 +400,8 @@
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
  },
  "Grade.isActive": {
-  "status": "Scheduled: QA E (proposal) (step 4)",
-  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+  "status": "Scheduled: QA D56 (step 4)",
+  "note": "pickers offer active records only; existing documents show an inactive reference marked \"(inactive)\"; the server refuses new references to inactive masters"
  },
  "Grade.overtimeRatePerHour": {
   "status": "Scheduled: QA D32 (step 8)",
@@ -412,12 +412,12 @@
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
  },
  "GradePayScaleStage.adhoc2017": {
-  "status": "Question",
-  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+  "status": "Scheduled: QA D45 (step 2)",
+  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
  },
  "GradePayScaleStage.adhoc2018": {
-  "status": "Question",
-  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+  "status": "Scheduled: QA D45 (step 2)",
+  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
  },
  "GradePayScaleStage.basicPay": {
   "status": "Used",
@@ -436,16 +436,16 @@
   "note": "seed the grid columns Basic / HRA / Conveyance (generateLines) and gross (grossFromStage)"
  },
  "GradePayScaleStage.medicalAllowance": {
-  "status": "Question",
-  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+  "status": "Scheduled: QA D45 (step 2)",
+  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
  },
  "GradePayScaleStage.stage": {
   "status": "Scheduled: QA D27 (step 4)",
   "note": "Generate uses stage 1 for everyone today (take: 1); D27 adds the per-employee stage"
  },
  "GradePayScaleStage.utilityAllowance": {
-  "status": "Question",
-  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+  "status": "Scheduled: QA D45 (step 2)",
+  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
  },
  "HouseBankAccount.accountName": {
   "status": "Scheduled: QA Increment B / D19 (step 3)",
@@ -548,16 +548,16 @@
   "note": "decision record and workflow link (LeavesService approve/reject)"
  },
  "LeaveType.accrualDays": {
-  "status": "Question",
-  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+  "status": "Scheduled: QA D50 (step 4)",
+  "note": "feed the D24 balance: ANNUAL grants totalLeavesInYear at year start (pro-rated in the joining year), MONTHLY grants accrualDays per pay period; idempotent; blank = ANNUAL"
  },
  "LeaveType.accrualMode": {
-  "status": "Question",
-  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+  "status": "Scheduled: QA D50 (step 4)",
+  "note": "feed the D24 balance: ANNUAL grants totalLeavesInYear at year start (pro-rated in the joining year), MONTHLY grants accrualDays per pay period; idempotent; blank = ANNUAL"
  },
  "LeaveType.accrualPeriod": {
-  "status": "Question",
-  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+  "status": "Scheduled: QA D50 (step 4)",
+  "note": "feed the D24 balance: ANNUAL grants totalLeavesInYear at year start (pro-rated in the joining year), MONTHLY grants accrualDays per pay period; idempotent; blank = ANNUAL"
  },
  "LeaveType.applicableDuringProbation": {
   "status": "Scheduled: QA D22–D24 (step 4)",
@@ -596,8 +596,8 @@
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
  },
  "LeaveType.maxBalance": {
-  "status": "Question",
-  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+  "status": "Scheduled: QA D50 (step 4)",
+  "note": "feed the D24 balance: ANNUAL grants totalLeavesInYear at year start (pro-rated in the joining year), MONTHLY grants accrualDays per pay period; idempotent; blank = ANNUAL"
  },
  "LeaveType.maxContinuousDays": {
   "status": "Scheduled: QA D22–D24 (step 4)",
@@ -640,8 +640,8 @@
   "note": "unpaid leave becomes LOP (payroll-calculation splitLeave via generateLines)"
  },
  "LeaveType.payableLeave": {
-  "status": "Question",
-  "note": "a display flag that duplicates `paid` (`paid` is what payroll reads). Proposal: remove in step 4"
+  "status": "Removed",
+  "note": "QA D49: hidden from Leave Master; `paid` stays the only deduction switch; column untouched (step 4)"
  },
  "LeaveType.remarks": {
   "status": "Used — record data",
@@ -676,8 +676,8 @@
   "note": "loan type picker and labels"
  },
  "LoanType.isActive": {
-  "status": "Scheduled: QA E (proposal) (step 4)",
-  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+  "status": "Scheduled: QA D56 (step 4)",
+  "note": "pickers offer active records only; existing documents show an inactive reference marked \"(inactive)\"; the server refuses new references to inactive masters"
  },
  "LoanType.loanType": {
   "status": "Used",
@@ -712,8 +712,8 @@
   "note": "sheet generation from attendance entries, by branch and date range (AttendanceSheetsService.generateLines); branch names the sheet in payroll messages"
  },
  "MonthlyAttendanceSheet.docType": {
-  "status": "Question",
-  "note": "Primary / Supplementary is stored only. Under D30 an employee on two approved sheets is refused, so a supplementary sheet cannot add to a primary one. Proposal: remove docType, or define Supplementary as additive (which rows add, which replace)"
+  "status": "Scheduled: QA D51 (step 4)",
+  "note": "Primary sheets merge across branches (duplicate → 409); an Approved Supplementary sheet overrides the Primary values for its employees; two Supplementary for one employee → 409"
  },
  "MonthlyAttendanceSheet.fromDate": {
   "status": "Used",
@@ -733,7 +733,7 @@
  },
  "MonthlyAttendanceSheet.status": {
   "status": "Used",
-  "note": "Generate merges every Approved sheet of the pay period (mergeAttendanceSheets, QA D30)"
+  "note": "Generate merges every Approved sheet of the pay period (mergeAttendanceSheets, QA D30); the D44 guard refuses Post while an Open sheet exists for the period unless acknowledged (step 4)"
  },
  "MonthlyAttendanceSheet.toDate": {
   "status": "Used",
@@ -756,8 +756,8 @@
   "note": "working days computed from calendar − weekly offs − holidays − Saturdays off; a typed difference warns"
  },
  "PayPeriod.isActive": {
-  "status": "Scheduled: QA E (proposal) (step 4)",
-  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+  "status": "Scheduled: QA D56 (step 4)",
+  "note": "pickers offer active records only; existing documents show an inactive reference marked \"(inactive)\"; the server refuses new references to inactive masters"
  },
  "PayPeriod.maxNormalOtHoursMonth": {
   "status": "Scheduled: QA D32 (step 8)",
@@ -840,24 +840,24 @@
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
  },
  "PayrollAdjustment.status": {
-  "status": "Question",
-  "note": "stored only: every document of the period feeds payroll whatever its status. Proposal: same rule as D30 — only Approved documents feed payroll"
+  "status": "Scheduled: QA D53 (step 4)",
+  "note": "Open/Approved enum; only Approved documents feed payroll; the D44 guard applies"
  },
  "PayrollAdjustmentLine.adjustmentId": {
   "status": "System",
   "note": "owner row / display order"
  },
  "PayrollAdjustmentLine.amount": {
-  "status": "Question",
-  "note": "stored only; not part of any total. Proposal: remove from the screen, or define what it is"
+  "status": "Scheduled: QA D54 (step 4)",
+  "note": "server-derived (additions − deductions), read-only, never an input"
  },
  "PayrollAdjustmentLine.arrears": {
   "status": "Used",
-  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15); taxability per type from a company settings table with defaults (QA D55, step 4)"
  },
  "PayrollAdjustmentLine.carAllowance": {
   "status": "Used",
-  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15); taxability per type from a company settings table with defaults (QA D55, step 4)"
  },
  "PayrollAdjustmentLine.carInsLaptopDed": {
   "status": "Used",
@@ -889,7 +889,7 @@
  },
  "PayrollAdjustmentLine.dowryAllowance": {
   "status": "Used",
-  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15); taxability per type from a company settings table with defaults (QA D55, step 4)"
  },
  "PayrollAdjustmentLine.employeeId": {
   "status": "Used",
@@ -897,7 +897,7 @@
  },
  "PayrollAdjustmentLine.fuel": {
   "status": "Used",
-  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15); taxability per type from a company settings table with defaults (QA D55, step 4)"
  },
  "PayrollAdjustmentLine.generalDeduction": {
   "status": "Used",
@@ -929,11 +929,11 @@
  },
  "PayrollAdjustmentLine.taDa": {
   "status": "Used",
-  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15); taxability per type from a company settings table with defaults (QA D55, step 4)"
  },
  "PayrollAdjustmentLine.taxableAddition": {
   "status": "Used",
-  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15); taxability per type from a company settings table with defaults (QA D55, step 4)"
  },
  "PayrollRun.cancellationJeNo": {
   "status": "Used",
@@ -1148,8 +1148,8 @@
   "note": "shift hours = length − break: short-time deduction (D30, step 4) and overtime (D32, step 8)"
  },
  "Shift.isActive": {
-  "status": "Scheduled: QA E (proposal) (step 4)",
-  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+  "status": "Scheduled: QA D56 (step 4)",
+  "note": "pickers offer active records only; existing documents show an inactive reference marked \"(inactive)\"; the server refuses new references to inactive masters"
  },
  "Shift.isOvernight": {
   "status": "Scheduled: QA D30/D32 (step 4)",
