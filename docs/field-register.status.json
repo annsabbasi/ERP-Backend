@@ -1,0 +1,1230 @@
+{
+ "AccountDetermination.accountId": {
+  "status": "Used",
+  "note": "every posting resolves its accounts here (PayrollRunsService.payrollAccounts, ar-ap DETERMINATION)"
+ },
+ "AccountDetermination.area": {
+  "status": "Used",
+  "note": "every posting resolves its accounts here (PayrollRunsService.payrollAccounts, ar-ap DETERMINATION)"
+ },
+ "AccountDetermination.key": {
+  "status": "Used",
+  "note": "every posting resolves its accounts here (PayrollRunsService.payrollAccounts, ar-ap DETERMINATION)"
+ },
+ "AttendanceSheetLine.annualLeave": {
+  "status": "Question",
+  "note": "not in D30. Proposal: reconcile against approved annual leave like payableLeaves (warning on mismatch), or remove"
+ },
+ "AttendanceSheetLine.compOffDays": {
+  "status": "Scheduled: QA D30 (step 4)",
+  "note": "lopDays authoritative when entered; short time per shift hour; comp-off paid; missing biometric present + warning; half day / payable leave reconciled against approved leave"
+ },
+ "AttendanceSheetLine.employeeId": {
+  "status": "Used",
+  "note": "payslip: absence = working − present for employees with a line (computePayslip)"
+ },
+ "AttendanceSheetLine.halfDayLeave": {
+  "status": "Scheduled: QA D30 (step 4)",
+  "note": "lopDays authoritative when entered; short time per shift hour; comp-off paid; missing biometric present + warning; half day / payable leave reconciled against approved leave"
+ },
+ "AttendanceSheetLine.idNo": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "AttendanceSheetLine.lopDays": {
+  "status": "Scheduled: QA D30 (step 4)",
+  "note": "lopDays authoritative when entered; short time per shift hour; comp-off paid; missing biometric present + warning; half day / payable leave reconciled against approved leave"
+ },
+ "AttendanceSheetLine.misBioMaterDays": {
+  "status": "Scheduled: QA D30 (step 4)",
+  "note": "lopDays authoritative when entered; short time per shift hour; comp-off paid; missing biometric present + warning; half day / payable leave reconciled against approved leave"
+ },
+ "AttendanceSheetLine.normalOtHours": {
+  "status": "Scheduled: QA D32 (step 8)",
+  "note": "overtime hours"
+ },
+ "AttendanceSheetLine.ordering": {
+  "status": "System",
+  "note": "owner row / display order"
+ },
+ "AttendanceSheetLine.otHours": {
+  "status": "Scheduled: QA D32 (step 8)",
+  "note": "overtime hours"
+ },
+ "AttendanceSheetLine.payableLeaves": {
+  "status": "Scheduled: QA D30 (step 4)",
+  "note": "lopDays authoritative when entered; short time per shift hour; comp-off paid; missing biometric present + warning; half day / payable leave reconciled against approved leave"
+ },
+ "AttendanceSheetLine.presentDays": {
+  "status": "Used",
+  "note": "payslip: absence = working − present for employees with a line (computePayslip)"
+ },
+ "AttendanceSheetLine.sheetId": {
+  "status": "System",
+  "note": "owner row / display order"
+ },
+ "AttendanceSheetLine.shortTimeHours": {
+  "status": "Scheduled: QA D30 (step 4)",
+  "note": "lopDays authoritative when entered; short time per shift hour; comp-off paid; missing biometric present + warning; half day / payable leave reconciled against approved leave"
+ },
+ "AttendanceSheetLine.sunday": {
+  "status": "Scheduled: QA D32 (step 8)",
+  "note": "overtime hours"
+ },
+ "AttendanceSheetLine.totalDays": {
+  "status": "Used",
+  "note": "payslip: absence = working − present for employees with a line (computePayslip)"
+ },
+ "AttendanceSheetLine.workingDays": {
+  "status": "Used",
+  "note": "payslip: absence = working − present for employees with a line (computePayslip)"
+ },
+ "Bank.code": {
+  "status": "Used",
+  "note": "bank pickers (house bank accounts, payment details options)"
+ },
+ "Bank.country": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Bank.isActive": {
+  "status": "Used",
+  "note": "payment-details options list active banks only (PaymentDetailsService.options)"
+ },
+ "Bank.name": {
+  "status": "Used",
+  "note": "bank pickers (house bank accounts, payment details options)"
+ },
+ "Bank.swift": {
+  "status": "Scheduled: QA D19 (step 3)",
+  "note": "bank transfer file"
+ },
+ "Employee.address1": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.address2": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.address3": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.branchId": {
+  "status": "Used",
+  "note": "attendance sheet generation scopes employees by branch (AttendanceSheetsService.generateLines)"
+ },
+ "Employee.city": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.currentShiftId": {
+  "status": "Scheduled: QA D24/D30/D31 (step 4)",
+  "note": "shift workDays → working days and leave days; shift hours → short-time deduction"
+ },
+ "Employee.customFields": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.dateOfBirth": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.dateOfJoining": {
+  "status": "Scheduled: QA D23 (step 4)",
+  "note": "probationEndDate defaults to joining + 90 days; gratuity service (QA D35, step 9)"
+ },
+ "Employee.deletedAt": {
+  "status": "System",
+  "note": "soft delete"
+ },
+ "Employee.departmentId": {
+  "status": "Used",
+  "note": "employee list filter and org structure (employees.service findAll); cost-centre dimension on salary JE lines comes with QA D37 (step 8)"
+ },
+ "Employee.email": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.employeeCategoryId": {
+  "status": "Used",
+  "note": "run category filter, category adjustment documents and category tax formula (generateLines)"
+ },
+ "Employee.employeeNumber": {
+  "status": "Used",
+  "note": "identifies the employee on every payroll line, list and JE description (transactions.services generateLines/linesOf)"
+ },
+ "Employee.esiNo": {
+  "status": "Scheduled: QA D34 (step 9)",
+  "note": "scheme membership numbers; Generate warns when missing"
+ },
+ "Employee.fatherName": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.fuelLiters": {
+  "status": "Scheduled: QA D36 (step 9)",
+  "note": "monthly fuel reimbursement limit"
+ },
+ "Employee.gender": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.gradeId": {
+  "status": "Used",
+  "note": "pay scale for Generate (generateLines → grade.payScale)"
+ },
+ "Employee.hireDate": {
+  "status": "Question",
+  "note": "duplicate of dateOfJoining (onboarding writes hireDate, the payroll screen dateOfJoining). Proposal: one date — dateOfJoining — with hireDate migrated into it (step 4)"
+ },
+ "Employee.insurancePolicyNo": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.isActive": {
+  "status": "Used",
+  "note": "Generate includes active employees only (PayrollRunsService.generateLines)"
+ },
+ "Employee.locationProjectSite": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.managerId": {
+  "status": "Used",
+  "note": "leave approval routing (leaves.service canApprove, workflow context)"
+ },
+ "Employee.mobilePhone2": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.name": {
+  "status": "Used",
+  "note": "identifies the employee on every payroll line, list and JE description (transactions.services generateLines/linesOf)"
+ },
+ "Employee.nationality": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.originalDateOfBirth": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.otherInfo": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.pfNo": {
+  "status": "Scheduled: QA D34 (step 9)",
+  "note": "scheme membership numbers; Generate warns when missing"
+ },
+ "Employee.phone": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.pinCode": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.position": {
+  "status": "Question",
+  "note": "free-text duplicate of positionId. Proposal: drop the text column from the screen (step 4)"
+ },
+ "Employee.positionId": {
+  "status": "Used",
+  "note": "position master link, contracts (hr/contracts, positions.service)"
+ },
+ "Employee.salary": {
+  "status": "Question",
+  "note": "not read by payroll — pay comes from the grade pay-scale stage (QA D27). Proposal: remove from the screen in step 4"
+ },
+ "Employee.sectionType": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.state": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Employee.status": {
+  "status": "Used",
+  "note": "terminate flow (employees.service terminate); Generate includes only ACTIVE staff; Final Settlement uses them (QA D40, step 10)"
+ },
+ "Employee.terminationDate": {
+  "status": "Used",
+  "note": "terminate flow (employees.service terminate); Generate includes only ACTIVE staff; Final Settlement uses them (QA D40, step 10)"
+ },
+ "Employee.userId": {
+  "status": "Used",
+  "note": "links the employee to a login: leave requester/manager checks (leaves.service canApprove, cancel), ESS"
+ },
+ "EmployeeCategory.code": {
+  "status": "Used",
+  "note": "category filter on runs, adjustment documents and tax formulas"
+ },
+ "EmployeeCategory.isActive": {
+  "status": "Scheduled: QA E (proposal) (step 4)",
+  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+ },
+ "EmployeeCategory.name": {
+  "status": "Used",
+  "note": "category filter on runs, adjustment documents and tax formulas"
+ },
+ "EmployeeCategory.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "EmployeeLoan.amountPerMonth": {
+  "status": "Used",
+  "note": "schedule generation (EmployeeLoansService create/reschedule)"
+ },
+ "EmployeeLoan.approved": {
+  "status": "Used",
+  "note": "only approved, active loans are recovered (outstandingInstallmentsSql)"
+ },
+ "EmployeeLoan.code": {
+  "status": "Used",
+  "note": "loan reference in lists and recovery messages"
+ },
+ "EmployeeLoan.documentDate": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "EmployeeLoan.effectiveDate": {
+  "status": "Used",
+  "note": "schedule generation (EmployeeLoansService create/reschedule)"
+ },
+ "EmployeeLoan.effectivePayPeriodId": {
+  "status": "Scheduled: QA D25 (step 4)",
+  "note": "schedule built from sanctionedAmount when set; first due date from the effective pay period"
+ },
+ "EmployeeLoan.employeeId": {
+  "status": "Used",
+  "note": "whose loan, and loan vs advance (outstandingInstallmentsSql)"
+ },
+ "EmployeeLoan.isActive": {
+  "status": "Used",
+  "note": "only approved, active loans are recovered (outstandingInstallmentsSql)"
+ },
+ "EmployeeLoan.loanAmount": {
+  "status": "Used",
+  "note": "schedule generation (EmployeeLoansService create/reschedule)"
+ },
+ "EmployeeLoan.loanTypeId": {
+  "status": "Used",
+  "note": "whose loan, and loan vs advance (outstandingInstallmentsSql)"
+ },
+ "EmployeeLoan.noOfInstallments": {
+  "status": "Used",
+  "note": "schedule generation (EmployeeLoansService create/reschedule)"
+ },
+ "EmployeeLoan.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "EmployeeLoan.sanctionedAmount": {
+  "status": "Scheduled: QA D25 (step 4)",
+  "note": "schedule built from sanctionedAmount when set; first due date from the effective pay period"
+ },
+ "EmployeeLoan.status": {
+  "status": "Used",
+  "note": "derived from the recovery ledger by trigger (e.g. Recovered)"
+ },
+ "EmployeeLoanInstallment.amount": {
+  "status": "Used",
+  "note": "what payroll recovers and when (outstandingInstallmentsSql; status derived by loan_recoveries trigger); D26 limits it to the run period (step 4)"
+ },
+ "EmployeeLoanInstallment.dueDate": {
+  "status": "Used",
+  "note": "what payroll recovers and when (outstandingInstallmentsSql; status derived by loan_recoveries trigger); D26 limits it to the run period (step 4)"
+ },
+ "EmployeeLoanInstallment.loanId": {
+  "status": "System",
+  "note": "owner row"
+ },
+ "EmployeeLoanInstallment.month": {
+  "status": "Used — record data",
+  "note": "schedule display order and month label"
+ },
+ "EmployeeLoanInstallment.ordering": {
+  "status": "Used — record data",
+  "note": "schedule display order and month label"
+ },
+ "EmployeeLoanInstallment.status": {
+  "status": "Used",
+  "note": "what payroll recovers and when (outstandingInstallmentsSql; status derived by loan_recoveries trigger); D26 limits it to the run period (step 4)"
+ },
+ "EmployeeLoanInstallment.year": {
+  "status": "Used — record data",
+  "note": "schedule display order and month label"
+ },
+ "EmployeePaymentDetail.accountNo": {
+  "status": "Scheduled: QA D18–D21 / Increment B (step 3)",
+  "note": "validated and stored with a masked change history today (payment-details.service put); Pay Salaries pays to them in step 3"
+ },
+ "EmployeePaymentDetail.accountTitle": {
+  "status": "Scheduled: QA D18–D21 / Increment B (step 3)",
+  "note": "validated and stored with a masked change history today (payment-details.service put); Pay Salaries pays to them in step 3"
+ },
+ "EmployeePaymentDetail.bankDetailsChangedAt": {
+  "status": "Scheduled: QA D20 (step 3)",
+  "note": "stamped by trigger today; Pay Salaries warns on a change within 7 days"
+ },
+ "EmployeePaymentDetail.bankId": {
+  "status": "Scheduled: QA D18–D21 / Increment B (step 3)",
+  "note": "validated and stored with a masked change history today (payment-details.service put); Pay Salaries pays to them in step 3"
+ },
+ "EmployeePaymentDetail.employeeId": {
+  "status": "System",
+  "note": "owner row / audit (updatedById set by trigger from the session actor)"
+ },
+ "EmployeePaymentDetail.iban": {
+  "status": "Scheduled: QA D18–D21 / Increment B (step 3)",
+  "note": "validated and stored with a masked change history today (payment-details.service put); Pay Salaries pays to them in step 3"
+ },
+ "EmployeePaymentDetail.paymentMethodId": {
+  "status": "Scheduled: QA D18–D21 / Increment B (step 3)",
+  "note": "validated and stored with a masked change history today (payment-details.service put); Pay Salaries pays to them in step 3"
+ },
+ "EmployeePaymentDetail.updatedById": {
+  "status": "System",
+  "note": "owner row / audit (updatedById set by trigger from the session actor)"
+ },
+ "Grade.code": {
+  "status": "Used",
+  "note": "grade picker, \"No pay scale for grade X\" message (generateLines)"
+ },
+ "Grade.description": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Grade.isActive": {
+  "status": "Scheduled: QA E (proposal) (step 4)",
+  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+ },
+ "Grade.overtimeRatePerHour": {
+  "status": "Scheduled: QA D32 (step 8)",
+  "note": "overtime rate when set"
+ },
+ "Grade.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "GradePayScaleStage.adhoc2017": {
+  "status": "Question",
+  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+ },
+ "GradePayScaleStage.adhoc2018": {
+  "status": "Question",
+  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+ },
+ "GradePayScaleStage.basicPay": {
+  "status": "Used",
+  "note": "seed the grid columns Basic / HRA / Conveyance (generateLines) and gross (grossFromStage)"
+ },
+ "GradePayScaleStage.conveyanceAllowance": {
+  "status": "Used",
+  "note": "seed the grid columns Basic / HRA / Conveyance (generateLines) and gross (grossFromStage)"
+ },
+ "GradePayScaleStage.gradeId": {
+  "status": "Used",
+  "note": "the grade a stage belongs to (generateLines include grade.payScale)"
+ },
+ "GradePayScaleStage.hra": {
+  "status": "Used",
+  "note": "seed the grid columns Basic / HRA / Conveyance (generateLines) and gross (grossFromStage)"
+ },
+ "GradePayScaleStage.medicalAllowance": {
+  "status": "Question",
+  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+ },
+ "GradePayScaleStage.stage": {
+  "status": "Scheduled: QA D27 (step 4)",
+  "note": "Generate uses stage 1 for everyone today (take: 1); D27 adds the per-employee stage"
+ },
+ "GradePayScaleStage.utilityAllowance": {
+  "status": "Question",
+  "note": "DEFECT: in grossFromStage, so they raise the per-day LOP rate and the taxable gross (computePayslip), but they have no grid column and are not in the gross that is paid (rowTotals). An employee with them is taxed and docked on money never paid. Proposal: give them columns (D28-style) or drop them from grossFromStage — ruling needed"
+ },
+ "HouseBankAccount.accountName": {
+  "status": "Scheduled: QA Increment B / D19 (step 3)",
+  "note": "the account a payment is drawn on; default house bank; bank file"
+ },
+ "HouseBankAccount.accountNo": {
+  "status": "Scheduled: QA Increment B / D19 (step 3)",
+  "note": "the account a payment is drawn on; default house bank; bank file"
+ },
+ "HouseBankAccount.bankId": {
+  "status": "Used",
+  "note": "must be a bank of this company (HouseBankAccountsService.checkRefs)"
+ },
+ "HouseBankAccount.branch": {
+  "status": "Scheduled: QA Increment B / D19 (step 3)",
+  "note": "the account a payment is drawn on; default house bank; bank file"
+ },
+ "HouseBankAccount.currency": {
+  "status": "Scheduled: QA Increment B / D19 (step 3)",
+  "note": "the account a payment is drawn on; default house bank; bank file"
+ },
+ "HouseBankAccount.glAccountId": {
+  "status": "Scheduled: QA Increment B (step 3)",
+  "note": "required postable asset account today (checkRefs); Pay Salaries credits it in step 3"
+ },
+ "HouseBankAccount.iban": {
+  "status": "Scheduled: QA Increment B / D19 (step 3)",
+  "note": "the account a payment is drawn on; default house bank; bank file"
+ },
+ "HouseBankAccount.isActive": {
+  "status": "Scheduled: QA Increment B (step 3)",
+  "note": "inactive house banks refused on payments"
+ },
+ "HouseBankAccount.isDefault": {
+  "status": "Scheduled: QA Increment B / D19 (step 3)",
+  "note": "the account a payment is drawn on; default house bank; bank file"
+ },
+ "LeaveRequest.approvedAt": {
+  "status": "Used",
+  "note": "decision record and workflow link (LeavesService approve/reject)"
+ },
+ "LeaveRequest.approvedById": {
+  "status": "Used",
+  "note": "decision record and workflow link (LeavesService approve/reject)"
+ },
+ "LeaveRequest.approvedByName": {
+  "status": "Used",
+  "note": "decision record and workflow link (LeavesService approve/reject)"
+ },
+ "LeaveRequest.contactNo": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveRequest.days": {
+  "status": "Used",
+  "note": "balance reservation, approval, and payroll leave split (LeavesService submit/approve; generateLines)"
+ },
+ "LeaveRequest.employeeId": {
+  "status": "Used",
+  "note": "balance reservation, approval, and payroll leave split (LeavesService submit/approve; generateLines)"
+ },
+ "LeaveRequest.endDate": {
+  "status": "Used",
+  "note": "balance reservation, approval, and payroll leave split (LeavesService submit/approve; generateLines)"
+ },
+ "LeaveRequest.leaveDurationType": {
+  "status": "Scheduled: QA D24 (step 4)",
+  "note": "days computed by the server: Full = working days in range, Half = 0.5"
+ },
+ "LeaveRequest.leaveTypeId": {
+  "status": "Used",
+  "note": "balance reservation, approval, and payroll leave split (LeavesService submit/approve; generateLines)"
+ },
+ "LeaveRequest.preparedBy": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveRequest.reason": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveRequest.rejectedReason": {
+  "status": "Used",
+  "note": "decision record and workflow link (LeavesService approve/reject)"
+ },
+ "LeaveRequest.signedBy": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveRequest.startDate": {
+  "status": "Used",
+  "note": "balance reservation, approval, and payroll leave split (LeavesService submit/approve; generateLines)"
+ },
+ "LeaveRequest.status": {
+  "status": "Used",
+  "note": "balance reservation, approval, and payroll leave split (LeavesService submit/approve; generateLines)"
+ },
+ "LeaveRequest.workflowInstanceId": {
+  "status": "Used",
+  "note": "decision record and workflow link (LeavesService approve/reject)"
+ },
+ "LeaveType.accrualDays": {
+  "status": "Question",
+  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+ },
+ "LeaveType.accrualMode": {
+  "status": "Question",
+  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+ },
+ "LeaveType.accrualPeriod": {
+  "status": "Question",
+  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+ },
+ "LeaveType.applicableDuringProbation": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.carryForwardToNextYear": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.code": {
+  "status": "Used",
+  "note": "leave type picker and labels"
+ },
+ "LeaveType.description": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveType.effectiveFrom": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.encashable": {
+  "status": "Scheduled: QA D35 (step 9)",
+  "note": "leave encashment at year end / Final Settlement"
+ },
+ "LeaveType.isActive": {
+  "status": "Used",
+  "note": "submit refuses an inactive type (LeavesService.submit findFirst isActive)"
+ },
+ "LeaveType.isClosed": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.leaveCategory": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveType.maxBalance": {
+  "status": "Question",
+  "note": "an accrual model nothing runs, alongside totalLeavesInYear (the D24 entitlement). Proposal: D24 entitlement is totalLeavesInYear; remove the accrual fields in step 4 — or say accrual is wanted"
+ },
+ "LeaveType.maxContinuousDays": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.maxContinuousDurationProb": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.maxLeaveCarryForward": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.maxLeaveToEncash": {
+  "status": "Scheduled: QA D35 (step 9)",
+  "note": "leave encashment at year end / Final Settlement"
+ },
+ "LeaveType.maxMonthlyApplications": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.minBalanceForEncash": {
+  "status": "Scheduled: QA D35 (step 9)",
+  "note": "leave encashment at year end / Final Settlement"
+ },
+ "LeaveType.minContinuousDays": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.minContinuousDurationProb": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.name": {
+  "status": "Used",
+  "note": "leave type picker and labels"
+ },
+ "LeaveType.paid": {
+  "status": "Used",
+  "note": "unpaid leave becomes LOP (payroll-calculation splitLeave via generateLines)"
+ },
+ "LeaveType.payableLeave": {
+  "status": "Question",
+  "note": "a display flag that duplicates `paid` (`paid` is what payroll reads). Proposal: remove in step 4"
+ },
+ "LeaveType.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "LeaveType.requiresApproval": {
+  "status": "Used",
+  "note": "submit: PENDING + workflow vs auto-approved (LeavesService.submit)"
+ },
+ "LeaveType.totalLeavesInYear": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.totalLeavesInYearForTrainer": {
+  "status": "Scheduled: QA D22–D24 (step 4)",
+  "note": "enforced at submit and re-checked at approve; carry-forward as the year-end action"
+ },
+ "LeaveType.workflowKey": {
+  "status": "Used",
+  "note": "submit: PENDING + workflow vs auto-approved (LeavesService.submit)"
+ },
+ "LoanType.allowMultipleOpen": {
+  "status": "Scheduled: QA D12 (step 5)",
+  "note": "advance cap and one open advance (Increment C)"
+ },
+ "LoanType.code": {
+  "status": "Used",
+  "note": "loan type picker and labels"
+ },
+ "LoanType.description": {
+  "status": "Used",
+  "note": "loan type picker and labels"
+ },
+ "LoanType.isActive": {
+  "status": "Scheduled: QA E (proposal) (step 4)",
+  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+ },
+ "LoanType.loanType": {
+  "status": "Used",
+  "note": "Advance vs Personal: advance installments credit Salary Advance Receivable (outstandingInstallmentsSql, generateLines)"
+ },
+ "LoanType.maxAmount": {
+  "status": "Scheduled: QA D25 (step 4)",
+  "note": "enforced on the loan application; flat interest split on recovery"
+ },
+ "LoanType.maxInstallments": {
+  "status": "Scheduled: QA D25 (step 4)",
+  "note": "enforced on the loan application; flat interest split on recovery"
+ },
+ "LoanType.maxNetPayPercent": {
+  "status": "Scheduled: QA D12 (step 5)",
+  "note": "advance cap and one open advance (Increment C)"
+ },
+ "LoanType.minRepaymentAmount": {
+  "status": "Scheduled: QA D25 (step 4)",
+  "note": "enforced on the loan application; flat interest split on recovery"
+ },
+ "LoanType.rateOfInterest": {
+  "status": "Scheduled: QA D25 (step 4)",
+  "note": "enforced on the loan application; flat interest split on recovery"
+ },
+ "LoanType.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "MonthlyAttendanceSheet.branchId": {
+  "status": "Used",
+  "note": "sheet generation from attendance entries, by branch and date range (AttendanceSheetsService.generateLines); branch names the sheet in payroll messages"
+ },
+ "MonthlyAttendanceSheet.docType": {
+  "status": "Question",
+  "note": "Primary / Supplementary is stored only. Under D30 an employee on two approved sheets is refused, so a supplementary sheet cannot add to a primary one. Proposal: remove docType, or define Supplementary as additive (which rows add, which replace)"
+ },
+ "MonthlyAttendanceSheet.fromDate": {
+  "status": "Used",
+  "note": "sheet generation from attendance entries, by branch and date range (AttendanceSheetsService.generateLines); branch names the sheet in payroll messages"
+ },
+ "MonthlyAttendanceSheet.payPeriodId": {
+  "status": "Used",
+  "note": "Generate merges every Approved sheet of the pay period (mergeAttendanceSheets, QA D30)"
+ },
+ "MonthlyAttendanceSheet.payPeriodMonth": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "MonthlyAttendanceSheet.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "MonthlyAttendanceSheet.status": {
+  "status": "Used",
+  "note": "Generate merges every Approved sheet of the pay period (mergeAttendanceSheets, QA D30)"
+ },
+ "MonthlyAttendanceSheet.toDate": {
+  "status": "Used",
+  "note": "sheet generation from attendance entries, by branch and date range (AttendanceSheetsService.generateLines); branch names the sheet in payroll messages"
+ },
+ "MonthlyAttendanceSheet.year": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayPeriod.code": {
+  "status": "Used",
+  "note": "identifies the period in pickers, run labels and JE descriptions"
+ },
+ "PayPeriod.fromDate": {
+  "status": "Used",
+  "note": "run bounds: leave split, installments due, attendance (PayrollRunsService.boundsFromRun)"
+ },
+ "PayPeriod.holidays": {
+  "status": "Scheduled: QA D31 (step 4)",
+  "note": "working days computed from calendar − weekly offs − holidays − Saturdays off; a typed difference warns"
+ },
+ "PayPeriod.isActive": {
+  "status": "Scheduled: QA E (proposal) (step 4)",
+  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+ },
+ "PayPeriod.maxNormalOtHoursMonth": {
+  "status": "Scheduled: QA D32 (step 8)",
+  "note": "overtime caps"
+ },
+ "PayPeriod.maxWorkingHoursMonth": {
+  "status": "Scheduled: QA D32 (step 8)",
+  "note": "overtime caps"
+ },
+ "PayPeriod.name": {
+  "status": "Used",
+  "note": "identifies the period in pickers, run labels and JE descriptions"
+ },
+ "PayPeriod.payMonth": {
+  "status": "Used",
+  "note": "run and JE label (PayrollRunsService.label)"
+ },
+ "PayPeriod.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayPeriod.saturdays": {
+  "status": "Scheduled: QA D31 (step 4)",
+  "note": "working days computed from calendar − weekly offs − holidays − Saturdays off; a typed difference warns"
+ },
+ "PayPeriod.status": {
+  "status": "Scheduled: QA D31/D39 (step 4)",
+  "note": "becomes an Open/Closed enum tied to the period lifecycle"
+ },
+ "PayPeriod.toDate": {
+  "status": "Used",
+  "note": "run bounds: leave split, installments due, attendance (PayrollRunsService.boundsFromRun)"
+ },
+ "PayPeriod.workingDays": {
+  "status": "Used",
+  "note": "per-day rate divisor (computePayslip)"
+ },
+ "PaymentMethod.code": {
+  "status": "Used",
+  "note": "method pickers; seeded CASH…ADV (erp_apply_payment_methods)"
+ },
+ "PaymentMethod.description": {
+  "status": "Used",
+  "note": "method pickers; seeded CASH…ADV (erp_apply_payment_methods)"
+ },
+ "PaymentMethod.direction": {
+  "status": "Used",
+  "note": "what an employee may default to and what it needs (PaymentDetailsService.put/options)"
+ },
+ "PaymentMethod.houseBankAccountId": {
+  "status": "Scheduled: QA Increment B (step 3)",
+  "note": "default house bank for the method on Pay Salaries"
+ },
+ "PaymentMethod.isActive": {
+  "status": "Used",
+  "note": "what an employee may default to and what it needs (PaymentDetailsService.put/options)"
+ },
+ "PaymentMethod.paymentMeans": {
+  "status": "Used",
+  "note": "what an employee may default to and what it needs (PaymentDetailsService.put/options)"
+ },
+ "PayrollAdjustment.documentDate": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayrollAdjustment.employeeCategoryId": {
+  "status": "Used",
+  "note": "which document applies to an employee in a run (generateLines: own category over All)"
+ },
+ "PayrollAdjustment.employeeType": {
+  "status": "Removed",
+  "note": "superseded by employeeCategoryId (20260926060000)"
+ },
+ "PayrollAdjustment.payPeriodId": {
+  "status": "Used",
+  "note": "which document applies to an employee in a run (generateLines: own category over All)"
+ },
+ "PayrollAdjustment.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayrollAdjustment.status": {
+  "status": "Question",
+  "note": "stored only: every document of the period feeds payroll whatever its status. Proposal: same rule as D30 — only Approved documents feed payroll"
+ },
+ "PayrollAdjustmentLine.adjustmentId": {
+  "status": "System",
+  "note": "owner row / display order"
+ },
+ "PayrollAdjustmentLine.amount": {
+  "status": "Question",
+  "note": "stored only; not part of any total. Proposal: remove from the screen, or define what it is"
+ },
+ "PayrollAdjustmentLine.arrears": {
+  "status": "Used",
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+ },
+ "PayrollAdjustmentLine.carAllowance": {
+  "status": "Used",
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+ },
+ "PayrollAdjustmentLine.carInsLaptopDed": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.carInsLaptopDed2": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.deduction11": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.deduction12": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.deduction13": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.deduction14": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.deduction15": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.dowryAllowance": {
+  "status": "Used",
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+ },
+ "PayrollAdjustmentLine.employeeId": {
+  "status": "Used",
+  "note": "the employee the line adjusts"
+ },
+ "PayrollAdjustmentLine.fuel": {
+  "status": "Used",
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+ },
+ "PayrollAdjustmentLine.generalDeduction": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.generalDeduction2": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.idNo": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayrollAdjustmentLine.loanDeduction": {
+  "status": "Used",
+  "note": "manual override of the scheduled loan installment (computePayslip manualLoan)"
+ },
+ "PayrollAdjustmentLine.messDeduction": {
+  "status": "Used",
+  "note": "one JE credit line per type (adjustmentDeductionSplit → PayrollRunsService.deductionCredits, QA D14)"
+ },
+ "PayrollAdjustmentLine.ordering": {
+  "status": "System",
+  "note": "owner row / display order"
+ },
+ "PayrollAdjustmentLine.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayrollAdjustmentLine.taDa": {
+  "status": "Used",
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+ },
+ "PayrollAdjustmentLine.taxableAddition": {
+  "status": "Used",
+  "note": "additions to earnings, all to Salary Expense (adjustmentAdditions, QA D15). Note: all six are taxed today — the name taxableAddition suggests the others should not be; ruling needed with D36 (non-taxable reimbursements)"
+ },
+ "PayrollRun.cancellationJeNo": {
+  "status": "Used",
+  "note": "set by Post / Cancel, shown on the run (display copies of the JE numbers)"
+ },
+ "PayrollRun.documentDate": {
+  "status": "Used",
+  "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
+ },
+ "PayrollRun.employeeCategoryId": {
+  "status": "Used",
+  "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
+ },
+ "PayrollRun.employeeType": {
+  "status": "Removed",
+  "note": "superseded by employeeCategoryId (20260926010000); not on the screen, nothing writes it; kept read-only for older rows"
+ },
+ "PayrollRun.fromDate": {
+  "status": "Used",
+  "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
+ },
+ "PayrollRun.jeNo": {
+  "status": "Used",
+  "note": "set by Post / Cancel, shown on the run (display copies of the JE numbers)"
+ },
+ "PayrollRun.journalEntryId": {
+  "status": "Used",
+  "note": "lock-and-recheck state and the JE that Cancel reverses (post, cancel, lockRun)"
+ },
+ "PayrollRun.payMonth": {
+  "status": "Used",
+  "note": "run and JE label"
+ },
+ "PayrollRun.payPeriodId": {
+  "status": "Used",
+  "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
+ },
+ "PayrollRun.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "PayrollRun.runType": {
+  "status": "Used",
+  "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
+ },
+ "PayrollRun.status": {
+  "status": "Used",
+  "note": "lock-and-recheck state and the JE that Cancel reverses (post, cancel, lockRun)"
+ },
+ "PayrollRun.toDate": {
+  "status": "Used",
+  "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
+ },
+ "PayrollRunLine.adjustmentAdditions": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.adjustmentDeductionSplit": {
+  "status": "Used",
+  "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
+ },
+ "PayrollRunLine.adjustmentDeductions": {
+  "status": "Used",
+  "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
+ },
+ "PayrollRunLine.advanceDeduction": {
+  "status": "Used",
+  "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
+ },
+ "PayrollRunLine.basic": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.bigCity": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.companyId": {
+  "status": "System",
+  "note": "owner row, display order, trigger-maintained mirror columns for the one-Regular-run index"
+ },
+ "PayrollRunLine.conveyance": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.education": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.eligibleBasic": {
+  "status": "Scheduled: QA D28 (step 4)",
+  "note": "shown read-only as the pay-scale amount before LOP"
+ },
+ "PayrollRunLine.eligibleConveyance": {
+  "status": "Scheduled: QA D28 (step 4)",
+  "note": "shown read-only as the pay-scale amount before LOP"
+ },
+ "PayrollRunLine.eligibleHra": {
+  "status": "Scheduled: QA D28 (step 4)",
+  "note": "shown read-only as the pay-scale amount before LOP"
+ },
+ "PayrollRunLine.employeeId": {
+  "status": "Used",
+  "note": "the employee the line pays"
+ },
+ "PayrollRunLine.employeeType": {
+  "status": "Removed",
+  "note": "superseded (see PayrollRun.employeeType)"
+ },
+ "PayrollRunLine.entertainment": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.grossPay": {
+  "status": "Used",
+  "note": "server-computed totals (rowTotals); Post checks Σ(total earnings − LOP) against the credits"
+ },
+ "PayrollRunLine.hra": {
+  "status": "Used",
+  "note": "gross and total earnings (payroll-calculation rowTotals)"
+ },
+ "PayrollRunLine.loanDeduction": {
+  "status": "Used",
+  "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
+ },
+ "PayrollRunLine.lopDays": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.lopDeduction": {
+  "status": "Used",
+  "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
+ },
+ "PayrollRunLine.netPay": {
+  "status": "Used",
+  "note": "server-computed totals (rowTotals); Post checks Σ(total earnings − LOP) against the credits"
+ },
+ "PayrollRunLine.ordering": {
+  "status": "System",
+  "note": "owner row, display order, trigger-maintained mirror columns for the one-Regular-run index"
+ },
+ "PayrollRunLine.paidDays": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.paidLeaveDays": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.payLeaves": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.payPeriodId": {
+  "status": "System",
+  "note": "owner row, display order, trigger-maintained mirror columns for the one-Regular-run index"
+ },
+ "PayrollRunLine.payrollRunId": {
+  "status": "System",
+  "note": "owner row, display order, trigger-maintained mirror columns for the one-Regular-run index"
+ },
+ "PayrollRunLine.perDayRate": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.runActive": {
+  "status": "System",
+  "note": "owner row, display order, trigger-maintained mirror columns for the one-Regular-run index"
+ },
+ "PayrollRunLine.runType": {
+  "status": "System",
+  "note": "owner row, display order, trigger-maintained mirror columns for the one-Regular-run index"
+ },
+ "PayrollRunLine.taxDeduction": {
+  "status": "Used",
+  "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
+ },
+ "PayrollRunLine.taxableGross": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.totalDaysWorked": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.totalDaysWorking": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.totalDeductions": {
+  "status": "Used",
+  "note": "server-computed totals (rowTotals); Post checks Σ(total earnings − LOP) against the credits"
+ },
+ "PayrollRunLine.totalEarnings": {
+  "status": "Used",
+  "note": "server-computed totals (rowTotals); Post checks Σ(total earnings − LOP) against the credits"
+ },
+ "PayrollRunLine.unpaidLeaveDays": {
+  "status": "Used",
+  "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "Shift.breakMinutes": {
+  "status": "Scheduled: QA D30/D32 (step 4)",
+  "note": "shift hours = length − break: short-time deduction (D30, step 4) and overtime (D32, step 8)"
+ },
+ "Shift.code": {
+  "status": "Used",
+  "note": "shift picker; attendance shifts (hr/attendance)"
+ },
+ "Shift.endTime": {
+  "status": "Scheduled: QA D30/D32 (step 4)",
+  "note": "shift hours = length − break: short-time deduction (D30, step 4) and overtime (D32, step 8)"
+ },
+ "Shift.isActive": {
+  "status": "Scheduled: QA E (proposal) (step 4)",
+  "note": "shown only — pickers still offer inactive masters. Step 4: hide inactive masters from pickers and refuse them on new documents (proposal; no QA decision needed)"
+ },
+ "Shift.isOvernight": {
+  "status": "Scheduled: QA D30/D32 (step 4)",
+  "note": "shift hours = length − break: short-time deduction (D30, step 4) and overtime (D32, step 8)"
+ },
+ "Shift.name": {
+  "status": "Used",
+  "note": "shift picker; attendance shifts (hr/attendance)"
+ },
+ "Shift.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "Shift.startTime": {
+  "status": "Scheduled: QA D30/D32 (step 4)",
+  "note": "shift hours = length − break: short-time deduction (D30, step 4) and overtime (D32, step 8)"
+ },
+ "TaxFormula.code": {
+  "status": "Used",
+  "note": "formula picker and labels"
+ },
+ "TaxFormula.documentDate": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "TaxFormula.employeeCategoryId": {
+  "status": "Used",
+  "note": "Generate: category formula, else the default; monthly tax = annual / noOfMonths; only active formulas (generateLines, monthlyTax)"
+ },
+ "TaxFormula.fromDate": {
+  "status": "Scheduled: QA D29 (step 4)",
+  "note": "the formula whose dates cover the pay period; overlaps refused"
+ },
+ "TaxFormula.isActive": {
+  "status": "Used",
+  "note": "Generate: category formula, else the default; monthly tax = annual / noOfMonths; only active formulas (generateLines, monthlyTax)"
+ },
+ "TaxFormula.noOfMonths": {
+  "status": "Used",
+  "note": "Generate: category formula, else the default; monthly tax = annual / noOfMonths; only active formulas (generateLines, monthlyTax)"
+ },
+ "TaxFormula.periodYear": {
+  "status": "Scheduled: QA D29 (step 4)",
+  "note": "the formula whose dates cover the pay period; overlaps refused"
+ },
+ "TaxFormula.remarks": {
+  "status": "Used — record data",
+  "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
+ },
+ "TaxFormula.startYear": {
+  "status": "Scheduled: QA D29 (step 4)",
+  "note": "the formula whose dates cover the pay period; overlaps refused"
+ },
+ "TaxFormula.toDate": {
+  "status": "Scheduled: QA D29 (step 4)",
+  "note": "the formula whose dates cover the pay period; overlaps refused"
+ },
+ "TaxSlab.higherAmount": {
+  "status": "Used",
+  "note": "annual tax bands (payroll-calculation monthlyTax)"
+ },
+ "TaxSlab.lowerAmount": {
+  "status": "Used",
+  "note": "annual tax bands (payroll-calculation monthlyTax)"
+ },
+ "TaxSlab.ordering": {
+  "status": "Used",
+  "note": "annual tax bands (payroll-calculation monthlyTax)"
+ },
+ "TaxSlab.percentage": {
+  "status": "Used",
+  "note": "annual tax bands (payroll-calculation monthlyTax)"
+ },
+ "TaxSlab.taxFormulaId": {
+  "status": "System",
+  "note": "owner row"
+ }
+}
