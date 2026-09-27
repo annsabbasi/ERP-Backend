@@ -166,13 +166,15 @@ model Company {
   idempotencyKeys         IdempotencyKey[]
 
   // ── Administration: Exchange Rates & Indexes, License, Utilities ──
-  financialIndexes     FinancialIndex[]
-  financialIndexValues FinancialIndexValue[]
-  licenses             CompanyLicense[]
-  licenseAssignments   LicenseAssignment[]
-  addOnIdentifiers     AddOnIdentifier[]
-  supportUserLogs      SupportUserLogEntry[]
-  periodEndClosingRuns PeriodEndClosingRun[]
+  financialIndexes             FinancialIndex[]
+  financialIndexValues         FinancialIndexValue[]
+  licenses                     CompanyLicense[]
+  licenseAssignments           LicenseAssignment[]
+  addOnIdentifiers             AddOnIdentifier[]
+  supportUserLogs              SupportUserLogEntry[]
+  periodEndClosingRuns         PeriodEndClosingRun[]
+  employeePaymentDetails       EmployeePaymentDetail[]
+  employeePaymentDetailChanges EmployeePaymentDetailChange[]
 
   @@map("companies")
 }
@@ -624,12 +626,12 @@ model Employee {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department             Department?             @relation(fields: [departmentId], references: [id])
-  branch                 Branch?                 @relation("EmployeeBranch", fields: [branchId], references: [id])
-  positionRef            Position?               @relation(fields: [positionId], references: [id])
-  manager                Employee?               @relation("EmployeeManager", fields: [managerId], references: [id])
-  reports                Employee[]              @relation("EmployeeManager")
+  company                Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department             Department?                   @relation(fields: [departmentId], references: [id])
+  branch                 Branch?                       @relation("EmployeeBranch", fields: [branchId], references: [id])
+  positionRef            Position?                     @relation(fields: [positionId], references: [id])
+  manager                Employee?                     @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports                Employee[]                    @relation("EmployeeManager")
   contracts              EmploymentContract[]
   attendance             AttendanceEntry[]
   leaveBalances          LeaveBalance[]
@@ -637,14 +639,16 @@ model Employee {
   shiftAssignments       EmployeeShift[]
   onboardingInstances    OnboardingInstance[]
   salesEmployee          SalesEmployee?
-  user                   User?                   @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
-  employeeCategory       EmployeeCategory?       @relation(fields: [employeeCategoryId], references: [id])
-  grade                  Grade?                  @relation(fields: [gradeId], references: [id])
-  currentShift           Shift?                  @relation("EmployeeCurrentShift", fields: [currentShiftId], references: [id])
+  user                   User?                         @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
+  employeeCategory       EmployeeCategory?             @relation(fields: [employeeCategoryId], references: [id])
+  grade                  Grade?                        @relation(fields: [gradeId], references: [id])
+  currentShift           Shift?                        @relation("EmployeeCurrentShift", fields: [currentShiftId], references: [id])
   attendanceSheetLines   AttendanceSheetLine[]
   payrollRunLines        PayrollRunLine[]
   payrollAdjustmentLines PayrollAdjustmentLine[]
   loans                  EmployeeLoan[]
+  paymentDetail          EmployeePaymentDetail?
+  paymentDetailChanges   EmployeePaymentDetailChange[]
 
   @@index([companyId])
   @@index([branchId])
@@ -1179,22 +1183,28 @@ model PayrollRunLine {
   // the loan installment schedule, the tax formula and the monthly adjustment
   // document. Stored rather than recomputed on read so a posted run keeps the
   // numbers it was approved with, even if a master is edited afterwards.
-  grossPay             Decimal? @db.Decimal(19, 4)
-  perDayRate           Decimal? @db.Decimal(19, 4)
-  paidLeaveDays        Decimal? @db.Decimal(19, 4)
-  unpaidLeaveDays      Decimal? @db.Decimal(19, 4)
-  lopDeduction         Decimal? @db.Decimal(19, 4)
-  loanDeduction        Decimal? @db.Decimal(19, 4)
+  grossPay                 Decimal? @db.Decimal(19, 4)
+  perDayRate               Decimal? @db.Decimal(19, 4)
+  paidLeaveDays            Decimal? @db.Decimal(19, 4)
+  unpaidLeaveDays          Decimal? @db.Decimal(19, 4)
+  lopDeduction             Decimal? @db.Decimal(19, 4)
+  loanDeduction            Decimal? @db.Decimal(19, 4)
   // Salary advance recovered this run: its own column and its own JE credit
   // (PAYROLL/advance_receivable), never folded into loanDeduction.
-  advanceDeduction     Decimal? @db.Decimal(19, 4)
-  taxableGross         Decimal? @db.Decimal(19, 4)
-  taxDeduction         Decimal? @db.Decimal(19, 4)
-  adjustmentAdditions  Decimal? @db.Decimal(19, 4)
-  adjustmentDeductions Decimal? @db.Decimal(19, 4)
-  totalEarnings        Decimal? @db.Decimal(19, 4)
-  totalDeductions      Decimal? @db.Decimal(19, 4)
-  netPay               Decimal? @db.Decimal(19, 4)
+  advanceDeduction         Decimal? @db.Decimal(19, 4)
+  taxableGross             Decimal? @db.Decimal(19, 4)
+  taxDeduction             Decimal? @db.Decimal(19, 4)
+  adjustmentAdditions      Decimal? @db.Decimal(19, 4)
+  adjustmentDeductions     Decimal? @db.Decimal(19, 4)
+  // The Monthly Adjustment document's deduction types behind
+  // adjustmentDeductions ({ messDeduction: 500, … }), copied by Generate so Post
+  // credits each type to its own account. NULL on a row entered by hand: its
+  // whole adjustmentDeductions posts as a general deduction. When set, the
+  // server keeps adjustmentDeductions equal to its sum.
+  adjustmentDeductionSplit Json?
+  totalEarnings            Decimal? @db.Decimal(19, 4)
+  totalDeductions          Decimal? @db.Decimal(19, 4)
+  netPay                   Decimal? @db.Decimal(19, 4)
 
   ordering Int @default(0)
 
@@ -2247,6 +2257,9 @@ enum AccountSubtype {
   WITHHOLDING_TAX_PAYABLE
   EMPLOYEE_LOAN_RECEIVABLE
   SALARY_ADVANCE_RECEIVABLE
+  // Payroll deduction accounts (20260927000000_payroll_deduction_subtypes).
+  MESS_EXPENSE_RECOVERY
+  OTHER_DEDUCTIONS_PAYABLE
 }
 
 model Account {
@@ -4311,8 +4324,9 @@ model Bank {
   country   String?
   isActive  Boolean @default(true)
 
-  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  accounts HouseBankAccount[]
+  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accounts               HouseBankAccount[]
+  employeePaymentDetails EmployeePaymentDetail[]
 
   @@unique([companyId, code])
   @@map("banks")
@@ -4357,13 +4371,61 @@ model PaymentMethod {
   houseBankAccountId String?
   isActive           Boolean          @default(true)
 
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  houseBankAccount HouseBankAccount? @relation(fields: [houseBankAccountId], references: [id])
-  partners         BusinessPartner[]
+  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  houseBankAccount       HouseBankAccount?       @relation(fields: [houseBankAccountId], references: [id])
+  partners               BusinessPartner[]
+  employeePaymentDetails EmployeePaymentDetail[]
 
   @@unique([companyId, code])
   @@index([houseBankAccountId])
   @@map("payment_methods")
+}
+
+/// Where an employee's pay goes. A table of its own so no generic employee read
+/// carries account numbers; only the payment-details endpoint reads it, behind
+/// hr.employee_bank.view. The employee_payment_details_guard trigger checks the
+/// tenant, stamps bankDetailsChangedAt and writes the masked change history —
+/// never set those two columns from application code.
+model EmployeePaymentDetail {
+  id                   String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  companyId            String
+  employeeId           String    @unique
+  paymentMethodId      String?
+  bankId               String?
+  accountTitle         String?
+  accountNo            String?
+  iban                 String?
+  bankDetailsChangedAt DateTime?
+  updatedById          String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now())
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  bank          Bank?          @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@map("employee_payment_details")
+}
+
+/// Append-only history of EmployeePaymentDetail, written by its trigger.
+/// accountNo / iban values are masked to the last 4 characters.
+model EmployeePaymentDetailChange {
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  companyId   String
+  employeeId  String
+  field       String
+  oldValue    String?
+  newValue    String?
+  changedById String?
+  changedAt   DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, changedAt], map: "employee_payment_detail_changes_employee_idx")
+  @@map("employee_payment_detail_changes")
 }
 
 model DunningTerm {

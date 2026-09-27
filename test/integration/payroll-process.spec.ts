@@ -201,8 +201,10 @@ describe('Payroll Process — full flow', () => {
 
   it('Save Grid: saving the generated rows unchanged keeps every total', async () => {
     const rows = lines.map((l) => {
+      // adjustmentDeductionSplit is server-owned like the totals: a client that
+      // sends it back is refused (forbidNonWhitelisted), never trusted.
       const { id, payrollRunId, employee, grossPay, totalEarnings, totalDeductions, netPay, ordering, employeeType,
-        companyId: _c, payPeriodId: _p, runType: _t, runActive: _a, ...rest } = l;
+        companyId: _c, payPeriodId: _p, runType: _t, runActive: _a, adjustmentDeductionSplit: _s, ...rest } = l;
       return rest;
     });
     const saved = await su('put', `${RUNS}/${runId}/lines`, { rows });

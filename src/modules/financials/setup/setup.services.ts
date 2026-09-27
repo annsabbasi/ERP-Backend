@@ -133,6 +133,48 @@ export class HouseBankAccountsService extends TenantCrudService {
     },
   };
   constructor(prisma: PrismaService) { super(prisma); }
+
+  async create(companyId: string, dto: any) {
+    await this.checkRefs(companyId, dto, true);
+    return super.create(companyId, dto);
+  }
+
+  async update(companyId: string, id: string, dto: any) {
+    await this.checkRefs(companyId, dto, false);
+    return super.update(companyId, id, dto);
+  }
+
+  /**
+   * bankId and glAccountId arrive as bare ids from the client; both must be
+   * this company's. The G/L account is what a payment from this account
+   * credits (Pay Salaries, disbursements, remittances), so it must be a
+   * postable, active asset account — required on create, and never cleared.
+   */
+  private async checkRefs(companyId: string, dto: Record<string, unknown>, creating: boolean) {
+    if (dto.bankId !== undefined) {
+      const bank = await this.prisma.bank.findFirst({ where: { id: String(dto.bankId), companyId }, select: { id: true } });
+      if (!bank) throw new BadRequestException('That bank does not exist in this company.');
+    }
+    if (creating || dto.glAccountId !== undefined) {
+      if (!dto.glAccountId) {
+        throw new BadRequestException(
+          'A house bank account needs its G/L account (the bank account in the chart of accounts that payments from it credit).',
+        );
+      }
+      const acct = await this.prisma.account.findFirst({
+        where: { id: String(dto.glAccountId), companyId },
+        select: { type: true, isTitle: true, isActive: true, code: true },
+      });
+      if (!acct) throw new BadRequestException('That G/L account does not exist in this company.');
+      if (acct.type !== 'ASSET' || acct.isTitle || !acct.isActive) {
+        throw new BadRequestException(`G/L account ${acct.code} must be an active, postable (non-title) asset account.`);
+      }
+    }
+    if (dto.currency !== undefined) {
+      const cur = await this.prisma.currency.findFirst({ where: { companyId, code: String(dto.currency) }, select: { id: true } });
+      if (!cur) throw new BadRequestException(`Currency ${dto.currency} is not in this company's currency master.`);
+    }
+  }
 }
 
 @Injectable()
@@ -147,6 +189,26 @@ export class PaymentMethodsService extends TenantCrudService {
     include: { houseBankAccount: { select: { id: true, accountNo: true } } },
   };
   constructor(prisma: PrismaService) { super(prisma); }
+
+  async create(companyId: string, dto: any) {
+    await this.checkHouseBank(companyId, dto);
+    return super.create(companyId, dto);
+  }
+
+  async update(companyId: string, id: string, dto: any) {
+    await this.checkHouseBank(companyId, dto);
+    return super.update(companyId, id, dto);
+  }
+
+  /** houseBankAccountId arrives as a bare id; it must be this company's. */
+  private async checkHouseBank(companyId: string, dto: Record<string, unknown>) {
+    if (!dto.houseBankAccountId) return;
+    const hba = await this.prisma.houseBankAccount.findFirst({
+      where: { id: String(dto.houseBankAccountId), companyId },
+      select: { id: true },
+    });
+    if (!hba) throw new BadRequestException('That house bank account does not exist in this company.');
+  }
 }
 
 @Injectable()

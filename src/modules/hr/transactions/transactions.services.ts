@@ -2,17 +2,22 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { LeaveRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  ADJUSTMENT_DEDUCTION_TYPES,
+  UNCLASSIFIED_DEDUCTION,
+  adjustmentDeductionSplit,
   computePayslip,
   inclusiveDays,
   num,
   rowTotals,
   splitLeave,
+  splitTotal,
   type LeaveWindow,
 } from './payroll-calculation';
 import { TenantCrudOptions, TenantCrudService } from '../../../common/crud/tenant-crud.service';
 import { JournalEntriesService } from '../../financials/journal-entries/journal-entries.service';
 import { JournalLineDto } from '../../financials/journal-entries/dto/journal-entry.dto';
 import { AccountDeterminationService } from '../../financials/setup/setup.services';
+import { FiscalPeriodsService } from '../../financials/fiscal-periods/fiscal-periods.service';
 import {
   ReplaceAttendanceSheetLinesDto,
   ReplacePayrollRunLinesDto,
@@ -266,6 +271,7 @@ export class PayrollRunsService extends TenantCrudService {
     prisma: PrismaService,
     private readonly journals: JournalEntriesService,
     private readonly determinations: AccountDeterminationService,
+    private readonly periods: FiscalPeriodsService,
   ) { super(prisma); }
 
   protected beforeWrite(dto: Record<string, unknown>): Record<string, unknown> {
@@ -494,9 +500,22 @@ export class PayrollRunsService extends TenantCrudService {
     try {
       await this.prisma.$transaction(async (tx) => {
         this.assertOpenLocked(run, await this.lockRun(tx, companyId, runId), 'changed');
+        // A row Generate filled from a Monthly Adjustment document keeps that
+        // document's per-type split, and its "Other Ded." stays the split's
+        // sum whatever the grid sends: the grid shows one total, and a total
+        // typed over it would post with no type — no account — behind it.
+        // Change the deduction on the adjustment document and Generate again.
+        const splits = new Map(
+          (await tx.payrollRunLine.findMany({
+            where: { payrollRunId: runId, NOT: { adjustmentDeductionSplit: { equals: Prisma.DbNull } } },
+            select: { employeeId: true, adjustmentDeductionSplit: true },
+          })).map((l) => [l.employeeId, l.adjustmentDeductionSplit]),
+        );
         await tx.payrollRunLine.deleteMany({ where: { payrollRunId: runId } });
         await tx.payrollRunLine.createMany({
-          data: dto.rows.map((row, i) => {
+          data: dto.rows.map((sent, i) => {
+            const split = splits.get(sent.employeeId);
+            const row = split ? { ...sent, adjustmentDeductions: splitTotal(split) } : sent;
             const totals = rowTotals(row);
             return {
               payrollRunId: runId,
@@ -525,6 +544,7 @@ export class PayrollRunsService extends TenantCrudService {
               taxDeduction: row.taxDeduction as any,
               adjustmentAdditions: row.adjustmentAdditions as any,
               adjustmentDeductions: row.adjustmentDeductions as any,
+              adjustmentDeductionSplit: (split ?? Prisma.DbNull) as any,
               grossPay: totals.grossPay as any,
               totalEarnings: totals.totalEarnings as any,
               totalDeductions: totals.totalDeductions as any,
@@ -804,6 +824,7 @@ export class PayrollRunsService extends TenantCrudService {
         taxDeduction: slip.taxDeduction as any,
         adjustmentAdditions: slip.adjustmentAdditions as any,
         adjustmentDeductions: slip.adjustmentDeductions as any,
+        adjustmentDeductionSplit: (adjustmentDeductionSplit(adj) ?? Prisma.DbNull) as any,
         grossPay: totals.grossPay as any,
         totalEarnings: totals.totalEarnings as any,
         totalDeductions: totals.totalDeductions as any,
@@ -906,15 +927,21 @@ export class PayrollRunsService extends TenantCrudService {
    * route to the ledger, so the balance/period/immutability guards in
    * `JournalEntriesService` cannot be bypassed from HR.
    *
-   *   Dr  Salary expense      netPay + tax + loan + advance
+   *   Dr  Salary expense      total earnings - LOP
    *   Cr  Salaries payable    net pay               (what's still owed to employees)
    *   Cr  Tax payable         tax withheld           (only if any line has tax)
    *   Cr  Loan receivable     loan recovered         (only if any line has a loan deduction)
    *   Cr  Advance receivable  advance recovered      (only if any line has an advance deduction)
+   *   Cr  <deduction type>    one line per Monthly Adjustment deduction type
+   *                           in the run (mess, car/laptop, general, …), each
+   *                           on its own PAYROLL mapping (PDF §18–19)
    *
-   * `netPay + tax + loan + advance` is exactly `totalEarnings - lopDeduction -
-   * adjustmentDeductions` by construction of `rowTotals`, so the entry balances
-   * without a reconciling line.
+   * `totalEarnings - lopDeduction` equals the sum of the credits by
+   * construction of `rowTotals`; the expense is taken as that sum and checked
+   * against it, so a line whose stored totals disagree is refused rather than
+   * posted with a reconciling line. Before Phase 2 the deductions had no
+   * credit line and the expense was net of them; entries posted that way are
+   * reversed line for line, so cancelling one still nets to zero.
    *
    * In the same transaction as the journal entry, every loan/advance deduction
    * is written to the recovery ledger (which marks the installments Paid), so
@@ -965,7 +992,10 @@ export class PayrollRunsService extends TenantCrudService {
 
         const lines = await tx.payrollRunLine.findMany({
           where: { payrollRunId: runId },
-          select: { id: true, employeeId: true, netPay: true, taxDeduction: true, loanDeduction: true, advanceDeduction: true },
+          select: {
+            id: true, employeeId: true, netPay: true, taxDeduction: true, loanDeduction: true, advanceDeduction: true,
+            totalEarnings: true, lopDeduction: true, adjustmentDeductions: true, adjustmentDeductionSplit: true,
+          },
         });
         if (!lines.length) {
           throw new BadRequestException(
@@ -986,6 +1016,10 @@ export class PayrollRunsService extends TenantCrudService {
           throw new BadRequestException('Total net pay for this run is zero — nothing to post.');
         }
 
+        const deductions = this.deductionCredits(lines);
+        const deductionTotal = deductions.reduce((acc, d) => acc.plus(d.amount), ZERO);
+        const earningsLessLop = lines.reduce((acc, l) => acc.plus(D(l.totalEarnings)).minus(D(l.lopDeduction)), ZERO);
+
         const expenseAccount = accounts.require('salaryExpense');
         const payableAccount = accounts.require('salariesPayable');
         const taxAccount = totals.tax.gt(ZERO) ? accounts.require('taxPayable') : null;
@@ -998,7 +1032,14 @@ export class PayrollRunsService extends TenantCrudService {
         // Names are only needed to word a refusal; read them only then.
         const plan = await this.planRecoveriesOrExplain(tx, lines, installments);
 
-        const expenseAmount = totals.netPay.plus(totals.tax).plus(totals.loan).plus(totals.advance);
+        const expenseAmount = totals.netPay.plus(totals.tax).plus(totals.loan).plus(totals.advance).plus(deductionTotal);
+        if (money(expenseAmount) !== money(earningsLessLop)) {
+          throw new BadRequestException(
+            `This run's lines do not add up: total earnings less LOP is ${money(earningsLessLop)}, but net pay, ` +
+              `tax, loan, advance and other deductions come to ${money(expenseAmount)}. Save the grid again ` +
+              '(which recomputes every row) or Generate, then post.',
+          );
+        }
         const journalLines: JournalLineDto[] = [
           { accountId: expenseAccount, debit: money(expenseAmount), description: `Salary expense — ${label}` },
           { accountId: payableAccount, credit: money(totals.netPay), description: `Salaries payable — ${label}` },
@@ -1011,6 +1052,9 @@ export class PayrollRunsService extends TenantCrudService {
         }
         if (advanceAccount) {
           journalLines.push({ accountId: advanceAccount, credit: money(totals.advance), description: `Advance recovered — ${label}` });
+        }
+        for (const d of deductions) {
+          journalLines.push({ accountId: accounts.requireKey(d.key), credit: money(d.amount), description: `${d.label} — ${label}` });
         }
 
         const entry = await this.journals.postFromSource(tx, companyId, userId, {
@@ -1090,7 +1134,58 @@ export class PayrollRunsService extends TenantCrudService {
         }
         return id;
       },
+      /** A PAYROLL key outside PAYROLL_DETERMINATION (the deduction types). */
+      requireKey: (key: string) => {
+        const id = byKey.get(key);
+        if (!id) {
+          throw new BadRequestException(
+            `No G/L account is mapped for PAYROLL/${key}. ` +
+              'Set it under Administration → Setup → Financials → G/L Account Determination.',
+          );
+        }
+        return id;
+      },
     };
+  }
+
+  /**
+   * One credit per deduction type, summed over the run's lines, in the order
+   * of ADJUSTMENT_DEDUCTION_TYPES. A line's stored split supplies the types; a
+   * line with no split (entered by hand), or whatever part of its "Other Ded."
+   * the split does not explain, posts as a general deduction. A negative
+   * total is refused: it would be a debit on a payable.
+   */
+  private deductionCredits(
+    lines: { adjustmentDeductions: unknown; adjustmentDeductionSplit: unknown }[],
+  ): { key: string; label: string; amount: Prisma.Decimal }[] {
+    const byField = new Map<string, Prisma.Decimal>();
+    const add = (field: string, v: Prisma.Decimal) => byField.set(field, (byField.get(field) ?? ZERO).plus(v));
+    for (const l of lines) {
+      const split = (l.adjustmentDeductionSplit ?? null) as Record<string, unknown> | null;
+      let explained = ZERO;
+      if (split) {
+        for (const t of ADJUSTMENT_DEDUCTION_TYPES) {
+          if (split[t.field] == null) continue;
+          const v = D(split[t.field]);
+          add(t.field, v);
+          explained = explained.plus(v);
+        }
+      }
+      const rest = D(l.adjustmentDeductions).minus(explained);
+      if (!rest.isZero()) add(UNCLASSIFIED_DEDUCTION.field, rest);
+    }
+    const out: { key: string; label: string; amount: Prisma.Decimal }[] = [];
+    for (const t of ADJUSTMENT_DEDUCTION_TYPES) {
+      const amount = byField.get(t.field);
+      if (!amount || amount.isZero()) continue;
+      if (amount.isNegative()) {
+        throw new BadRequestException(
+          `${t.label} totals ${money(amount)} for this run. A deduction cannot be negative; correct the Monthly Adjustment document or the grid, then post.`,
+        );
+      }
+      out.push({ key: t.key, label: t.label, amount });
+    }
+    return out;
   }
 
   /**
@@ -1179,20 +1274,54 @@ export class PayrollRunsService extends TenantCrudService {
    * offset. Exactly this run's recovery rows are reversed in the same
    * transaction, which puts the installments back to what they were.
    */
+  /**
+   * What Cancel Posting would do, for the confirm dialog: the date its
+   * reversal will carry (PDF §33 — the original date while its period is open,
+   * else the first day of the next open period). Read-only.
+   */
+  async cancelPreview(companyId: string, runId: string) {
+    const run = await this.findOne(companyId, runId) as any;
+    this.assertCancellable(run, run.status ?? OPEN);
+    const original = await this.postedEntry(companyId, run);
+    const r = await this.periods.reversalDateFor(companyId, original.date, 'general');
+    return {
+      journalEntryNo: original.number,
+      originalDate: original.date,
+      originalPeriod: r.originalPeriodName,
+      reversalDate: r.date,
+      reversalPeriod: r.periodName,
+      shifted: r.shifted,
+    };
+  }
+
+  private async postedEntry(companyId: string, run: { journalEntryId?: string | null } & Record<string, unknown>) {
+    if (!run.journalEntryId) {
+      throw new ConflictException(`Payroll run ${this.label(run as any)} has no linked journal entry to reverse.`);
+    }
+    const entry = await this.prisma.journalEntry.findFirst({
+      where: { id: run.journalEntryId, companyId },
+      select: { number: true, date: true },
+    });
+    if (!entry) throw new ConflictException(`The journal entry of payroll run ${this.label(run as any)} was not found.`);
+    return entry;
+  }
+
   async cancel(companyId: string, runId: string, userId: string, dto: CancelPayrollRunDto = {}) {
     const run = await this.findOne(companyId, runId) as any;
     this.assertCancellable(run, run.status ?? OPEN);
-    if (!run.journalEntryId) {
-      throw new ConflictException(`Payroll run ${this.label(run)} has no linked journal entry to reverse.`);
-    }
+    const original = await this.postedEntry(companyId, run);
 
     return this.prisma.$transaction(async (tx) => {
       // Same pattern as Post: a second Cancel waits here, then sees "Cancelled".
       // (journal_entries.reversalOfId is unique as well, so the ledger itself
       // cannot hold two reversals of one entry.)
       this.assertCancellable(run, await this.lockRun(tx, companyId, runId));
+      // Decided under the lock, from the period statuses as they are now —
+      // the same rule the preview showed, not a date the client sends.
+      const { date } = await this.periods.reversalDateFor(companyId, original.date, 'general', tx);
       const reversal = await this.journals.reverseFromSource(tx, companyId, userId, run.journalEntryId, {
         reason: dto.reason || `Cancellation of payroll run ${this.label(run)}`,
+        date: date.toISOString(),
       });
 
       await tx.loanRecovery.updateMany({

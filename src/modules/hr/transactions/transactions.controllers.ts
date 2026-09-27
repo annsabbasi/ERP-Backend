@@ -92,6 +92,13 @@ export class PayrollRunsController extends TenantCrudController({
     return this.service.post(user.companyId as string, id, user.sub);
   }
 
+  @ApiOperation({ summary: 'The date Cancel Posting would reverse on (for the confirm dialog); read-only' })
+  @RequirePermission('finance.journal.post')
+  @Get(':id/cancel-preview')
+  cancelPreview(@CurrentUser() user: AuthedUser, @Param('id') id: string) {
+    return this.service.cancelPreview(user.companyId as string, id);
+  }
+
   @ApiOperation({ summary: 'Cancel a posted payroll run by reversing its journal entry' })
   @RequirePermission('finance.journal.post')
   @Post(':id/cancel')

@@ -15,6 +15,8 @@ import { OnboardingController } from './onboarding/onboarding.controller';
 import { OnboardingService } from './onboarding/onboarding.service';
 import { PositionsController } from './positions/positions.controller';
 import { PositionsService } from './positions/positions.service';
+import { PaymentDetailsController } from './payment-details/payment-details.controller';
+import { PaymentDetailsService } from './payment-details/payment-details.service';
 import {
   EmployeeCategoriesController,
   GradesController,
@@ -51,6 +53,7 @@ import {
     HrController,
     PositionsController,
     ContractsController,
+    PaymentDetailsController,
     LeavesController,
     AttendanceController,
     OnboardingController,
@@ -68,6 +71,7 @@ import {
     HrService,
     PositionsService,
     ContractsService,
+    PaymentDetailsService,
     LeavesService,
     AttendanceService,
     ShiftsService,

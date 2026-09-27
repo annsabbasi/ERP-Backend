@@ -196,16 +196,55 @@ export const adjustmentAdditions = (a: AdjustmentLine | null | undefined): numbe
   );
 
 /**
- * Note `loanDeduction` is deliberately excluded: it is reported on its own
- * line, and counting it here as well would deduct the installment twice.
+ * The Monthly Adjustment deduction types, each with the PAYROLL G/L mapping
+ * key its JE credit line posts to (20260927010000_payroll_phase2a). The order
+ * is the order the lines appear in the journal entry.
+ *
+ * `loanDeduction` is deliberately not a type: it is reported on its own column
+ * and credits loan_receivable, and counting it here as well would deduct the
+ * installment twice.
  */
+export const ADJUSTMENT_DEDUCTION_TYPES = [
+  { field: 'messDeduction', key: 'mess_deduction', label: 'Mess deduction' },
+  { field: 'carInsLaptopDed', key: 'car_ins_laptop_deduction', label: 'Car insurance / laptop deduction' },
+  { field: 'carInsLaptopDed2', key: 'car_ins_laptop_deduction_2', label: 'Car insurance / laptop deduction 2' },
+  { field: 'generalDeduction', key: 'general_deduction', label: 'General deduction' },
+  { field: 'generalDeduction2', key: 'general_deduction_2', label: 'General deduction 2' },
+  { field: 'deduction11', key: 'deduction_11', label: 'Deduction 11' },
+  { field: 'deduction12', key: 'deduction_12', label: 'Deduction 12' },
+  { field: 'deduction13', key: 'deduction_13', label: 'Deduction 13' },
+  { field: 'deduction14', key: 'deduction_14', label: 'Deduction 14' },
+  { field: 'deduction15', key: 'deduction_15', label: 'Deduction 15' },
+] as const;
+
+export type AdjustmentDeductionField = (typeof ADJUSTMENT_DEDUCTION_TYPES)[number]['field'];
+/** Non-zero deduction types only, e.g. { messDeduction: 500 }. */
+export type DeductionSplit = Partial<Record<AdjustmentDeductionField, number>>;
+
+/** Where a deduction with no type behind it (a hand-entered grid value) posts. */
+export const UNCLASSIFIED_DEDUCTION = ADJUSTMENT_DEDUCTION_TYPES.find((t) => t.field === 'generalDeduction')!;
+
+/** The document's deduction types for one employee; null when it has none. */
+export function adjustmentDeductionSplit(a: AdjustmentLine | null | undefined): DeductionSplit | null {
+  if (!a) return null;
+  const split: DeductionSplit = {};
+  for (const t of ADJUSTMENT_DEDUCTION_TYPES) {
+    const v = money(num(a[t.field]));
+    if (v !== 0) split[t.field] = v;
+  }
+  return Object.keys(split).length ? split : null;
+}
+
+/** Sum of a stored split, tolerant of a JSON value read back from the database. */
+export function splitTotal(split: unknown): number {
+  if (!split || typeof split !== 'object') return 0;
+  let total = 0;
+  for (const t of ADJUSTMENT_DEDUCTION_TYPES) total += num((split as Record<string, Numish>)[t.field]);
+  return money(total);
+}
+
 export const adjustmentDeductions = (a: AdjustmentLine | null | undefined): number =>
-  !a ? 0 : money(
-    num(a.generalDeduction) + num(a.carInsLaptopDed) + num(a.messDeduction) +
-    num(a.generalDeduction2) + num(a.carInsLaptopDed2) +
-    num(a.deduction11) + num(a.deduction12) + num(a.deduction13) +
-    num(a.deduction14) + num(a.deduction15),
-  );
+  splitTotal(adjustmentDeductionSplit(a));
 
 // ─── The payslip ──────────────────────────────────────────────────────────────
 

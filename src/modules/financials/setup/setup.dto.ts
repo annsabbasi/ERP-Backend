@@ -13,6 +13,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -277,12 +278,17 @@ export class CreateHouseBankAccountDto {
 }
 export class UpdateHouseBankAccountDto extends PartialType(CreateHouseBankAccountDto) {}
 
+export const PAYMENT_MEANS = ['cash', 'check', 'online', 'ibft', 'loan', 'advance', 'bank_transfer', 'credit_card'] as const;
+
 export class CreatePaymentMethodDto {
   @ApiProperty() @IsString() @IsNotEmpty() code!: string;
   @ApiProperty() @IsString() @IsNotEmpty() description!: string;
   @ApiPropertyOptional({ enum: PaymentDirection }) @IsOptional() @IsEnum(PaymentDirection) direction?: PaymentDirection;
-  @ApiPropertyOptional({ enum: ['check', 'bank_transfer', 'cash', 'credit_card'] })
-  @IsOptional() @IsString() paymentMeans?: string;
+  // Outgoing payroll methods (Phase 2): cash, check, online, ibft, loan, advance.
+  // Incoming: bank_transfer, credit_card. Each decides what a payment made with
+  // it must carry (cheque no., bank account, transfer reference, IBAN).
+  @ApiPropertyOptional({ enum: PAYMENT_MEANS })
+  @IsOptional() @IsIn(PAYMENT_MEANS) paymentMeans?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() houseBankAccountId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }

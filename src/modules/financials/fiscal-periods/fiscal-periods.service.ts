@@ -189,6 +189,70 @@ export class FiscalPeriodsService extends TenantCrudService {
     return resolved;
   }
 
+  /**
+   * The date a reversal of an entry posted on `originalDate` must carry (PDF
+   * §33): the original date while its period still accepts postings, so the
+   * pair nets out inside the period it belongs to; otherwise the first day of
+   * the earliest later period that is open for `area`. Refuses (409) when no
+   * later period is open — the reversal would have nowhere to go.
+   *
+   * Every cancel/reverse of a payroll document dates its reversal from here,
+   * and the confirm dialogs show the same answer before the user commits.
+   */
+  async reversalDateFor(
+    companyId: string,
+    originalDate: Date,
+    area: PostingArea = 'general',
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ date: Date; periodName: string; shifted: boolean; originalPeriodName: string | null }> {
+    const client = tx ?? this.prisma;
+    const covering = await client.fiscalPeriod.findFirst({
+      where: {
+        companyId,
+        startDate: { lte: originalDate },
+        endDate: { gte: originalDate },
+        NOT: { subPeriodType: SubPeriodType.YEAR },
+      },
+      orderBy: { startDate: 'desc' },
+    });
+    if (covering && this.acceptsPostings(covering, area)) {
+      return { date: originalDate, periodName: covering.name, shifted: false, originalPeriodName: covering.name };
+    }
+
+    const after = covering?.endDate ?? originalDate;
+    const candidates = await client.fiscalPeriod.findMany({
+      where: {
+        companyId,
+        startDate: { gt: after },
+        NOT: { subPeriodType: SubPeriodType.YEAR },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+    const next = candidates.find((p) => this.acceptsPostings(p, area));
+    if (!next) {
+      throw new ConflictException(
+        `The original posting's period${covering ? ` "${covering.name}"` : ''} is closed and no later posting period ` +
+          'is open, so the reversal has no date to post on. Open the next period under ' +
+          'Administration → System Initialization → Posting Periods, then try again.',
+      );
+    }
+    return { date: next.startDate, periodName: next.name, shifted: true, originalPeriodName: covering?.name ?? null };
+  }
+
+  /** The same test resolveOpenPeriod applies, as a yes/no. */
+  private acceptsPostings(
+    period: { status: FiscalPeriodStatus } & Record<'generalStatus' | 'salesStatus' | 'purchasingStatus' | 'inventoryStatus', FiscalPeriodStatus>,
+    area: PostingArea,
+  ) {
+    const areaStatus = period[AREA_FIELD[area]];
+    return (
+      period.status !== FiscalPeriodStatus.LOCKED &&
+      period.status !== FiscalPeriodStatus.CLOSED &&
+      areaStatus !== FiscalPeriodStatus.CLOSED &&
+      areaStatus !== FiscalPeriodStatus.LOCKED
+    );
+  }
+
   /** Changes the overall status, or one area's status, with the legal transitions enforced. */
   async setStatus(
     companyId: string,
