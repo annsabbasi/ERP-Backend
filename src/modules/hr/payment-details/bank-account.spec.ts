@@ -1,8 +1,17 @@
-import { ibanProblem, maskTail, normalizeAccountNo, normalizeIban } from './bank-account';
+import {
+  ibanProblem,
+  maskTail,
+  normalizeAccountNo,
+  normalizeIban,
+} from './bank-account';
 
 describe('employee bank account rules', () => {
   it('accepts published example IBANs', () => {
-    for (const iban of ['PK36SCBL0000001123456702', 'GB82WEST12345698765432', 'DE89370400440532013000']) {
+    for (const iban of [
+      'PK36SCBL0000001123456702',
+      'GB82WEST12345698765432',
+      'DE89370400440532013000',
+    ]) {
       expect(ibanProblem(iban)).toBeNull();
     }
   });
@@ -12,7 +21,9 @@ describe('employee bank account rules', () => {
   });
 
   it('holds a PK IBAN to 24 characters', () => {
-    expect(ibanProblem('PK36SCBL000000112345670')).toMatch(/24 characters; this one has 23/);
+    expect(ibanProblem('PK36SCBL000000112345670')).toMatch(
+      /24 characters; this one has 23/,
+    );
   });
 
   it('refuses anything not shaped like an IBAN', () => {
@@ -20,12 +31,16 @@ describe('employee bank account rules', () => {
   });
 
   it('normalizes what people type', () => {
-    expect(normalizeIban('pk36 scbl-0000 0011 2345 6702')).toBe('PK36SCBL0000001123456702');
+    expect(normalizeIban('pk36 scbl-0000 0011 2345 6702')).toBe(
+      'PK36SCBL0000001123456702',
+    );
     expect(normalizeAccountNo('0012 3456-7890')).toBe('00123456-7890');
   });
 
   it('masks all but the last four characters', () => {
-    expect(maskTail('PK36SCBL0000001123456702')).toBe('********************6702');
+    expect(maskTail('PK36SCBL0000001123456702')).toBe(
+      '********************6702',
+    );
     expect(maskTail('123')).toBe('***');
     expect(maskTail(null)).toBeNull();
   });

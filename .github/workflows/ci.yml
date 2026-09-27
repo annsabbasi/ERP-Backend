@@ -67,9 +67,12 @@ jobs:
       - name: Typecheck and build
         run: npm run build
 
-      - name: Lint
-        run: npm run lint -- --max-warnings=0
-        continue-on-error: true
+      # QA L1: blocking. The lint debt that predates this check is the
+      # baseline in lint-baseline.json and may only shrink: no file may gain a
+      # problem, a new file must have none (scripts/lint-ratchet.mjs). Not
+      # `npm run lint` — that script has --fix.
+      - name: Lint ratchet
+        run: node scripts/lint-ratchet.mjs
 
       - name: Integration tests
         # Covers the reporting views (which Prisma does not manage and cannot

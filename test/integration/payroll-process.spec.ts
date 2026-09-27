@@ -200,11 +200,28 @@ describe('Payroll Process — full flow', () => {
   });
 
   it('Save Grid: saving the generated rows unchanged keeps every total', async () => {
+    // Everything the server owns is dropped before sending the row back — ids,
+    // totals, the run mirror columns, and adjustmentDeductionSplit, which a
+    // client that sends it is refused for (forbidNonWhitelisted), never trusted.
+    const serverOwned = [
+      'id',
+      'payrollRunId',
+      'employee',
+      'grossPay',
+      'totalEarnings',
+      'totalDeductions',
+      'netPay',
+      'ordering',
+      'employeeType',
+      'companyId',
+      'payPeriodId',
+      'runType',
+      'runActive',
+      'adjustmentDeductionSplit',
+    ];
     const rows = lines.map((l) => {
-      // adjustmentDeductionSplit is server-owned like the totals: a client that
-      // sends it back is refused (forbidNonWhitelisted), never trusted.
-      const { id, payrollRunId, employee, grossPay, totalEarnings, totalDeductions, netPay, ordering, employeeType,
-        companyId: _c, payPeriodId: _p, runType: _t, runActive: _a, adjustmentDeductionSplit: _s, ...rest } = l;
+      const rest = { ...l };
+      for (const k of serverOwned) delete rest[k];
       return rest;
     });
     const saved = await su('put', `${RUNS}/${runId}/lines`, { rows });

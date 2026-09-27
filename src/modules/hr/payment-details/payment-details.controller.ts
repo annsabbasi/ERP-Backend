@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { TenantContextService } from '../../../common/context/tenant-context.service';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { AuthedUser } from '../../../common/crud/tenant-crud.controller';
 import { RequirePermission } from '../../../common/decorators/permissions.decorator';
 import { RequireModule } from '../../../common/decorators/module-access.decorator';
 import { PutPaymentDetailsDto } from './payment-details.dto';
@@ -49,7 +50,7 @@ export class PaymentDetailsController {
   put(
     @Param('employeeId') employeeId: string,
     @Body() dto: PutPaymentDetailsDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthedUser | undefined,
     @Req() req: Request,
   ) {
     return this.details.put(this.tenant.requireCompanyId(), employeeId, dto, {

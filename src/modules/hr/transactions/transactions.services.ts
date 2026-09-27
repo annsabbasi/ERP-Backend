@@ -11,6 +11,7 @@ import {
   rowTotals,
   splitLeave,
   splitTotal,
+  type AdjustmentLine,
   type LeaveWindow,
 } from './payroll-calculation';
 import { TenantCrudOptions, TenantCrudService } from '../../../common/crud/tenant-crud.service';
@@ -30,6 +31,11 @@ const dayMs = 24 * 60 * 60 * 1000;
 
 const D = (v: unknown) => new Prisma.Decimal((v as number | string) ?? 0);
 const ZERO = new Prisma.Decimal(0);
+/** A document's deduction split as the JSON column stores it (NULL when it has none). */
+const splitJson = (adj: AdjustmentLine | null) => {
+  const split = adjustmentDeductionSplit(adj);
+  return split ? (split as Prisma.InputJsonObject) : Prisma.DbNull;
+};
 const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toFixed(2));
 
 /**
@@ -251,6 +257,12 @@ interface OutstandingInstallment {
   dueDate: Date | null;
   outstanding: Prisma.Decimal;
 }
+
+/** What Cancel reads off a payroll run (findOne's include is untyped). */
+type CancellableRun = {
+  status?: string | null;
+  journalEntryId?: string | null;
+} & Record<string, unknown>;
 
 @Injectable()
 export class PayrollRunsService extends TenantCrudService {
@@ -506,16 +518,23 @@ export class PayrollRunsService extends TenantCrudService {
         // typed over it would post with no type — no account — behind it.
         // Change the deduction on the adjustment document and Generate again.
         const splits = new Map(
-          (await tx.payrollRunLine.findMany({
-            where: { payrollRunId: runId, NOT: { adjustmentDeductionSplit: { equals: Prisma.DbNull } } },
-            select: { employeeId: true, adjustmentDeductionSplit: true },
-          })).map((l) => [l.employeeId, l.adjustmentDeductionSplit]),
+          (
+            await tx.payrollRunLine.findMany({
+              where: {
+                payrollRunId: runId,
+                NOT: { adjustmentDeductionSplit: { equals: Prisma.DbNull } },
+              },
+              select: { employeeId: true, adjustmentDeductionSplit: true },
+            })
+          ).map((l) => [l.employeeId, l.adjustmentDeductionSplit]),
         );
         await tx.payrollRunLine.deleteMany({ where: { payrollRunId: runId } });
         await tx.payrollRunLine.createMany({
           data: dto.rows.map((sent, i) => {
             const split = splits.get(sent.employeeId);
-            const row = split ? { ...sent, adjustmentDeductions: splitTotal(split) } : sent;
+            const row = split
+              ? { ...sent, adjustmentDeductions: splitTotal(split) }
+              : sent;
             const totals = rowTotals(row);
             return {
               payrollRunId: runId,
@@ -544,7 +563,7 @@ export class PayrollRunsService extends TenantCrudService {
               taxDeduction: row.taxDeduction as any,
               adjustmentAdditions: row.adjustmentAdditions as any,
               adjustmentDeductions: row.adjustmentDeductions as any,
-              adjustmentDeductionSplit: (split ?? Prisma.DbNull) as any,
+              adjustmentDeductionSplit: split ? split : Prisma.DbNull,
               grossPay: totals.grossPay as any,
               totalEarnings: totals.totalEarnings as any,
               totalDeductions: totals.totalDeductions as any,
@@ -824,7 +843,7 @@ export class PayrollRunsService extends TenantCrudService {
         taxDeduction: slip.taxDeduction as any,
         adjustmentAdditions: slip.adjustmentAdditions as any,
         adjustmentDeductions: slip.adjustmentDeductions as any,
-        adjustmentDeductionSplit: (adjustmentDeductionSplit(adj) ?? Prisma.DbNull) as any,
+        adjustmentDeductionSplit: splitJson(adj as AdjustmentLine | null),
         grossPay: totals.grossPay as any,
         totalEarnings: totals.totalEarnings as any,
         totalDeductions: totals.totalDeductions as any,
@@ -993,8 +1012,16 @@ export class PayrollRunsService extends TenantCrudService {
         const lines = await tx.payrollRunLine.findMany({
           where: { payrollRunId: runId },
           select: {
-            id: true, employeeId: true, netPay: true, taxDeduction: true, loanDeduction: true, advanceDeduction: true,
-            totalEarnings: true, lopDeduction: true, adjustmentDeductions: true, adjustmentDeductionSplit: true,
+            id: true,
+            employeeId: true,
+            netPay: true,
+            taxDeduction: true,
+            loanDeduction: true,
+            advanceDeduction: true,
+            totalEarnings: true,
+            lopDeduction: true,
+            adjustmentDeductions: true,
+            adjustmentDeductionSplit: true,
           },
         });
         if (!lines.length) {
@@ -1017,8 +1044,14 @@ export class PayrollRunsService extends TenantCrudService {
         }
 
         const deductions = this.deductionCredits(lines);
-        const deductionTotal = deductions.reduce((acc, d) => acc.plus(d.amount), ZERO);
-        const earningsLessLop = lines.reduce((acc, l) => acc.plus(D(l.totalEarnings)).minus(D(l.lopDeduction)), ZERO);
+        const deductionTotal = deductions.reduce(
+          (acc, d) => acc.plus(d.amount),
+          ZERO,
+        );
+        const earningsLessLop = lines.reduce(
+          (acc, l) => acc.plus(D(l.totalEarnings)).minus(D(l.lopDeduction)),
+          ZERO,
+        );
 
         const expenseAccount = accounts.require('salaryExpense');
         const payableAccount = accounts.require('salariesPayable');
@@ -1032,7 +1065,11 @@ export class PayrollRunsService extends TenantCrudService {
         // Names are only needed to word a refusal; read them only then.
         const plan = await this.planRecoveriesOrExplain(tx, lines, installments);
 
-        const expenseAmount = totals.netPay.plus(totals.tax).plus(totals.loan).plus(totals.advance).plus(deductionTotal);
+        const expenseAmount = totals.netPay
+          .plus(totals.tax)
+          .plus(totals.loan)
+          .plus(totals.advance)
+          .plus(deductionTotal);
         if (money(expenseAmount) !== money(earningsLessLop)) {
           throw new BadRequestException(
             `This run's lines do not add up: total earnings less LOP is ${money(earningsLessLop)}, but net pay, ` +
@@ -1054,7 +1091,11 @@ export class PayrollRunsService extends TenantCrudService {
           journalLines.push({ accountId: advanceAccount, credit: money(totals.advance), description: `Advance recovered — ${label}` });
         }
         for (const d of deductions) {
-          journalLines.push({ accountId: accounts.requireKey(d.key), credit: money(d.amount), description: `${d.label} — ${label}` });
+          journalLines.push({
+            accountId: accounts.requireKey(d.key),
+            credit: money(d.amount),
+            description: `${d.label} — ${label}`,
+          });
         }
 
         const entry = await this.journals.postFromSource(tx, companyId, userId, {
@@ -1156,12 +1197,19 @@ export class PayrollRunsService extends TenantCrudService {
    * total is refused: it would be a debit on a payable.
    */
   private deductionCredits(
-    lines: { adjustmentDeductions: unknown; adjustmentDeductionSplit: unknown }[],
+    lines: {
+      adjustmentDeductions: unknown;
+      adjustmentDeductionSplit: unknown;
+    }[],
   ): { key: string; label: string; amount: Prisma.Decimal }[] {
     const byField = new Map<string, Prisma.Decimal>();
-    const add = (field: string, v: Prisma.Decimal) => byField.set(field, (byField.get(field) ?? ZERO).plus(v));
+    const add = (field: string, v: Prisma.Decimal) =>
+      byField.set(field, (byField.get(field) ?? ZERO).plus(v));
     for (const l of lines) {
-      const split = (l.adjustmentDeductionSplit ?? null) as Record<string, unknown> | null;
+      const split = (l.adjustmentDeductionSplit ?? null) as Record<
+        string,
+        unknown
+      > | null;
       let explained = ZERO;
       if (split) {
         for (const t of ADJUSTMENT_DEDUCTION_TYPES) {
@@ -1280,10 +1328,14 @@ export class PayrollRunsService extends TenantCrudService {
    * else the first day of the next open period). Read-only.
    */
   async cancelPreview(companyId: string, runId: string) {
-    const run = await this.findOne(companyId, runId) as any;
+    const run = (await this.findOne(companyId, runId)) as CancellableRun;
     this.assertCancellable(run, run.status ?? OPEN);
     const original = await this.postedEntry(companyId, run);
-    const r = await this.periods.reversalDateFor(companyId, original.date, 'general');
+    const r = await this.periods.reversalDateFor(
+      companyId,
+      original.date,
+      'general',
+    );
     return {
       journalEntryNo: original.number,
       originalDate: original.date,
@@ -1294,20 +1346,30 @@ export class PayrollRunsService extends TenantCrudService {
     };
   }
 
-  private async postedEntry(companyId: string, run: { journalEntryId?: string | null } & Record<string, unknown>) {
+  private async postedEntry(companyId: string, run: CancellableRun) {
     if (!run.journalEntryId) {
-      throw new ConflictException(`Payroll run ${this.label(run as any)} has no linked journal entry to reverse.`);
+      throw new ConflictException(
+        `Payroll run ${this.label(run as any)} has no linked journal entry to reverse.`,
+      );
     }
     const entry = await this.prisma.journalEntry.findFirst({
       where: { id: run.journalEntryId, companyId },
-      select: { number: true, date: true },
+      select: { id: true, number: true, date: true },
     });
-    if (!entry) throw new ConflictException(`The journal entry of payroll run ${this.label(run as any)} was not found.`);
+    if (!entry)
+      throw new ConflictException(
+        `The journal entry of payroll run ${this.label(run as any)} was not found.`,
+      );
     return entry;
   }
 
-  async cancel(companyId: string, runId: string, userId: string, dto: CancelPayrollRunDto = {}) {
-    const run = await this.findOne(companyId, runId) as any;
+  async cancel(
+    companyId: string,
+    runId: string,
+    userId: string,
+    dto: CancelPayrollRunDto = {},
+  ) {
+    const run = (await this.findOne(companyId, runId)) as CancellableRun;
     this.assertCancellable(run, run.status ?? OPEN);
     const original = await this.postedEntry(companyId, run);
 
@@ -1318,11 +1380,23 @@ export class PayrollRunsService extends TenantCrudService {
       this.assertCancellable(run, await this.lockRun(tx, companyId, runId));
       // Decided under the lock, from the period statuses as they are now —
       // the same rule the preview showed, not a date the client sends.
-      const { date } = await this.periods.reversalDateFor(companyId, original.date, 'general', tx);
-      const reversal = await this.journals.reverseFromSource(tx, companyId, userId, run.journalEntryId, {
-        reason: dto.reason || `Cancellation of payroll run ${this.label(run)}`,
-        date: date.toISOString(),
-      });
+      const { date } = await this.periods.reversalDateFor(
+        companyId,
+        original.date,
+        'general',
+        tx,
+      );
+      const reversal = await this.journals.reverseFromSource(
+        tx,
+        companyId,
+        userId,
+        original.id,
+        {
+          reason:
+            dto.reason || `Cancellation of payroll run ${this.label(run)}`,
+          date: date.toISOString(),
+        },
+      );
 
       await tx.loanRecovery.updateMany({
         where: { companyId, payrollRunId: runId, source: 'payroll', reversedAt: null },

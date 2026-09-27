@@ -278,7 +278,16 @@ export class CreateHouseBankAccountDto {
 }
 export class UpdateHouseBankAccountDto extends PartialType(CreateHouseBankAccountDto) {}
 
-export const PAYMENT_MEANS = ['cash', 'check', 'online', 'ibft', 'loan', 'advance', 'bank_transfer', 'credit_card'] as const;
+export const PAYMENT_MEANS = [
+  'cash',
+  'check',
+  'online',
+  'ibft',
+  'loan',
+  'advance',
+  'bank_transfer',
+  'credit_card',
+] as const;
 
 export class CreatePaymentMethodDto {
   @ApiProperty() @IsString() @IsNotEmpty() code!: string;
@@ -288,7 +297,9 @@ export class CreatePaymentMethodDto {
   // Incoming: bank_transfer, credit_card. Each decides what a payment made with
   // it must carry (cheque no., bank account, transfer reference, IBAN).
   @ApiPropertyOptional({ enum: PAYMENT_MEANS })
-  @IsOptional() @IsIn(PAYMENT_MEANS) paymentMeans?: string;
+  @IsOptional()
+  @IsIn(PAYMENT_MEANS)
+  paymentMeans?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() houseBankAccountId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }

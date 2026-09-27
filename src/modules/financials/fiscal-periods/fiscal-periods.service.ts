@@ -204,7 +204,12 @@ export class FiscalPeriodsService extends TenantCrudService {
     originalDate: Date,
     area: PostingArea = 'general',
     tx?: Prisma.TransactionClient,
-  ): Promise<{ date: Date; periodName: string; shifted: boolean; originalPeriodName: string | null }> {
+  ): Promise<{
+    date: Date;
+    periodName: string;
+    shifted: boolean;
+    originalPeriodName: string | null;
+  }> {
     const client = tx ?? this.prisma;
     const covering = await client.fiscalPeriod.findFirst({
       where: {
@@ -216,7 +221,12 @@ export class FiscalPeriodsService extends TenantCrudService {
       orderBy: { startDate: 'desc' },
     });
     if (covering && this.acceptsPostings(covering, area)) {
-      return { date: originalDate, periodName: covering.name, shifted: false, originalPeriodName: covering.name };
+      return {
+        date: originalDate,
+        periodName: covering.name,
+        shifted: false,
+        originalPeriodName: covering.name,
+      };
     }
 
     const after = covering?.endDate ?? originalDate;
@@ -236,12 +246,20 @@ export class FiscalPeriodsService extends TenantCrudService {
           'Administration → System Initialization → Posting Periods, then try again.',
       );
     }
-    return { date: next.startDate, periodName: next.name, shifted: true, originalPeriodName: covering?.name ?? null };
+    return {
+      date: next.startDate,
+      periodName: next.name,
+      shifted: true,
+      originalPeriodName: covering?.name ?? null,
+    };
   }
 
   /** The same test resolveOpenPeriod applies, as a yes/no. */
   private acceptsPostings(
-    period: { status: FiscalPeriodStatus } & Record<'generalStatus' | 'salesStatus' | 'purchasingStatus' | 'inventoryStatus', FiscalPeriodStatus>,
+    period: { status: FiscalPeriodStatus } & Record<
+      'generalStatus' | 'salesStatus' | 'purchasingStatus' | 'inventoryStatus',
+      FiscalPeriodStatus
+    >,
     area: PostingArea,
   ) {
     const areaStatus = period[AREA_FIELD[area]];

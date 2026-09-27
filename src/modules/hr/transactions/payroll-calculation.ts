@@ -206,10 +206,26 @@ export const adjustmentAdditions = (a: AdjustmentLine | null | undefined): numbe
  */
 export const ADJUSTMENT_DEDUCTION_TYPES = [
   { field: 'messDeduction', key: 'mess_deduction', label: 'Mess deduction' },
-  { field: 'carInsLaptopDed', key: 'car_ins_laptop_deduction', label: 'Car insurance / laptop deduction' },
-  { field: 'carInsLaptopDed2', key: 'car_ins_laptop_deduction_2', label: 'Car insurance / laptop deduction 2' },
-  { field: 'generalDeduction', key: 'general_deduction', label: 'General deduction' },
-  { field: 'generalDeduction2', key: 'general_deduction_2', label: 'General deduction 2' },
+  {
+    field: 'carInsLaptopDed',
+    key: 'car_ins_laptop_deduction',
+    label: 'Car insurance / laptop deduction',
+  },
+  {
+    field: 'carInsLaptopDed2',
+    key: 'car_ins_laptop_deduction_2',
+    label: 'Car insurance / laptop deduction 2',
+  },
+  {
+    field: 'generalDeduction',
+    key: 'general_deduction',
+    label: 'General deduction',
+  },
+  {
+    field: 'generalDeduction2',
+    key: 'general_deduction_2',
+    label: 'General deduction 2',
+  },
   { field: 'deduction11', key: 'deduction_11', label: 'Deduction 11' },
   { field: 'deduction12', key: 'deduction_12', label: 'Deduction 12' },
   { field: 'deduction13', key: 'deduction_13', label: 'Deduction 13' },
@@ -217,15 +233,20 @@ export const ADJUSTMENT_DEDUCTION_TYPES = [
   { field: 'deduction15', key: 'deduction_15', label: 'Deduction 15' },
 ] as const;
 
-export type AdjustmentDeductionField = (typeof ADJUSTMENT_DEDUCTION_TYPES)[number]['field'];
+export type AdjustmentDeductionField =
+  (typeof ADJUSTMENT_DEDUCTION_TYPES)[number]['field'];
 /** Non-zero deduction types only, e.g. { messDeduction: 500 }. */
 export type DeductionSplit = Partial<Record<AdjustmentDeductionField, number>>;
 
 /** Where a deduction with no type behind it (a hand-entered grid value) posts. */
-export const UNCLASSIFIED_DEDUCTION = ADJUSTMENT_DEDUCTION_TYPES.find((t) => t.field === 'generalDeduction')!;
+export const UNCLASSIFIED_DEDUCTION = ADJUSTMENT_DEDUCTION_TYPES.find(
+  (t) => t.field === 'generalDeduction',
+)!;
 
 /** The document's deduction types for one employee; null when it has none. */
-export function adjustmentDeductionSplit(a: AdjustmentLine | null | undefined): DeductionSplit | null {
+export function adjustmentDeductionSplit(
+  a: AdjustmentLine | null | undefined,
+): DeductionSplit | null {
   if (!a) return null;
   const split: DeductionSplit = {};
   for (const t of ADJUSTMENT_DEDUCTION_TYPES) {
@@ -239,12 +260,14 @@ export function adjustmentDeductionSplit(a: AdjustmentLine | null | undefined): 
 export function splitTotal(split: unknown): number {
   if (!split || typeof split !== 'object') return 0;
   let total = 0;
-  for (const t of ADJUSTMENT_DEDUCTION_TYPES) total += num((split as Record<string, Numish>)[t.field]);
+  for (const t of ADJUSTMENT_DEDUCTION_TYPES)
+    total += num((split as Record<string, Numish>)[t.field]);
   return money(total);
 }
 
-export const adjustmentDeductions = (a: AdjustmentLine | null | undefined): number =>
-  splitTotal(adjustmentDeductionSplit(a));
+export const adjustmentDeductions = (
+  a: AdjustmentLine | null | undefined,
+): number => splitTotal(adjustmentDeductionSplit(a));
 
 // ─── The payslip ──────────────────────────────────────────────────────────────
 

@@ -1,10 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { PutPaymentDetailsDto } from './payment-details.dto';
-import { ibanProblem, maskTail, normalizeAccountNo, normalizeIban } from './bank-account';
+import {
+  ibanProblem,
+  maskTail,
+  normalizeAccountNo,
+  normalizeIban,
+} from './bank-account';
 
-interface AuditMeta { actorId: string | null; ip?: string }
+interface AuditMeta {
+  actorId: string | null;
+  ip?: string;
+}
 
 const DETAIL_SELECT = {
   employeeId: true,
@@ -14,7 +26,9 @@ const DETAIL_SELECT = {
   bankDetailsChangedAt: true,
   updatedAt: true,
   updatedById: true,
-  paymentMethod: { select: { id: true, code: true, description: true, paymentMeans: true } },
+  paymentMethod: {
+    select: { id: true, code: true, description: true, paymentMeans: true },
+  },
   bank: { select: { id: true, code: true, name: true } },
 } as const;
 
@@ -46,8 +60,13 @@ export class PaymentDetailsService {
       this.prisma.paymentMethod.findMany({
         // OR, not NOT IN: SQL's NOT IN drops a method whose means is NULL.
         where: {
-          companyId, direction: 'OUTGOING', isActive: true,
-          OR: [{ paymentMeans: null }, { paymentMeans: { notIn: ['loan', 'advance'] } }],
+          companyId,
+          direction: 'OUTGOING',
+          isActive: true,
+          OR: [
+            { paymentMeans: null },
+            { paymentMeans: { notIn: ['loan', 'advance'] } },
+          ],
         },
         select: { id: true, code: true, description: true, paymentMeans: true },
         orderBy: { code: 'asc' },
@@ -76,11 +95,18 @@ export class PaymentDetailsService {
    * hr.employee_bank.update, and changing a destination must not also reveal
    * the one it replaced.
    */
-  async put(companyId: string, employeeId: string, dto: PutPaymentDetailsDto, meta: AuditMeta) {
+  async put(
+    companyId: string,
+    employeeId: string,
+    dto: PutPaymentDetailsDto,
+    meta: AuditMeta,
+  ) {
     await this.requireEmployee(companyId, employeeId);
 
     const iban = dto.iban?.trim() ? normalizeIban(dto.iban) : null;
-    const accountNo = dto.accountNo?.trim() ? normalizeAccountNo(dto.accountNo) : null;
+    const accountNo = dto.accountNo?.trim()
+      ? normalizeAccountNo(dto.accountNo)
+      : null;
     const accountTitle = dto.accountTitle?.trim() || null;
     const bankId = dto.bankId || null;
     const paymentMethodId = dto.paymentMethodId || null;
@@ -90,21 +116,38 @@ export class PaymentDetailsService {
       if (problem) throw new BadRequestException(problem);
     }
     if (accountNo && !/^[0-9A-Za-z-]{4,34}$/.test(accountNo)) {
-      throw new BadRequestException('An account number is 4–34 letters, digits or dashes.');
+      throw new BadRequestException(
+        'An account number is 4–34 letters, digits or dashes.',
+      );
     }
 
     const [method, bank] = await Promise.all([
       paymentMethodId
-        ? this.prisma.paymentMethod.findFirst({ where: { id: paymentMethodId, companyId } })
+        ? this.prisma.paymentMethod.findFirst({
+            where: { id: paymentMethodId, companyId },
+          })
         : null,
-      bankId ? this.prisma.bank.findFirst({ where: { id: bankId, companyId } }) : null,
+      bankId
+        ? this.prisma.bank.findFirst({ where: { id: bankId, companyId } })
+        : null,
     ]);
-    if (paymentMethodId && !method) throw new BadRequestException('That payment method does not exist in this company.');
-    if (bankId && !bank) throw new BadRequestException('That bank does not exist in this company.');
+    if (paymentMethodId && !method)
+      throw new BadRequestException(
+        'That payment method does not exist in this company.',
+      );
+    if (bankId && !bank)
+      throw new BadRequestException(
+        'That bank does not exist in this company.',
+      );
     if (method && method.direction !== 'OUTGOING') {
-      throw new BadRequestException(`${method.code} is an incoming method; an employee is paid with an outgoing one.`);
+      throw new BadRequestException(
+        `${method.code} is an incoming method; an employee is paid with an outgoing one.`,
+      );
     }
-    if (method && !method.isActive) throw new BadRequestException(`Payment method ${method.code} is inactive.`);
+    if (method && !method.isActive)
+      throw new BadRequestException(
+        `Payment method ${method.code} is inactive.`,
+      );
 
     // What each method needs to be usable on payday.
     const means = method?.paymentMeans ?? 'cash';
@@ -114,17 +157,26 @@ export class PaymentDetailsService {
       );
     }
     if (means === 'ibft' && !iban) {
-      throw new BadRequestException(`${method!.code} (inter-bank transfer) needs the employee's IBAN.`);
+      throw new BadRequestException(
+        `${method!.code} (inter-bank transfer) needs the employee's IBAN.`,
+      );
     }
     if (means === 'online' && (!bank || (!accountNo && !iban))) {
-      throw new BadRequestException(`${method!.code} (online transfer) needs the employee's bank and an account number or IBAN.`);
+      throw new BadRequestException(
+        `${method!.code} (online transfer) needs the employee's bank and an account number or IBAN.`,
+      );
     }
     if ((accountNo || iban) && !bank) {
-      throw new BadRequestException('Choose the bank the account number or IBAN belongs to.');
+      throw new BadRequestException(
+        'Choose the bank the account number or IBAN belongs to.',
+      );
     }
 
     const data = { paymentMethodId, bankId, accountTitle, accountNo, iban };
-    const before = await this.prisma.employeePaymentDetail.findUnique({ where: { employeeId }, select: DETAIL_SELECT });
+    const before = await this.prisma.employeePaymentDetail.findUnique({
+      where: { employeeId },
+      select: DETAIL_SELECT,
+    });
 
     await this.prisma.$transaction(async (tx) => {
       // Read by the table's trigger for the history's changedById. Local to
@@ -137,7 +189,10 @@ export class PaymentDetailsService {
       });
     });
 
-    const after = await this.prisma.employeePaymentDetail.findUniqueOrThrow({ where: { employeeId }, select: DETAIL_SELECT });
+    const after = await this.prisma.employeePaymentDetail.findUniqueOrThrow({
+      where: { employeeId },
+      select: DETAIL_SELECT,
+    });
     // The history table is the record that cannot be skipped; this is the
     // company-wide audit trail, masked the same way.
     await this.audit.record({
@@ -153,8 +208,14 @@ export class PaymentDetailsService {
     return this.masked(after);
   }
 
-  private masked<T extends { accountNo: string | null; iban: string | null }>(row: T): T {
-    return { ...row, accountNo: maskTail(row.accountNo), iban: maskTail(row.iban) };
+  private masked<T extends { accountNo: string | null; iban: string | null }>(
+    row: T,
+  ): T {
+    return {
+      ...row,
+      accountNo: maskTail(row.accountNo),
+      iban: maskTail(row.iban),
+    };
   }
 
   private emptyDetails(employeeId: string) {
@@ -172,7 +233,10 @@ export class PaymentDetailsService {
   }
 
   private async requireEmployee(companyId: string, employeeId: string) {
-    const emp = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId, deletedAt: null }, select: { id: true } });
+    const emp = await this.prisma.employee.findFirst({
+      where: { id: employeeId, companyId, deletedAt: null },
+      select: { id: true },
+    });
     if (!emp) throw new NotFoundException(`Employee ${employeeId} not found`);
   }
 }

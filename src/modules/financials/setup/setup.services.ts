@@ -105,6 +105,9 @@ export class CashFlowLineItemsService extends TenantCrudService {
   constructor(prisma: PrismaService) { super(prisma); }
 }
 
+/** A DTO field class-validator has already checked is a string. */
+const asText = (v: unknown): string => (typeof v === 'string' ? v : '');
+
 @Injectable()
 export class BanksService extends TenantCrudService {
   protected readonly modelName = 'bank';
@@ -134,14 +137,21 @@ export class HouseBankAccountsService extends TenantCrudService {
   };
   constructor(prisma: PrismaService) { super(prisma); }
 
-  async create(companyId: string, dto: any) {
+  async create(
+    companyId: string,
+    dto: Record<string, unknown>,
+  ): Promise<unknown> {
     await this.checkRefs(companyId, dto, true);
-    return super.create(companyId, dto);
+    return super.create(companyId, dto) as Promise<unknown>;
   }
 
-  async update(companyId: string, id: string, dto: any) {
+  async update(
+    companyId: string,
+    id: string,
+    dto: Record<string, unknown>,
+  ): Promise<unknown> {
     await this.checkRefs(companyId, dto, false);
-    return super.update(companyId, id, dto);
+    return super.update(companyId, id, dto) as Promise<unknown>;
   }
 
   /**
@@ -150,10 +160,20 @@ export class HouseBankAccountsService extends TenantCrudService {
    * credits (Pay Salaries, disbursements, remittances), so it must be a
    * postable, active asset account — required on create, and never cleared.
    */
-  private async checkRefs(companyId: string, dto: Record<string, unknown>, creating: boolean) {
+  private async checkRefs(
+    companyId: string,
+    dto: Record<string, unknown>,
+    creating: boolean,
+  ) {
     if (dto.bankId !== undefined) {
-      const bank = await this.prisma.bank.findFirst({ where: { id: String(dto.bankId), companyId }, select: { id: true } });
-      if (!bank) throw new BadRequestException('That bank does not exist in this company.');
+      const bank = await this.prisma.bank.findFirst({
+        where: { id: asText(dto.bankId), companyId },
+        select: { id: true },
+      });
+      if (!bank)
+        throw new BadRequestException(
+          'That bank does not exist in this company.',
+        );
     }
     if (creating || dto.glAccountId !== undefined) {
       if (!dto.glAccountId) {
@@ -162,17 +182,28 @@ export class HouseBankAccountsService extends TenantCrudService {
         );
       }
       const acct = await this.prisma.account.findFirst({
-        where: { id: String(dto.glAccountId), companyId },
+        where: { id: asText(dto.glAccountId), companyId },
         select: { type: true, isTitle: true, isActive: true, code: true },
       });
-      if (!acct) throw new BadRequestException('That G/L account does not exist in this company.');
+      if (!acct)
+        throw new BadRequestException(
+          'That G/L account does not exist in this company.',
+        );
       if (acct.type !== 'ASSET' || acct.isTitle || !acct.isActive) {
-        throw new BadRequestException(`G/L account ${acct.code} must be an active, postable (non-title) asset account.`);
+        throw new BadRequestException(
+          `G/L account ${acct.code} must be an active, postable (non-title) asset account.`,
+        );
       }
     }
     if (dto.currency !== undefined) {
-      const cur = await this.prisma.currency.findFirst({ where: { companyId, code: String(dto.currency) }, select: { id: true } });
-      if (!cur) throw new BadRequestException(`Currency ${dto.currency} is not in this company's currency master.`);
+      const cur = await this.prisma.currency.findFirst({
+        where: { companyId, code: asText(dto.currency) },
+        select: { id: true },
+      });
+      if (!cur)
+        throw new BadRequestException(
+          `Currency ${asText(dto.currency)} is not in this company's currency master.`,
+        );
     }
   }
 }
@@ -190,24 +221,37 @@ export class PaymentMethodsService extends TenantCrudService {
   };
   constructor(prisma: PrismaService) { super(prisma); }
 
-  async create(companyId: string, dto: any) {
+  async create(
+    companyId: string,
+    dto: Record<string, unknown>,
+  ): Promise<unknown> {
     await this.checkHouseBank(companyId, dto);
-    return super.create(companyId, dto);
+    return super.create(companyId, dto) as Promise<unknown>;
   }
 
-  async update(companyId: string, id: string, dto: any) {
+  async update(
+    companyId: string,
+    id: string,
+    dto: Record<string, unknown>,
+  ): Promise<unknown> {
     await this.checkHouseBank(companyId, dto);
-    return super.update(companyId, id, dto);
+    return super.update(companyId, id, dto) as Promise<unknown>;
   }
 
   /** houseBankAccountId arrives as a bare id; it must be this company's. */
-  private async checkHouseBank(companyId: string, dto: Record<string, unknown>) {
+  private async checkHouseBank(
+    companyId: string,
+    dto: Record<string, unknown>,
+  ) {
     if (!dto.houseBankAccountId) return;
     const hba = await this.prisma.houseBankAccount.findFirst({
-      where: { id: String(dto.houseBankAccountId), companyId },
+      where: { id: asText(dto.houseBankAccountId), companyId },
       select: { id: true },
     });
-    if (!hba) throw new BadRequestException('That house bank account does not exist in this company.');
+    if (!hba)
+      throw new BadRequestException(
+        'That house bank account does not exist in this company.',
+      );
   }
 }
 

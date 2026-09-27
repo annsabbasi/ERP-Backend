@@ -18,7 +18,12 @@ const created: string[] = [];
 beforeAll(async () => {
   h = await bootstrap();
   const code = `QALR${Date.now().toString(36).slice(-5).toUpperCase()}`;
-  const type = await h.api('post', '/hr/leaves/types', { code, name: `Leave response ${code}`, requiresApproval: true, paid: false });
+  const type = await h.api('post', '/hr/leaves/types', {
+    code,
+    name: `Leave response ${code}`,
+    requiresApproval: true,
+    paid: false,
+  });
   expect(type.status).toBeLessThan(300);
   leaveTypeId = type.body.id;
   leaveTypeName = type.body.name;
@@ -42,16 +47,25 @@ afterAll(async () => {
 });
 
 const submit = async (day: string) => {
-  const res = await h.api('post', `/hr/leaves/requests/employees/${employeeId}`, {
-    leaveTypeId, startDate: day, endDate: day, days: 1,
-  });
+  const res = await h.api(
+    'post',
+    `/hr/leaves/requests/employees/${employeeId}`,
+    {
+      leaveTypeId,
+      startDate: day,
+      endDate: day,
+      days: 1,
+    },
+  );
   expect(res.status).toBeLessThan(300);
   created.push(res.body.id);
   return res;
 };
 
 const expectFullShape = (body: any) => {
-  expect(body.leaveType).toEqual(expect.objectContaining({ id: leaveTypeId, name: leaveTypeName }));
+  expect(body.leaveType).toEqual(
+    expect.objectContaining({ id: leaveTypeId, name: leaveTypeName }),
+  );
   expect(body.employee).toEqual(expect.objectContaining({ id: employeeId }));
 };
 
@@ -62,12 +76,27 @@ describe('leave request responses', () => {
     expectFullShape(res.body);
   });
 
-  it.each(['approve', 'reject', 'cancel'])('%s returns the employee and leave type', async (action) => {
-    const day = { approve: '2031-01-07', reject: '2031-01-08', cancel: '2031-01-09' }[action]!;
-    const { body } = await submit(day);
-    const res = await h.api('post', `/hr/leaves/requests/${body.id}/${action}`, {});
-    expect(res.status).toBeLessThan(300);
-    expect(res.body.status).toBe({ approve: 'APPROVED', reject: 'REJECTED', cancel: 'CANCELLED' }[action]);
-    expectFullShape(res.body);
-  });
+  it.each(['approve', 'reject', 'cancel'])(
+    '%s returns the employee and leave type',
+    async (action) => {
+      const day = {
+        approve: '2031-01-07',
+        reject: '2031-01-08',
+        cancel: '2031-01-09',
+      }[action]!;
+      const { body } = await submit(day);
+      const res = await h.api(
+        'post',
+        `/hr/leaves/requests/${body.id}/${action}`,
+        {},
+      );
+      expect(res.status).toBeLessThan(300);
+      expect(res.body.status).toBe(
+        { approve: 'APPROVED', reject: 'REJECTED', cancel: 'CANCELLED' }[
+          action
+        ],
+      );
+      expectFullShape(res.body);
+    },
+  );
 });

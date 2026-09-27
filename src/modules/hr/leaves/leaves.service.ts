@@ -452,7 +452,10 @@ export class LeavesService {
 
   /** A request as the list returns it, so an action's answer can replace a list row. */
   private findRequest(requestId: string) {
-    return this.prisma.leaveRequest.findUniqueOrThrow({ where: { id: requestId }, include: REQUEST_INCLUDE });
+    return this.prisma.leaveRequest.findUniqueOrThrow({
+      where: { id: requestId },
+      include: REQUEST_INCLUDE,
+    });
   }
 
   private async requireRequest(companyId: string, id: string) {

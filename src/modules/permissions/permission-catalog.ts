@@ -77,10 +77,35 @@ const FINE_GRAINED: PermissionDef[] = [
   // Where an employee's pay goes (Phase 2, QA R-d). Deliberately in no
   // permission set: who may see or redirect salary payments is each tenant's
   // decision. Rows added by migration 20260927010000_payroll_phase2a.
-  { key: 'hr.employee_bank.view',   resource: 'hr.employee_bank', action: 'view',   moduleSlug: 'hr', description: 'View employee bank account details (account no. and IBAN in full)' },
-  { key: 'hr.employee_bank.update', resource: 'hr.employee_bank', action: 'update', moduleSlug: 'hr', description: 'Change employee payment method and bank account details' },
-  { key: 'hr.leave.approve',   resource: 'hr.leave',    action: 'approve', moduleSlug: 'hr', description: 'Approve leave requests' },
-  { key: 'hr.leave.submit',    resource: 'hr.leave',    action: 'submit',  moduleSlug: 'hr', description: 'Submit own leave requests' },
+  {
+    key: 'hr.employee_bank.view',
+    resource: 'hr.employee_bank',
+    action: 'view',
+    moduleSlug: 'hr',
+    description:
+      'View employee bank account details (account no. and IBAN in full)',
+  },
+  {
+    key: 'hr.employee_bank.update',
+    resource: 'hr.employee_bank',
+    action: 'update',
+    moduleSlug: 'hr',
+    description: 'Change employee payment method and bank account details',
+  },
+  {
+    key: 'hr.leave.approve',
+    resource: 'hr.leave',
+    action: 'approve',
+    moduleSlug: 'hr',
+    description: 'Approve leave requests',
+  },
+  {
+    key: 'hr.leave.submit',
+    resource: 'hr.leave',
+    action: 'submit',
+    moduleSlug: 'hr',
+    description: 'Submit own leave requests',
+  },
 
   // Finance — invoices, journals, period close
   { key: 'finance.invoice.view',    resource: 'finance.invoice', action: 'view',    moduleSlug: 'financials', description: 'View invoices' },

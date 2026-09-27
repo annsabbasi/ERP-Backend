@@ -97,8 +97,16 @@ function makeService(
     employee: { findMany: jest.fn(async () => lines.map((l: any) => ({ id: l.employeeId, ...l.employee }))) },
     companyModule: { findFirst: jest.fn().mockResolvedValue(opts.financials === false ? null : { id: 'cm-1' }) },
     loanRecovery: { createMany: jest.fn(), updateMany: jest.fn() },
-    journalEntry: { findFirst: jest.fn().mockResolvedValue({ number: 'JE-0001', date: new Date('2026-01-31') }) },
-    $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(prisma) : Promise.all(arg))),
+    journalEntry: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'je-1',
+        number: 'JE-0001',
+        date: new Date('2026-01-31'),
+      }),
+    },
+    $transaction: jest.fn((arg: any) =>
+      typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+    ),
     // lockRun's SELECT … FOR UPDATE. By default the lock sees what findOne saw;
     // tests override it to simulate another request having changed the run.
     $queryRaw: jest.fn(async (sql: TemplateStringsArray) =>
@@ -127,10 +135,22 @@ function makeService(
   // The reversal-date rule (PDF §33) has its own tests; here the original
   // period is open, so the reversal keeps the original date.
   const periods: any = {
-    reversalDateFor: jest.fn(async (_c: string, date: Date) => ({ date, periodName: '2026-01', shifted: false, originalPeriodName: '2026-01' })),
+    reversalDateFor: jest.fn((_c: string, date: Date) =>
+      Promise.resolve({
+        date,
+        periodName: '2026-01',
+        shifted: false,
+        originalPeriodName: '2026-01',
+      }),
+    ),
   };
 
-  const service = new PayrollRunsService(prisma, journals, determinations, periods);
+  const service = new PayrollRunsService(
+    prisma,
+    journals,
+    determinations,
+    periods,
+  );
   return { service, prisma, journals, determinations, periods, run };
 }
 
