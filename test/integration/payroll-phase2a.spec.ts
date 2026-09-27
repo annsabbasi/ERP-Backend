@@ -322,6 +322,14 @@ describe('Employee payment details (QA R-d)', () => {
     expect(await prisma.employeePaymentDetail.count({ where: { employeeId } })).toBe(0);
   });
 
+  it('serves its own choice lists (no Financials access needed): outgoing methods without LOAN/ADV, active banks', async () => {
+    const res = await officer('get', `${path()}/options`);
+    expect(res.status).toBe(200);
+    expect(res.body.methods.map((m: any) => m.code)).toEqual(['CASH', 'CHQ', 'IBFT', 'ONLINE']);
+    expect(res.body.banks.map((b: any) => b.code)).toContain('SCB');
+    expect((await call(hrToken, 'get', `${path()}/options`)).status).toBe(403);
+  });
+
   it('saves, answers masked, reads back in full, and writes a masked history with the actor', async () => {
     const saved = await officer('put', path(), {
       paymentMethodId: ibftId, bankId, accountTitle: 'Demo Two', accountNo: '0012 3456 7890', iban: 'pk36 scbl 0000 0011 2345 6702',

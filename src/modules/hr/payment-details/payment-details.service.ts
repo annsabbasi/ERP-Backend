@@ -40,6 +40,27 @@ export class PaymentDetailsService {
     return row ?? this.emptyDetails(employeeId);
   }
 
+  async options(companyId: string, employeeId: string) {
+    await this.requireEmployee(companyId, employeeId);
+    const [methods, banks] = await Promise.all([
+      this.prisma.paymentMethod.findMany({
+        // OR, not NOT IN: SQL's NOT IN drops a method whose means is NULL.
+        where: {
+          companyId, direction: 'OUTGOING', isActive: true,
+          OR: [{ paymentMeans: null }, { paymentMeans: { notIn: ['loan', 'advance'] } }],
+        },
+        select: { id: true, code: true, description: true, paymentMeans: true },
+        orderBy: { code: 'asc' },
+      }),
+      this.prisma.bank.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true, code: true, name: true },
+        orderBy: { code: 'asc' },
+      }),
+    ]);
+    return { methods, banks };
+  }
+
   /** Masked history, newest first. */
   async history(companyId: string, employeeId: string) {
     await this.requireEmployee(companyId, employeeId);

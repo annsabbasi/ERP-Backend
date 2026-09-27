@@ -33,6 +33,17 @@ export class PaymentDetailsController {
     return this.details.history(this.tenant.requireCompanyId(), employeeId);
   }
 
+  /**
+   * The choices the form offers, served here so a bank-details officer needs
+   * no Financials access: active outgoing methods an employee can default to
+   * (not LOAN/ADV, which settle at payment time) and active banks.
+   */
+  @RequirePermission('hr.employee_bank.update')
+  @Get('options')
+  options(@Param('employeeId') employeeId: string) {
+    return this.details.options(this.tenant.requireCompanyId(), employeeId);
+  }
+
   @RequirePermission('hr.employee_bank.update')
   @Put()
   put(
