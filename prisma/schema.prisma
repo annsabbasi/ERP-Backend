@@ -1178,6 +1178,13 @@ model PayrollRunLine {
   hra                Decimal? @db.Decimal(19, 4)
   bigCity            Decimal? @db.Decimal(19, 4)
   eligibleHra        Decimal? @db.Decimal(19, 4)
+  // QA D45 (20260927030700): the pay scale's utility, medical and ad-hoc
+  // allowances, paid like the columns above (they were in the per-day rate and
+  // the taxable gross, but never in the pay).
+  utilityAllowance   Decimal? @db.Decimal(19, 4)
+  medicalAllowance   Decimal? @db.Decimal(19, 4)
+  adhoc2017          Decimal? @db.Decimal(19, 4)
+  adhoc2018          Decimal? @db.Decimal(19, 4)
 
   // ── Computed payslip: earnings → deductions → net pay ──
   // Everything below is derived by PayrollRunsService.generateLines from the
@@ -1299,37 +1306,46 @@ model PayrollAdjustmentLine {
 // schedule (loanAmount / noOfInstallments, one per month from effectiveDate)
 // when installments aren't supplied explicitly.
 model EmployeeLoan {
-  id                   String    @id @default(uuid())
-  companyId            String
-  code                 String
-  employeeId           String
-  loanTypeId           String
-  loanAmount           Decimal   @db.Decimal(19, 4)
-  sanctionedAmount     Decimal?  @db.Decimal(19, 4)
-  documentDate         DateTime  @default(now())
-  status               String?   @default("Open")
-  effectivePayPeriodId String?
-  effectiveDate        DateTime?
-  noOfInstallments     Int?
-  amountPerMonth       Decimal?  @db.Decimal(19, 4)
-  approved             Boolean   @default(false)
-  remarks              String?
-  isActive             Boolean   @default(true)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                         String    @id @default(uuid())
+  companyId                  String
+  code                       String
+  employeeId                 String
+  loanTypeId                 String
+  loanAmount                 Decimal   @db.Decimal(19, 4)
+  sanctionedAmount           Decimal?  @db.Decimal(19, 4)
+  documentDate               DateTime  @default(now())
+  status                     String?   @default("Open")
+  effectivePayPeriodId       String?
+  effectiveDate              DateTime?
+  noOfInstallments           Int?
+  amountPerMonth             Decimal?  @db.Decimal(19, 4)
+  approved                   Boolean   @default(false)
+  remarks                    String?
+  isActive                   Boolean   @default(true)
+  // The disbursement record (20260927030600). A loan that existed before
+  // disbursement was recorded in the system is marked disbursedBeforeSystem
+  // and points at its company's opening-balance JE (QA D11); Increment C
+  // records real disbursements in the same columns.
+  disbursedBeforeSystem      Boolean   @default(false)
+  disbursedAt                DateTime?
+  disbursementJournalEntryId String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
-  company            Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employee           Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  loanType           LoanType                  @relation(fields: [loanTypeId], references: [id])
-  effectivePayPeriod PayPeriod?                @relation(fields: [effectivePayPeriodId], references: [id])
-  installments       EmployeeLoanInstallment[]
-  recoveries         LoanRecovery[]
+  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee                 Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  disbursementJournalEntry JournalEntry?             @relation("LoanDisbursement", fields: [disbursementJournalEntryId], references: [id])
+  loanType                 LoanType                  @relation(fields: [loanTypeId], references: [id])
+  effectivePayPeriod       PayPeriod?                @relation(fields: [effectivePayPeriodId], references: [id])
+  installments             EmployeeLoanInstallment[]
+  recoveries               LoanRecovery[]
 
   @@unique([companyId, code])
   @@index([companyId])
   @@index([employeeId])
   @@index([loanTypeId])
   @@index([effectivePayPeriodId])
+  @@index([disbursementJournalEntryId])
   @@map("employee_loans")
 }
 
@@ -2262,6 +2278,8 @@ enum AccountSubtype {
   // Payroll deduction accounts (20260927000000_payroll_deduction_subtypes).
   MESS_EXPENSE_RECOVERY
   OTHER_DEDUCTIONS_PAYABLE
+  // QA D11 (20260927030000): the account opening balances are credited to.
+  OPENING_BALANCE_EQUITY
 }
 
 model Account {
@@ -2441,11 +2459,12 @@ model JournalEntry {
   reconciliationLines    InternalReconciliationLine[]
   fixedAssetTransactions FixedAssetTransaction[]
 
-  arInvoice  ARInvoice?
-  arPayment  ARPayment?
-  apBill     APBill?
-  apPayment  APPayment?
-  payrollRun PayrollRun?
+  arInvoice         ARInvoice?
+  arPayment         ARPayment?
+  apBill            APBill?
+  apPayment         APPayment?
+  payrollRun        PayrollRun?
+  loanDisbursements EmployeeLoan[] @relation("LoanDisbursement")
 
   currencyRef Currency @relation("journalEntries", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
 

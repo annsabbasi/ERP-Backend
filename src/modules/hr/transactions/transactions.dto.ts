@@ -95,6 +95,10 @@ export class PayrollRunLineRowDto {
   @IsNumber() @IsOptional() @Type(() => Number) eligibleConveyance?: number;
   @IsNumber() @IsOptional() @Type(() => Number) hra?: number;
   @IsNumber() @IsOptional() @Type(() => Number) bigCity?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) utilityAllowance?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) medicalAllowance?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) adhoc2017?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) adhoc2018?: number;
   @IsNumber() @IsOptional() @Type(() => Number) eligibleHra?: number;
 
   // ── Payslip inputs a user can type over Generate's suggestion ──

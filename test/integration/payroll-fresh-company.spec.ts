@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
+import { GENERIC_TEMPLATE } from '../../src/modules/tenancy/templates/generic.template';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from '../../src/common/interceptors/response.interceptor';
 
@@ -20,7 +21,7 @@ import { ResponseInterceptor } from '../../src/common/interceptors/response.inte
  * all come from onboarding.
  *
  * Also records a fact for the owner: which modules a generic-template company
- * gets. hr-payroll is not among them; the requests below are made by a
+ * gets. hr-payroll is among them since QA D6; the requests below are made by a
  * platform super admin, whom the module guard lets through.
  */
 const prisma = new PrismaClient();
@@ -93,7 +94,20 @@ describe('a freshly onboarded company', () => {
       .map((m) => m.module.slug).sort();
     console.log(`[fact] generic-template company modules: ${enabled.join(', ')}`);
     expect(enabled).toContain('financials');
-    expect(enabled).not.toContain('hr-payroll'); // the owner decides whether it should be
+    // QA D6: hr-payroll is in the generic template, and a module is enabled
+    // when it is in the template AND on the company's plan. This company is on
+    // Starter, which does not include hr-payroll (Premium and Enterprise do),
+    // so it is not enabled here — whether Starter should include payroll is a
+    // plan decision, outside D6.
+    expect(GENERIC_TEMPLATE.defaultModuleSlugs).toContain('hr-payroll');
+    const plan = await prisma.plan.findUniqueOrThrow({
+      where: { key: 'starter' },
+      include: { modules: { include: { module: true } } },
+    });
+    const onPlan = new Set(plan.modules.map((m) => m.module.slug));
+    expect([...enabled].sort()).toEqual(
+      GENERIC_TEMPLATE.defaultModuleSlugs.filter((s) => onPlan.has(s)).sort(),
+    );
   });
 
   it('came with every payroll + A/P determination, pay periods and a Salary Advance loan type', async () => {

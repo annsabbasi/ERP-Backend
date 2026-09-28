@@ -19,6 +19,9 @@ export const GENERIC_TEMPLATE: IndustryTemplate = {
     'hr',
     'hr-employee-records',
     'hr-attendance',
+    // QA D6: payroll is a default module for new companies. Users still get
+    // it through ModuleGrantsService (approval), like every module.
+    'hr-payroll',
     'crm',
     'reports',
   ],

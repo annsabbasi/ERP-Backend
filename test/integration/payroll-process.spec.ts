@@ -184,7 +184,14 @@ describe('Payroll Process — full flow', () => {
     expect(lines).toHaveLength(8);
     const by = (num: string) => lines.find((l) => l.employee.employeeNumber === num);
 
-    expect(Number(by('DEMO-001').grossPay)).toBe(140000 + 28000 + 12000);
+    // G4: basic 140,000 + HRA 28,000 + conveyance 12,000, plus utility 6,000 and
+    // medical 6,000 — paid since QA D45 (they were always in the per-day rate and
+    // the taxable gross; before D45 this test expected 180,000, i.e. the defect).
+    expect(Number(by('DEMO-001').grossPay)).toBe(
+      140000 + 28000 + 12000 + 6000 + 6000,
+    );
+    expect(Number(by('DEMO-001').utilityAllowance)).toBe(6000);
+    expect(Number(by('DEMO-001').medicalAllowance)).toBe(6000);
     expect(Number(by('DEMO-001').taxDeduction)).toBeGreaterThan(0);
     expect(Number(by('DEMO-002').loanDeduction)).toBe(5000);
     expect(Number(by('DEMO-003').advanceDeduction)).toBe(20000);

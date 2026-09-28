@@ -287,6 +287,18 @@
   "status": "Used",
   "note": "loan reference in lists and recovery messages"
  },
+ "EmployeeLoan.disbursedAt": {
+  "status": "Used",
+  "note": "QA D11: cutover date for pre-system loans; disbursement date from Increment C (step 5)"
+ },
+ "EmployeeLoan.disbursedBeforeSystem": {
+  "status": "Used",
+  "note": "QA D11: loans that existed before disbursement was recorded; erp_open_loan_balances selects only unmarked loans (idempotency). Increment C reads it (step 5)"
+ },
+ "EmployeeLoan.disbursementJournalEntryId": {
+  "status": "Used",
+  "note": "QA D11: the opening-balance JE for pre-system loans; Increment C records real disbursements here (step 5)"
+ },
  "EmployeeLoan.documentDate": {
   "status": "Used — record data",
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
@@ -412,12 +424,12 @@
   "note": "descriptive; shown on the record and in lists — no rule reads it, by design"
  },
  "GradePayScaleStage.adhoc2017": {
-  "status": "Scheduled: QA D45 (step 2)",
-  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
+  "status": "Used",
+  "note": "QA D45: fills its paid grid column (generateLines) and is in the gross (grossFromStage) — paid, and LOP / tax computed on it"
  },
  "GradePayScaleStage.adhoc2018": {
-  "status": "Scheduled: QA D45 (step 2)",
-  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
+  "status": "Used",
+  "note": "QA D45: fills its paid grid column (generateLines) and is in the gross (grossFromStage) — paid, and LOP / tax computed on it"
  },
  "GradePayScaleStage.basicPay": {
   "status": "Used",
@@ -436,16 +448,16 @@
   "note": "seed the grid columns Basic / HRA / Conveyance (generateLines) and gross (grossFromStage)"
  },
  "GradePayScaleStage.medicalAllowance": {
-  "status": "Scheduled: QA D45 (step 2)",
-  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
+  "status": "Used",
+  "note": "QA D45: fills its paid grid column (generateLines) and is in the gross (grossFromStage) — paid, and LOP / tax computed on it"
  },
  "GradePayScaleStage.stage": {
   "status": "Scheduled: QA D27 (step 4)",
   "note": "Generate uses stage 1 for everyone today (take: 1); D27 adds the per-employee stage"
  },
  "GradePayScaleStage.utilityAllowance": {
-  "status": "Scheduled: QA D45 (step 2)",
-  "note": "paid: grid columns that Generate fills from the pay scale; stay in gross and taxable gross (taxability per D55). Live defect — Step 2 release"
+  "status": "Used",
+  "note": "QA D45: fills its paid grid column (generateLines) and is in the gross (grossFromStage) — paid, and LOP / tax computed on it"
  },
  "HouseBankAccount.accountName": {
   "status": "Scheduled: QA Increment B / D19 (step 3)",
@@ -987,6 +999,14 @@
   "status": "Used",
   "note": "Generate scope and bounds; one Regular run per employee per period; JE date = documentDate (generateLines, post)"
  },
+ "PayrollRunLine.adhoc2017": {
+  "status": "Used",
+  "note": "QA D45: paid — part of gross and total earnings (rowTotals); filled by Generate from the pay scale"
+ },
+ "PayrollRunLine.adhoc2018": {
+  "status": "Used",
+  "note": "QA D45: paid — part of gross and total earnings (rowTotals); filled by Generate from the pay scale"
+ },
  "PayrollRunLine.adjustmentAdditions": {
   "status": "Used",
   "note": "gross and total earnings (payroll-calculation rowTotals)"
@@ -1067,6 +1087,10 @@
   "status": "Used",
   "note": "deductions and their JE credit lines (rowTotals; PayrollRunsService.post, deductionCredits; recovery ledger)"
  },
+ "PayrollRunLine.medicalAllowance": {
+  "status": "Used",
+  "note": "QA D45: paid — part of gross and total earnings (rowTotals); filled by Generate from the pay scale"
+ },
  "PayrollRunLine.netPay": {
   "status": "Used",
   "note": "server-computed totals (rowTotals); Post checks Σ(total earnings − LOP) against the credits"
@@ -1134,6 +1158,10 @@
  "PayrollRunLine.unpaidLeaveDays": {
   "status": "Used",
   "note": "payslip figures computed by Generate (computePayslip) and shown on the grid"
+ },
+ "PayrollRunLine.utilityAllowance": {
+  "status": "Used",
+  "note": "QA D45: paid — part of gross and total earnings (rowTotals); filled by Generate from the pay scale"
  },
  "Shift.breakMinutes": {
   "status": "Scheduled: QA D30/D32 (step 4)",

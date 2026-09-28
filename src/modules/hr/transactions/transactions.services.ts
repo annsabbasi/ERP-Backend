@@ -552,6 +552,10 @@ export class PayrollRunsService extends TenantCrudService {
               eligibleConveyance: row.eligibleConveyance as any,
               hra: row.hra as any,
               bigCity: row.bigCity as any,
+              utilityAllowance: row.utilityAllowance,
+              medicalAllowance: row.medicalAllowance,
+              adhoc2017: row.adhoc2017,
+              adhoc2018: row.adhoc2018,
               eligibleHra: row.eligibleHra as any,
               perDayRate: row.perDayRate as any,
               paidLeaveDays: row.paidLeaveDays as any,
@@ -810,8 +814,22 @@ export class PayrollRunsService extends TenantCrudService {
       const basic = stage?.basicPay ?? null;
       const conveyance = stage?.conveyanceAllowance ?? null;
       const hra = stage?.hra ?? null;
+      // QA D45: every pay-scale component that is in the gross (and so in the
+      // per-day rate and the taxable gross) is also paid — each on its column.
+      const allowances = {
+        utilityAllowance: stage?.utilityAllowance ?? null,
+        medicalAllowance: stage?.medicalAllowance ?? null,
+        adhoc2017: stage?.adhoc2017 ?? null,
+        adhoc2018: stage?.adhoc2018 ?? null,
+      };
       const totals = rowTotals({
-        basic, hra, conveyance, entertainment: 0, education: 0, bigCity: 0,
+        basic,
+        hra,
+        conveyance,
+        entertainment: 0,
+        education: 0,
+        bigCity: 0,
+        ...allowances,
         adjustmentAdditions: slip.adjustmentAdditions,
         lopDeduction: slip.lopDeduction, loanDeduction: slip.loanDeduction,
         advanceDeduction: slip.advanceDeduction,
@@ -835,6 +853,10 @@ export class PayrollRunsService extends TenantCrudService {
         hra: hra as any,
         bigCity: 0 as any,
         eligibleHra: hra as any,
+        utilityAllowance: allowances.utilityAllowance,
+        medicalAllowance: allowances.medicalAllowance,
+        adhoc2017: allowances.adhoc2017,
+        adhoc2018: allowances.adhoc2018,
         perDayRate: slip.perDayRate as any,
         paidLeaveDays: slip.paidLeaveDays as any,
         unpaidLeaveDays: slip.unpaidLeaveDays as any,

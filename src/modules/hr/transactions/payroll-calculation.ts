@@ -411,6 +411,11 @@ export interface RowEarnings {
   entertainment?: Numish;
   education?: Numish;
   bigCity?: Numish;
+  /** QA D45: pay-scale allowances, paid like the columns above. */
+  utilityAllowance?: Numish;
+  medicalAllowance?: Numish;
+  adhoc2017?: Numish;
+  adhoc2018?: Numish;
   adjustmentAdditions?: Numish;
   lopDeduction?: Numish;
   loanDeduction?: Numish;
@@ -428,8 +433,16 @@ export interface RowTotals {
 
 export function rowTotals(row: RowEarnings): RowTotals {
   const grossPay = money(
-    num(row.basic) + num(row.hra) + num(row.conveyance) +
-    num(row.entertainment) + num(row.education) + num(row.bigCity),
+    num(row.basic) +
+      num(row.hra) +
+      num(row.conveyance) +
+      num(row.entertainment) +
+      num(row.education) +
+      num(row.bigCity) +
+      num(row.utilityAllowance) +
+      num(row.medicalAllowance) +
+      num(row.adhoc2017) +
+      num(row.adhoc2018),
   );
   const totalEarnings = money(grossPay + num(row.adjustmentAdditions));
   const totalDeductions = money(

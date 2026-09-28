@@ -23,8 +23,22 @@ function loadWindowTotals(): { payrollRowTotals: (row: Record<string, unknown>) 
 const { payrollRowTotals } = loadWindowTotals();
 
 const FIELDS = [
-  'basic', 'hra', 'conveyance', 'entertainment', 'education', 'bigCity', 'adjustmentAdditions',
-  'lopDeduction', 'loanDeduction', 'advanceDeduction', 'taxDeduction', 'adjustmentDeductions',
+  'basic',
+  'hra',
+  'conveyance',
+  'entertainment',
+  'education',
+  'bigCity',
+  'utilityAllowance',
+  'medicalAllowance',
+  'adhoc2017',
+  'adhoc2018',
+  'adjustmentAdditions',
+  'lopDeduction',
+  'loanDeduction',
+  'advanceDeduction',
+  'taxDeduction',
+  'adjustmentDeductions',
 ] as const;
 
 /** Deterministic pseudo-random rows (no flaky seeds). */
