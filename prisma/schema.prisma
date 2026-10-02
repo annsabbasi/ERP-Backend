@@ -70,6 +70,7 @@ model Company {
   employees                    Employee[]
   products                     Product[]
   inventoryItems               InventoryItem[]
+  inventoryTransactions        InventoryTransaction[]
   orders                       Order[]
   subscription                 Subscription?
   billingInvoices              BillingInvoice[]
@@ -1545,6 +1546,7 @@ model Product {
   inventoryItem  InventoryItem?
   orderItems     OrderItem[]
   arInvoiceLines ARInvoiceLine[]
+  inventoryTransactions InventoryTransaction[]
 
   @@unique([companyId, id])
   @@index([companyId])
@@ -1557,6 +1559,7 @@ model InventoryItem {
   companyId         String
   productId         String   @unique
   quantity          Int      @default(0)
+  averageCost       Decimal  @default(0) @db.Decimal(19, 4)
   warehouseLocation String?
   lastUpdated       DateTime @default(now()) @updatedAt
 
@@ -1565,6 +1568,37 @@ model InventoryItem {
 
   @@index([companyId])
   @@map("inventory_items")
+}
+
+enum InventoryTransactionType {
+  RECEIPT
+  ISSUE
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+}
+
+model InventoryTransaction {
+  id              String                   @id @default(uuid())
+  companyId       String
+  productId       String
+  type            InventoryTransactionType
+  quantity        Int
+  
+  unitCost        Decimal                  @db.Decimal(19, 4)
+  totalCost       Decimal                  @db.Decimal(19, 4)
+  
+  sourceDocType   String?
+  sourceDocId     String?
+  
+  date            DateTime                 @default(now())
+
+  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product         Product                  @relation(fields: [companyId, productId], references: [companyId, id])
+
+  @@index([companyId])
+  @@index([productId])
+  @@index([sourceDocType, sourceDocId])
+  @@map("inventory_transactions")
 }
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
@@ -3969,6 +4003,9 @@ enum AccountDeterminationArea {
   GENERAL
   INVENTORY
   PAYROLL
+  PRODUCTION
+  PROJECTS
+  SERVICE
 }
 
 model AccountDetermination {
