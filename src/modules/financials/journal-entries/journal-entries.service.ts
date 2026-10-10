@@ -561,7 +561,11 @@ export class JournalEntriesService {
     }
   }
 
-  private async validateLines(companyId: string, lines: JournalLineDto[], source: string) {
+  private async validateLines(
+    companyId: string,
+    lines: JournalLineDto[],
+    source: string,
+  ) {
     // One query for every account and one for every business partner, instead
     // of one (or two) per line. The per-line rules below are unchanged.
     const bpIds = [...new Set(lines.map((l) => l.bpId).filter((x): x is string => !!x))];
@@ -576,18 +580,32 @@ export class JournalEntriesService {
       // maintained through business partners. Any other posting to it would
       // leave the asset register out of step with the G/L.
       source.startsWith('fixed_asset_')
-        ? Promise.resolve([] as { assetAccountId: string; accumulatedDepreciationAccountId: string }[])
+        ? Promise.resolve(
+            [] as {
+              assetAccountId: string;
+              accumulatedDepreciationAccountId: string;
+            }[],
+          )
         : this.prisma.assetClass.findMany({
             where: {
               companyId,
-              OR: [{ assetAccountId: { in: accountIds } }, { accumulatedDepreciationAccountId: { in: accountIds } }],
+              OR: [
+                { assetAccountId: { in: accountIds } },
+                { accumulatedDepreciationAccountId: { in: accountIds } },
+              ],
             },
-            select: { assetAccountId: true, accumulatedDepreciationAccountId: true },
+            select: {
+              assetAccountId: true,
+              accumulatedDepreciationAccountId: true,
+            },
           }),
     ]);
     const knownBp = new Set(partners.map((b) => b.id));
     const fixedAssetAccounts = new Set(
-      assetClasses.flatMap((c) => [c.assetAccountId, c.accumulatedDepreciationAccountId]),
+      assetClasses.flatMap((c) => [
+        c.assetAccountId,
+        c.accumulatedDepreciationAccountId,
+      ]),
     );
     for (const [i, l] of lines.entries()) {
       const debit = D(l.debit);

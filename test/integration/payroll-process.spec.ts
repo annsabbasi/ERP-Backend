@@ -115,7 +115,11 @@ beforeAll(async () => {
   await prisma.companyModule.create({ data: { companyId, moduleId: mod.id } });
   // Financials is a core module: the companies trigger enabled it already.
   const fin = await prisma.systemModule.findUniqueOrThrow({ where: { slug: 'financials' } });
-  expect(await prisma.companyModule.count({ where: { companyId, moduleId: fin.id, isEnabled: true } })).toBe(1);
+  expect(
+    await prisma.companyModule.count({
+      where: { companyId, moduleId: fin.id, isEnabled: true },
+    }),
+  ).toBe(1);
   await prisma.userModule.create({ data: { userId: hrUser.id, moduleId: mod.id } });
   hrToken = await login(`e2e.hr.${stamp}@example.com`, company.slug);
 }, 180_000);
@@ -380,18 +384,31 @@ describe('Payroll Process — failure modes are clear messages, never a 500', ()
     const fin = await prisma.systemModule.findUniqueOrThrow({ where: { slug: 'financials' } });
     expect(fin.isCore).toBe(true);
 
-    const res = await su('patch', `/companies/${companyId}/modules/${fin.id}/toggle`, { isEnabled: false });
+    const res = await su(
+      'patch',
+      `/companies/${companyId}/modules/${fin.id}/toggle`,
+      { isEnabled: false },
+    );
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/core module/);
 
     // The database refuses it too, whatever the caller.
     await expect(
-      prisma.companyModule.updateMany({ where: { companyId, moduleId: fin.id }, data: { isEnabled: false } }),
+      prisma.companyModule.updateMany({
+        where: { companyId, moduleId: fin.id },
+        data: { isEnabled: false },
+      }),
     ).rejects.toThrow(/core module/);
     await expect(
-      prisma.companyModule.deleteMany({ where: { companyId, moduleId: fin.id } }),
+      prisma.companyModule.deleteMany({
+        where: { companyId, moduleId: fin.id },
+      }),
     ).rejects.toThrow(/core module/);
-    expect(await prisma.companyModule.count({ where: { companyId, moduleId: fin.id, isEnabled: true } })).toBe(1);
+    expect(
+      await prisma.companyModule.count({
+        where: { companyId, moduleId: fin.id, isEnabled: true },
+      }),
+    ).toBe(1);
   });
 
   it('company without a base currency', async () => {

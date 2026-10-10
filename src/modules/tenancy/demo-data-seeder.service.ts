@@ -112,7 +112,9 @@ export class DemoDataSeederService {
     // account is mapped for PAYROLL/salary_expense". Bootstrap the starter
     // chart instead, which maps every determination on the way.
     if (rows.some((r) => r.line?.startsWith('SKIPPED payroll accounts'))) {
-      this.logger.warn(`Company ${companyId} has no chart of accounts after seeding; bootstrapping financials`);
+      this.logger.warn(
+        `Company ${companyId} has no chart of accounts after seeding; bootstrapping financials`,
+      );
       return this.bootstrapFinancials(this.prisma, companyId);
     }
     const skipped = rows.filter((r) => r.line?.startsWith('SKIPPED'));
@@ -129,7 +131,10 @@ export class DemoDataSeederService {
    * Takes the client so plain company creation can run it inside the same
    * transaction as the company row.
    */
-  async bootstrapFinancials(db: Pick<Prisma.TransactionClient, '$queryRaw'>, companyId: string) {
+  async bootstrapFinancials(
+    db: Pick<Prisma.TransactionClient, '$queryRaw'>,
+    companyId: string,
+  ) {
     const rows = await db.$queryRaw<{ line: string }[]>`
       SELECT erp_bootstrap_financials(${companyId}) AS line`;
     return rows.map((r) => r.line);

@@ -17,7 +17,13 @@ const prisma = new PrismaClient();
 
 const SYSTEM_MODULES = [
   { name: 'Administration',       slug: 'administration',       description: 'User & system management',                  icon: 'Settings' },
-  { name: 'Financials',           slug: 'financials',           description: 'Accounting & financial reports',             icon: 'DollarSign', isCore: true },
+  {
+    name: 'Financials',
+    slug: 'financials',
+    description: 'Accounting & financial reports',
+    icon: 'DollarSign',
+    isCore: true,
+  },
   { name: 'HR',                   slug: 'hr',                   description: 'Human Resources core',                      icon: 'Users' },
   { name: 'HR Payroll',           slug: 'hr-payroll',           description: 'Payroll management',                        icon: 'CreditCard' },
   { name: 'HR Employee Records',  slug: 'hr-employee-records',  description: 'Employee master data & records',            icon: 'UserCheck' },
@@ -359,7 +365,9 @@ async function main() {
     purchase_order: 'PO-',     purchase_request: 'PR-',  goods_receipt_po: 'GRPO-',
     incoming_payment: 'RCT-',  outgoing_payment: 'PAY-', activity: 'ACT-',
     opportunity: 'OPP-',       campaign: 'CMP-',         business_partner: 'BP-',
-    fixed_asset: 'FA-',      fixed_asset_capitalization: 'CAP-', fixed_asset_credit_memo: 'CAPCM-',
+    fixed_asset: 'FA-',
+    fixed_asset_capitalization: 'CAP-',
+    fixed_asset_credit_memo: 'CAPCM-',
   };
   let seriesCreated = 0;
   for (const documentType of NUMBERED_DOCUMENT_TYPES) {
@@ -390,7 +398,9 @@ async function main() {
   // seed has to apply it too. Idempotent.
   const faLog = await prisma.$queryRaw<{ line: string }[]>`
     SELECT erp_apply_fixed_asset_defaults(${demoCompany.id}) AS line`;
-  console.log(`✅ fixed asset defaults: ${faLog.map((r) => r.line).join('; ')}`);
+  console.log(
+    `✅ fixed asset defaults: ${faLog.map((r) => r.line).join('; ')}`,
+  );
 
   // A fiscal year and its twelve months.
   //

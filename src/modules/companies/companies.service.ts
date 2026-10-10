@@ -167,15 +167,27 @@ export class CompaniesService {
       throw new BadRequestException('One or more module ids are unknown');
     }
     for (const mod of modules) {
-      if (!mod.isCore) await this.subscriptions.assertModuleOnPlan(id, mod.slug);
+      if (!mod.isCore)
+        await this.subscriptions.assertModuleOnPlan(id, mod.slug);
     }
-    const core = await this.prisma.systemModule.findMany({ where: { isCore: true }, select: { id: true } });
-    const moduleIds = [...new Set([...dto.moduleIds, ...core.map((m) => m.id)])];
+    const core = await this.prisma.systemModule.findMany({
+      where: { isCore: true },
+      select: { id: true },
+    });
+    const moduleIds = [
+      ...new Set([...dto.moduleIds, ...core.map((m) => m.id)]),
+    ];
 
     await this.prisma.$transaction([
-      this.prisma.companyModule.deleteMany({ where: { companyId: id, moduleId: { notIn: moduleIds } } }),
+      this.prisma.companyModule.deleteMany({
+        where: { companyId: id, moduleId: { notIn: moduleIds } },
+      }),
       this.prisma.companyModule.createMany({
-        data: moduleIds.map((moduleId) => ({ companyId: id, moduleId, isEnabled: true })),
+        data: moduleIds.map((moduleId) => ({
+          companyId: id,
+          moduleId,
+          isEnabled: true,
+        })),
         skipDuplicates: true,
       }),
       this.prisma.companyModule.updateMany({
@@ -199,7 +211,9 @@ export class CompaniesService {
     // A core module is on for every company regardless of plan, and cannot be
     // switched off: payroll and every other posting module book to its G/L.
     if (mod.isCore && !isEnabled) {
-      throw new BadRequestException(`${mod.name} is a core module and is always enabled for every company.`);
+      throw new BadRequestException(
+        `${mod.name} is a core module and is always enabled for every company.`,
+      );
     }
     if (isEnabled && !mod.isCore) {
       await this.subscriptions.assertModuleOnPlan(companyId, mod.slug);
@@ -308,7 +322,9 @@ export class CompaniesService {
           select: { id: true },
         });
         if (adminRole) {
-          await tx.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } });
+          await tx.userRole.create({
+            data: { userId: admin.id, roleId: adminRole.id },
+          });
         }
 
         return c;

@@ -156,7 +156,10 @@ export class FixedAssetsService extends TenantCrudService {
         : null;
       const used =
         v.depreciationStartDate && lastDepreciation
-          ? Math.max(0, monthsBetween(v.depreciationStartDate, lastDepreciation))
+          ? Math.max(
+              0,
+              monthsBetween(v.depreciationStartDate, lastDepreciation),
+            )
           : 0;
       return {
         ...v,
@@ -393,7 +396,9 @@ export class FixedAssetsService extends TenantCrudService {
         id: true,
         areaValues: {
           include: {
-            area: { select: { id: true, code: true, name: true, postsToGl: true } },
+            area: {
+              select: { id: true, code: true, name: true, postsToGl: true },
+            },
           },
           orderBy: { area: { ordering: 'asc' } },
         },
@@ -442,7 +447,11 @@ export class FixedAssetsService extends TenantCrudService {
         const ordinary = sum(AssetTransactionType.DEPRECIATION);
         const unplanned = sum(AssetTransactionType.MANUAL_DEPRECIATION);
         const apcFirstDay = apc;
-        apc = apc.plus(acquisition).plus(retirement).plus(transfer).plus(writeUp);
+        apc = apc
+          .plus(acquisition)
+          .plus(retirement)
+          .plus(transfer)
+          .plus(writeUp);
         accumulated = accumulated.plus(ordinary).plus(unplanned);
         years.push({
           fiscalYear: y,
@@ -507,7 +516,11 @@ export class FixedAssetsService extends TenantCrudService {
         depreciable,
       );
       const complete = new Date(
-        Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + m, start.getUTCDate()),
+        Date.UTC(
+          start.getUTCFullYear(),
+          start.getUTCMonth() + m,
+          start.getUTCDate(),
+        ),
       );
       const periodEnd = new Date(
         Date.UTC(complete.getUTCFullYear(), complete.getUTCMonth() + 1, 0),
@@ -893,10 +906,7 @@ export class FixedAssetsService extends TenantCrudService {
     ) {
       return new ConflictException(`${code} already exists.`);
     }
-    return this.translatePrismaError(
-      e,
-      dto as unknown as Record<string, unknown>,
-    );
+    return this.translatePrismaError(e, dto);
   }
 
   /**
@@ -1007,7 +1017,11 @@ export class FixedAssetsService extends TenantCrudService {
       // Part of the vendor foreign key: the database itself refuses a
       // business partner that is not a vendor.
       vendorCardType:
-        vendorId === undefined ? undefined : vendorId ? BpCardType.VENDOR : null,
+        vendorId === undefined
+          ? undefined
+          : vendorId
+            ? BpCardType.VENDOR
+            : null,
       branchId: ref(dto.branchId),
       employeeId: ref(dto.employeeId),
       technicianId: ref(dto.technicianId),

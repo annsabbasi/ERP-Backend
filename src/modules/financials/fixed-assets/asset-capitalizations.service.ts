@@ -325,267 +325,280 @@ export class AssetCapitalizationsService {
 
     let id: string;
     try {
-    id = await this.prisma.$transaction(async (tx) => {
-      // Locks first, then every check against what is locked — two documents
-      // against one asset (or one invoice line) cannot both pass the limits.
-      await lockAssets(
-        tx,
-        companyId,
-        dto.lines.map((l) => l.assetId),
-      );
-      const billLineIds = [
-        ...new Set(
-          dto.lines.map((l) => l.apBillLineId).filter((x): x is string => !!x),
-        ),
-      ].sort();
-      if (billLineIds.length) {
-        await tx.$queryRaw`SELECT "id" FROM "ap_bill_lines" WHERE "id" = ANY(${billLineIds}::text[]) ORDER BY "id" FOR UPDATE`;
-      }
-
-      const assets = await tx.fixedAsset.findMany({
-        where: { companyId, id: { in: dto.lines.map((l) => l.assetId) } },
-        include: { assetClass: true, areaValues: { include: { area: true } } },
-      });
-      const byId = new Map(assets.map((a) => [a.id, a]));
-      const capitalizedByBillLine = await this.netCapitalizedByBillLine(
-        tx,
-        billLineIds,
-      );
-      const creditedAgainstBase = base
-        ? await this.creditedAgainstBase(tx, base.id)
-        : new Map<string, Prisma.Decimal>();
-
-      const depreciatedTo = await this.lastDepreciation(
-        tx,
-        companyId,
-        assets.map((a) => a.id),
-      );
-      for (const a of assets) await this.assertClassCanPost(tx, companyId, a);
-
-      const plan = dto.lines.map((line, i) => {
-        const asset = byId.get(line.assetId)!;
-        const amount = D(line.amount);
-        // FA-D15: whole units. A first capitalization brings at least one unit
-        // into service; a later document may be value-only (0).
-        const quantity =
-          line.quantity ?? (isCredit ? 0 : asset.quantity === 0 ? 1 : 0);
-        const areas = this.affectedAreas(asset, area?.id ?? null);
-        this.checkLine(
-          kind,
-          asset,
-          amount,
-          quantity,
-          areas,
-          i + 1,
-          depreciatedTo.get(asset.id),
-        );
-
-        let creditAccountId = asset.assetClass.clearingAccountId;
-        if (bill && line.apBillLineId) {
-          const billLine = bill.lines.find((bl) => bl.id === line.apBillLineId);
-          if (!billLine)
-            throw new BadRequestException(
-              `Line ${i + 1}: that A/P invoice line is not on invoice ${bill.number}.`,
-            );
-          if (billLine.accountId !== asset.assetClass.clearingAccountId) {
-            throw new BadRequestException(
-              `Line ${i + 1}: A/P invoice ${bill.number} booked "${billLine.description}" to another account, not to the ` +
-                `clearing account of asset class ${asset.assetClass.code}. Only an amount sitting on the clearing account can be capitalized.`,
-            );
-          }
-          const already = capitalizedByBillLine.get(billLine.id) ?? ZERO;
-          const after = isCredit ? already.minus(amount) : already.plus(amount);
-          if (!isCredit && after.gt(billLine.lineTotal)) {
-            throw new ConflictException(
-              `Line ${i + 1}: "${billLine.description}" on ${bill.number} is ${billLine.lineTotal.toFixed(2)}, of which ` +
-                `${already.toFixed(2)} is already capitalized; ${amount.toFixed(2)} more would exceed it.`,
-            );
-          }
-          if (isCredit && after.lt(ZERO)) {
-            throw new ConflictException(
-              `Line ${i + 1}: only ${already.toFixed(2)} of "${billLine.description}" on ${bill.number} is capitalized; ` +
-                `${amount.toFixed(2)} cannot be credited.`,
-            );
-          }
-          capitalizedByBillLine.set(billLine.id, after);
-          creditAccountId = billLine.accountId;
-        }
-        if (base) {
-          const baseAmount = base.lines
-            .filter((bl) => bl.assetId === asset.id)
-            .reduce((s, bl) => s.plus(bl.amount), ZERO);
-          if (baseAmount.eq(ZERO)) {
-            throw new BadRequestException(
-              `Line ${i + 1}: asset ${asset.code} is not on ${base.number}.`,
-            );
-          }
-          const credited = creditedAgainstBase.get(asset.id) ?? ZERO;
-          if (credited.plus(amount).gt(baseAmount)) {
-            throw new ConflictException(
-              `Line ${i + 1}: ${base.number} capitalized ${baseAmount.toFixed(2)} for ${asset.code} and ` +
-                `${credited.toFixed(2)} is already credited; ${amount.toFixed(2)} more would exceed it.`,
-            );
-          }
-          creditedAgainstBase.set(asset.id, credited.plus(amount));
-        }
-        return {
-          line,
-          asset,
-          amount,
-          quantity,
-          areas,
-          creditAccountId,
-          ordering: i,
-        };
-      });
-
-      const allocated = await this.numbering.allocate(
-        tx,
-        companyId,
-        DOC_TYPE[kind],
-        dto.seriesId ?? null,
-      );
-      const doc = await tx.assetCapitalization.create({
-        data: {
-          companyId,
-          kind,
-          number: allocated.number,
-          seriesId: allocated.seriesId,
-          origin,
-          apBillId,
-          baseCapitalizationId: base?.id ?? null,
-          depreciationAreaId: area?.id ?? null,
-          reference: dto.reference?.trim() || null,
-          postingDate,
-          documentDate,
-          assetValueDate,
-          currency,
-          total,
-          journalRemark,
-          remarks: dto.remarks?.trim() || null,
-          idempotencyKey: idempotencyKey ?? null,
-          createdById: userId,
-          lines: {
-            // companyId comes from the parent: it is part of the composite key.
-            create: plan.map((p) => ({
-              assetId: p.asset.id,
-              apBillLineId: p.line.apBillLineId ?? null,
-              amount: p.amount,
-              quantity: p.quantity,
-              remarks: p.line.remarks?.trim() || null,
-              ordering: p.ordering,
-            })),
-          },
-        },
-        select: {
-          id: true,
-          number: true,
-          lines: { select: { id: true, assetId: true } },
-        },
-      });
-      const lineIdByAsset = new Map(doc.lines.map((l) => [l.assetId, l.id]));
-
-      // ── the journal entry: only the amounts in the posting area ──
-      // The asset's project goes on both lines (FA-D3); its cost center and
-      // distribution rule belong to the depreciation expense, not to cost.
-      const journalLines: JournalLineDto[] = [];
-      for (const p of plan) {
-        if (!p.areas.some((v) => v.area.postsToGl)) continue;
-        const projectId = p.asset.projectId ?? undefined;
-        const amt = money(p.amount);
-        const what = `${LABEL[kind]} ${doc.number} — ${p.asset.code} ${p.asset.name}`;
-        const apc = p.asset.assetClass.assetAccountId;
-        journalLines.push(
-          {
-            accountId: isCredit ? p.creditAccountId : apc,
-            debit: amt,
-            description: what,
-            projectId,
-          },
-          {
-            accountId: isCredit ? apc : p.creditAccountId,
-            credit: amt,
-            description: what,
-            projectId,
-          },
-        );
-      }
-      let journalEntryId: string | null = null;
-      if (journalLines.length) {
-        const entry = await this.journals.postFromSource(
+      id = await this.prisma.$transaction(async (tx) => {
+        // Locks first, then every check against what is locked — two documents
+        // against one asset (or one invoice line) cannot both pass the limits.
+        await lockAssets(
           tx,
           companyId,
-          userId,
-          {
-            date: postingDate,
-            source: DOC_TYPE[kind],
-            sourceId: doc.id,
-            description: journalRemark,
-            reference: doc.number,
-            currency,
-            lines: journalLines,
-          },
+          dto.lines.map((l) => l.assetId),
         );
-        journalEntryId = entry.id;
-        await tx.assetCapitalization.update({
-          where: { id: doc.id },
-          data: { journalEntryId },
+        const billLineIds = [
+          ...new Set(
+            dto.lines
+              .map((l) => l.apBillLineId)
+              .filter((x): x is string => !!x),
+          ),
+        ].sort();
+        if (billLineIds.length) {
+          await tx.$queryRaw`SELECT "id" FROM "ap_bill_lines" WHERE "id" = ANY(${billLineIds}::text[]) ORDER BY "id" FOR UPDATE`;
+        }
+
+        const assets = await tx.fixedAsset.findMany({
+          where: { companyId, id: { in: dto.lines.map((l) => l.assetId) } },
+          include: {
+            assetClass: true,
+            areaValues: { include: { area: true } },
+          },
         });
-      } else {
-        // A statistical-only document still belongs to an open period.
-        await this.periods.resolveOpenPeriod(
-          companyId,
-          postingDate,
-          'general',
+        const byId = new Map(assets.map((a) => [a.id, a]));
+        const capitalizedByBillLine = await this.netCapitalizedByBillLine(
           tx,
+          billLineIds,
         );
-      }
+        const creditedAgainstBase = base
+          ? await this.creditedAgainstBase(tx, base.id)
+          : new Map<string, Prisma.Decimal>();
 
-      // ── asset values, status, quantity and history ──
-      const sign = isCredit ? -1 : 1;
-      for (const p of plan) {
-        for (const v of p.areas) {
-          const apc = v.acquisitionCost.plus(p.amount.times(sign));
-          if (apc.gt(ZERO) && v.salvageValue.gt(ZERO) && v.salvageValue.gte(apc)) {
-            throw new BadRequestException(
-              `Asset ${p.asset.code}: the salvage value ${v.salvageValue.toFixed(2)} in area ${v.area.code} must be below ` +
-                `its acquisition cost (${apc.toFixed(2)} after this document).`,
-            );
-          }
-          await tx.fixedAssetAreaValue.update({
-            where: { id: v.id },
-            data: {
-              acquisitionCost: apc,
-              netBookValue: apc.minus(v.accumulatedDepreciation),
-              ...(!isCredit && !v.depreciationStartDate
-                ? { depreciationStartDate: assetValueDate }
-                : {}),
-            },
-          });
-          await tx.fixedAssetTransaction.create({
-            data: {
-              companyId,
-              assetId: p.asset.id,
-              areaId: v.areaId,
-              type: TX_TYPE[kind],
-              postingDate,
-              amount: p.amount.times(sign),
-              journalEntryId: v.area.postsToGl ? journalEntryId : null,
-              capitalizationId: doc.id,
-              capitalizationLineId: lineIdByAsset.get(p.asset.id) ?? null,
-              remarks: p.line.remarks?.trim() || null,
-            },
-          });
-        }
-        await this.refreshAssetState(
+        const depreciatedTo = await this.lastDepreciation(
           tx,
-          p.asset.id,
-          p.quantity * sign,
-          assetValueDate,
+          companyId,
+          assets.map((a) => a.id),
         );
-      }
-      return doc.id;
-    }, TX_OPTIONS);
+        for (const a of assets) await this.assertClassCanPost(tx, companyId, a);
+
+        const plan = dto.lines.map((line, i) => {
+          const asset = byId.get(line.assetId)!;
+          const amount = D(line.amount);
+          // FA-D15: whole units. A first capitalization brings at least one unit
+          // into service; a later document may be value-only (0).
+          const quantity =
+            line.quantity ?? (isCredit ? 0 : asset.quantity === 0 ? 1 : 0);
+          const areas = this.affectedAreas(asset, area?.id ?? null);
+          this.checkLine(
+            kind,
+            asset,
+            amount,
+            quantity,
+            areas,
+            i + 1,
+            depreciatedTo.get(asset.id),
+          );
+
+          let creditAccountId = asset.assetClass.clearingAccountId;
+          if (bill && line.apBillLineId) {
+            const billLine = bill.lines.find(
+              (bl) => bl.id === line.apBillLineId,
+            );
+            if (!billLine)
+              throw new BadRequestException(
+                `Line ${i + 1}: that A/P invoice line is not on invoice ${bill.number}.`,
+              );
+            if (billLine.accountId !== asset.assetClass.clearingAccountId) {
+              throw new BadRequestException(
+                `Line ${i + 1}: A/P invoice ${bill.number} booked "${billLine.description}" to another account, not to the ` +
+                  `clearing account of asset class ${asset.assetClass.code}. Only an amount sitting on the clearing account can be capitalized.`,
+              );
+            }
+            const already = capitalizedByBillLine.get(billLine.id) ?? ZERO;
+            const after = isCredit
+              ? already.minus(amount)
+              : already.plus(amount);
+            if (!isCredit && after.gt(billLine.lineTotal)) {
+              throw new ConflictException(
+                `Line ${i + 1}: "${billLine.description}" on ${bill.number} is ${billLine.lineTotal.toFixed(2)}, of which ` +
+                  `${already.toFixed(2)} is already capitalized; ${amount.toFixed(2)} more would exceed it.`,
+              );
+            }
+            if (isCredit && after.lt(ZERO)) {
+              throw new ConflictException(
+                `Line ${i + 1}: only ${already.toFixed(2)} of "${billLine.description}" on ${bill.number} is capitalized; ` +
+                  `${amount.toFixed(2)} cannot be credited.`,
+              );
+            }
+            capitalizedByBillLine.set(billLine.id, after);
+            creditAccountId = billLine.accountId;
+          }
+          if (base) {
+            const baseAmount = base.lines
+              .filter((bl) => bl.assetId === asset.id)
+              .reduce((s, bl) => s.plus(bl.amount), ZERO);
+            if (baseAmount.eq(ZERO)) {
+              throw new BadRequestException(
+                `Line ${i + 1}: asset ${asset.code} is not on ${base.number}.`,
+              );
+            }
+            const credited = creditedAgainstBase.get(asset.id) ?? ZERO;
+            if (credited.plus(amount).gt(baseAmount)) {
+              throw new ConflictException(
+                `Line ${i + 1}: ${base.number} capitalized ${baseAmount.toFixed(2)} for ${asset.code} and ` +
+                  `${credited.toFixed(2)} is already credited; ${amount.toFixed(2)} more would exceed it.`,
+              );
+            }
+            creditedAgainstBase.set(asset.id, credited.plus(amount));
+          }
+          return {
+            line,
+            asset,
+            amount,
+            quantity,
+            areas,
+            creditAccountId,
+            ordering: i,
+          };
+        });
+
+        const allocated = await this.numbering.allocate(
+          tx,
+          companyId,
+          DOC_TYPE[kind],
+          dto.seriesId ?? null,
+        );
+        const doc = await tx.assetCapitalization.create({
+          data: {
+            companyId,
+            kind,
+            number: allocated.number,
+            seriesId: allocated.seriesId,
+            origin,
+            apBillId,
+            baseCapitalizationId: base?.id ?? null,
+            depreciationAreaId: area?.id ?? null,
+            reference: dto.reference?.trim() || null,
+            postingDate,
+            documentDate,
+            assetValueDate,
+            currency,
+            total,
+            journalRemark,
+            remarks: dto.remarks?.trim() || null,
+            idempotencyKey: idempotencyKey ?? null,
+            createdById: userId,
+            lines: {
+              // companyId comes from the parent: it is part of the composite key.
+              create: plan.map((p) => ({
+                assetId: p.asset.id,
+                apBillLineId: p.line.apBillLineId ?? null,
+                amount: p.amount,
+                quantity: p.quantity,
+                remarks: p.line.remarks?.trim() || null,
+                ordering: p.ordering,
+              })),
+            },
+          },
+          select: {
+            id: true,
+            number: true,
+            lines: { select: { id: true, assetId: true } },
+          },
+        });
+        const lineIdByAsset = new Map(doc.lines.map((l) => [l.assetId, l.id]));
+
+        // ── the journal entry: only the amounts in the posting area ──
+        // The asset's project goes on both lines (FA-D3); its cost center and
+        // distribution rule belong to the depreciation expense, not to cost.
+        const journalLines: JournalLineDto[] = [];
+        for (const p of plan) {
+          if (!p.areas.some((v) => v.area.postsToGl)) continue;
+          const projectId = p.asset.projectId ?? undefined;
+          const amt = money(p.amount);
+          const what = `${LABEL[kind]} ${doc.number} — ${p.asset.code} ${p.asset.name}`;
+          const apc = p.asset.assetClass.assetAccountId;
+          journalLines.push(
+            {
+              accountId: isCredit ? p.creditAccountId : apc,
+              debit: amt,
+              description: what,
+              projectId,
+            },
+            {
+              accountId: isCredit ? apc : p.creditAccountId,
+              credit: amt,
+              description: what,
+              projectId,
+            },
+          );
+        }
+        let journalEntryId: string | null = null;
+        if (journalLines.length) {
+          const entry = await this.journals.postFromSource(
+            tx,
+            companyId,
+            userId,
+            {
+              date: postingDate,
+              source: DOC_TYPE[kind],
+              sourceId: doc.id,
+              description: journalRemark,
+              reference: doc.number,
+              currency,
+              lines: journalLines,
+            },
+          );
+          journalEntryId = entry.id;
+          await tx.assetCapitalization.update({
+            where: { id: doc.id },
+            data: { journalEntryId },
+          });
+        } else {
+          // A statistical-only document still belongs to an open period.
+          await this.periods.resolveOpenPeriod(
+            companyId,
+            postingDate,
+            'general',
+            tx,
+          );
+        }
+
+        // ── asset values, status, quantity and history ──
+        const sign = isCredit ? -1 : 1;
+        for (const p of plan) {
+          for (const v of p.areas) {
+            const apc = v.acquisitionCost.plus(p.amount.times(sign));
+            if (
+              apc.gt(ZERO) &&
+              v.salvageValue.gt(ZERO) &&
+              v.salvageValue.gte(apc)
+            ) {
+              throw new BadRequestException(
+                `Asset ${p.asset.code}: the salvage value ${v.salvageValue.toFixed(2)} in area ${v.area.code} must be below ` +
+                  `its acquisition cost (${apc.toFixed(2)} after this document).`,
+              );
+            }
+            await tx.fixedAssetAreaValue.update({
+              where: { id: v.id },
+              data: {
+                acquisitionCost: apc,
+                netBookValue: apc.minus(v.accumulatedDepreciation),
+                ...(!isCredit && !v.depreciationStartDate
+                  ? { depreciationStartDate: assetValueDate }
+                  : {}),
+              },
+            });
+            await tx.fixedAssetTransaction.create({
+              data: {
+                companyId,
+                assetId: p.asset.id,
+                areaId: v.areaId,
+                type: TX_TYPE[kind],
+                postingDate,
+                amount: p.amount.times(sign),
+                journalEntryId: v.area.postsToGl ? journalEntryId : null,
+                capitalizationId: doc.id,
+                capitalizationLineId: lineIdByAsset.get(p.asset.id) ?? null,
+                remarks: p.line.remarks?.trim() || null,
+              },
+            });
+          }
+          await this.refreshAssetState(
+            tx,
+            p.asset.id,
+            p.quantity * sign,
+            assetValueDate,
+          );
+        }
+        return doc.id;
+      }, TX_OPTIONS);
     } catch (e) {
       await this.duplicateKey(e, companyId, idempotencyKey);
       throw e;
@@ -1108,7 +1121,9 @@ export class AssetCapitalizationsService {
       key &&
       e instanceof Prisma.PrismaClientKnownRequestError &&
       e.code === 'P2002' &&
-      String(e.meta?.target ?? '').includes('idempotencyKey')
+      ([] as unknown[])
+        .concat(e.meta?.target ?? [])
+        .some((t) => typeof t === 'string' && t.includes('idempotencyKey'))
     ) {
       const existing = await this.prisma.assetCapitalization.findFirst({
         where: { companyId, idempotencyKey: key },
