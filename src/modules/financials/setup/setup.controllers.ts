@@ -312,7 +312,23 @@ export class PostingTemplatesController extends TenantCrudController({
   createDto: Dto.CreatePostingTemplateDto,
   updateDto: Dto.UpdatePostingTemplateDto,
 }) {
-  constructor(protected readonly service: S.PostingTemplatesService) { super(); }
+  constructor(protected readonly service: S.PostingTemplatesService) {
+    super();
+  }
+
+  @ApiOperation({
+    summary:
+      'Spread an amount across the template lines (journal-entry lines to review)',
+  })
+  @RequirePermission('financials.posting_template.view')
+  @Get(':id/apply')
+  apply(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+    @Query() query: Dto.ApplyPostingTemplateQueryDto,
+  ) {
+    return this.service.apply(user.companyId as string, id, query.amount);
+  }
 }
 
 @ApiTags('Financials — Recurring Postings')
@@ -333,11 +349,42 @@ export class RecurringPostingsController extends TenantCrudController({
     return this.service.due(user.companyId as string, asOf ? new Date(asOf) : new Date());
   }
 
-  @ApiOperation({ summary: 'Advance the schedule after executing' })
+  @ApiOperation({ summary: 'Skip the next instance without posting it' })
   @RequirePermission('financials.recurring_posting.update')
   @Post(':id/advance')
   advance(@CurrentUser() user: AuthedUser, @Param('id') id: string) {
     return this.service.advance(user.companyId as string, id);
+  }
+
+  @ApiOperation({
+    summary:
+      'Post the next instance as a journal entry and advance the schedule',
+  })
+  @RequirePermission(
+    'financials.recurring_posting.update',
+    'finance.journal.post',
+  )
+  @Post(':id/execute')
+  execute(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+    @Body() dto: Dto.ExecuteRecurringPostingDto,
+  ) {
+    return this.service.execute(
+      user.companyId as string,
+      user.sub,
+      id,
+      dto.postingDate,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Journal entries posted from this recurring posting',
+  })
+  @RequirePermission('financials.recurring_posting.view')
+  @Get(':id/entries')
+  entries(@CurrentUser() user: AuthedUser, @Param('id') id: string) {
+    return this.service.entries(user.companyId as string, id);
   }
 }
 

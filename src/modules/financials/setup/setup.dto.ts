@@ -130,9 +130,14 @@ export class PostingTemplateLineDto {
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
 
   @ApiProperty({ example: 50, description: 'Share of the amount, in percent' })
-  @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) @Max(100) percentage!: number;
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  percentage!: number;
 
-  @ApiProperty({ enum: ['debit', 'credit'] }) @IsString() @IsNotEmpty() side!: string;
+  @ApiProperty({ enum: ['debit', 'credit'] })
+  @IsIn(['debit', 'credit'])
+  side!: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() ordering?: number;
 }
 
@@ -146,6 +151,17 @@ export class CreatePostingTemplateDto {
   lines!: PostingTemplateLineDto[];
 }
 export class UpdatePostingTemplateDto extends PartialType(CreatePostingTemplateDto) {}
+
+export class ApplyPostingTemplateQueryDto {
+  @ApiProperty({
+    example: 120000,
+    description: 'Total to spread across the template lines',
+  })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  amount!: number;
+}
 
 // ─── RECURRING POSTING ────────────────────────────────────────────────────────
 export class RecurringPostingLineDto {
@@ -171,6 +187,17 @@ export class CreateRecurringPostingDto {
   lines!: RecurringPostingLineDto[];
 }
 export class UpdateRecurringPostingDto extends PartialType(CreateRecurringPostingDto) {}
+
+export class ExecuteRecurringPostingDto {
+  @ApiPropertyOptional({
+    example: '2026-11-01',
+    description:
+      'Posting date of the journal entry; defaults to the scheduled date',
+  })
+  @IsOptional()
+  @IsDateString()
+  postingDate?: string;
+}
 
 // ─── COST ACCOUNTING ──────────────────────────────────────────────────────────
 export class CreateDimensionDto {

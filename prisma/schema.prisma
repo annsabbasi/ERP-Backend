@@ -17,6 +17,10 @@ model SystemModule {
   description String?
   icon        String?
   isActive    Boolean  @default(true)
+  // Always enabled for every company, whatever its plan (Financials: the G/L
+  // every posting module books to). Enforced by triggers on companies and
+  // company_modules — see migration 20261005000000_core_modules_financials.
+  isCore      Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   companyModules CompanyModule[]
