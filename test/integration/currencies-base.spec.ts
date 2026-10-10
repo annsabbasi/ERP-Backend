@@ -69,7 +69,12 @@ beforeAll(async () => {
   companyId = company.id;
   for (const slug of ['financials', 'hr-payroll']) {
     const m = await prisma.systemModule.findUniqueOrThrow({ where: { slug } });
-    await prisma.companyModule.create({ data: { companyId, moduleId: m.id } });
+    // upsert: the companies trigger already enabled Financials (a core module).
+    await prisma.companyModule.upsert({
+      where: { companyId_moduleId: { companyId, moduleId: m.id } },
+      update: {},
+      create: { companyId, moduleId: m.id },
+    });
   }
   const email = `cur.super.${stamp}@example.com`;
   await prisma.user.create({

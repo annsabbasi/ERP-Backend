@@ -33,14 +33,14 @@ let hrToken = '';
 let periodJan = '';
 
 type Res = { status: number; body: any };
-async function call(token: string, method: 'get' | 'post' | 'put' | 'delete', path: string, body?: unknown, company = true): Promise<Res> {
+async function call(token: string, method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string, body?: unknown, company = true): Promise<Res> {
   let req = request(server)[method](`/api/v1${path}`).set('authorization', `Bearer ${token}`);
   if (company) req = req.set('x-company-id', companyId);
   const res = await (body === undefined ? req.send() : req.send(body as object));
   const payload = res.body && res.body.success === true && 'data' in res.body ? res.body.data : res.body;
   return { status: res.status, body: payload };
 }
-const su = (m: 'get' | 'post' | 'put' | 'delete', p: string, b?: unknown) => call(superToken, m, p, b);
+const su = (m: 'get' | 'post' | 'put' | 'patch' | 'delete', p: string, b?: unknown) => call(superToken, m, p, b);
 const RUNS = '/hr/transactions/payroll-runs';
 
 async function login(email: string, companySlug?: string) {
@@ -113,8 +113,9 @@ beforeAll(async () => {
   await prisma.userRole.create({ data: { userId: hrUser.id, roleId: role.id } });
   const mod = await prisma.systemModule.findUniqueOrThrow({ where: { slug: 'hr-payroll' } });
   await prisma.companyModule.create({ data: { companyId, moduleId: mod.id } });
+  // Financials is a core module: the companies trigger enabled it already.
   const fin = await prisma.systemModule.findUniqueOrThrow({ where: { slug: 'financials' } });
-  await prisma.companyModule.create({ data: { companyId, moduleId: fin.id } });
+  expect(await prisma.companyModule.count({ where: { companyId, moduleId: fin.id, isEnabled: true } })).toBe(1);
   await prisma.userModule.create({ data: { userId: hrUser.id, moduleId: mod.id } });
   hrToken = await login(`e2e.hr.${stamp}@example.com`, company.slug);
 }, 180_000);
@@ -375,20 +376,22 @@ describe('Payroll Process — failure modes are clear messages, never a 500', ()
     }
   });
 
-  it('Financials module not enabled for the company: clear 403, nothing posted', async () => {
-    const run = await newRun();
-    await su('post', `${RUNS}/${run}/generate`);
+  it('Financials is a core module: it cannot be switched off, so posting is never refused for it', async () => {
     const fin = await prisma.systemModule.findUniqueOrThrow({ where: { slug: 'financials' } });
-    await prisma.companyModule.updateMany({ where: { companyId, moduleId: fin.id }, data: { isEnabled: false } });
-    try {
-      const res = await su('post', `${RUNS}/${run}/post`);
-      expect(res.status).toBe(403);
-      expect(res.body.message).toMatch(/Financials module is not enabled/);
-      expect((await prisma.payrollRun.findUniqueOrThrow({ where: { id: run } })).status).toBe('Open');
-    } finally {
-      await prisma.companyModule.updateMany({ where: { companyId, moduleId: fin.id }, data: { isEnabled: true } });
-      await su('delete', `${RUNS}/${run}`);
-    }
+    expect(fin.isCore).toBe(true);
+
+    const res = await su('patch', `/companies/${companyId}/modules/${fin.id}/toggle`, { isEnabled: false });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/core module/);
+
+    // The database refuses it too, whatever the caller.
+    await expect(
+      prisma.companyModule.updateMany({ where: { companyId, moduleId: fin.id }, data: { isEnabled: false } }),
+    ).rejects.toThrow(/core module/);
+    await expect(
+      prisma.companyModule.deleteMany({ where: { companyId, moduleId: fin.id } }),
+    ).rejects.toThrow(/core module/);
+    expect(await prisma.companyModule.count({ where: { companyId, moduleId: fin.id, isEnabled: true } })).toBe(1);
   });
 
   it('company without a base currency', async () => {

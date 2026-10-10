@@ -17,7 +17,7 @@ const prisma = new PrismaClient();
 
 const SYSTEM_MODULES = [
   { name: 'Administration',       slug: 'administration',       description: 'User & system management',                  icon: 'Settings' },
-  { name: 'Financials',           slug: 'financials',           description: 'Accounting & financial reports',             icon: 'DollarSign' },
+  { name: 'Financials',           slug: 'financials',           description: 'Accounting & financial reports',             icon: 'DollarSign', isCore: true },
   { name: 'HR',                   slug: 'hr',                   description: 'Human Resources core',                      icon: 'Users' },
   { name: 'HR Payroll',           slug: 'hr-payroll',           description: 'Payroll management',                        icon: 'CreditCard' },
   { name: 'HR Employee Records',  slug: 'hr-employee-records',  description: 'Employee master data & records',            icon: 'UserCheck' },
@@ -39,7 +39,7 @@ async function main() {
   for (const mod of SYSTEM_MODULES) {
     await prisma.systemModule.upsert({
       where: { slug: mod.slug },
-      update: {},
+      update: { isCore: mod.isCore ?? false },
       create: mod,
     });
   }

@@ -87,8 +87,31 @@ export class DemoDataSeederService {
   private async seedPayrollDefaults(companyId: string) {
     const rows = await this.prisma.$queryRaw<{ line: string }[]>`
       SELECT erp_apply_payroll_defaults(${companyId}) AS line`;
+    // No chart of accounts (the accounts step above failed): without one there
+    // is nothing to map payroll to, and Post to G/L would refuse with "No G/L
+    // account is mapped for PAYROLL/salary_expense". Bootstrap the starter
+    // chart instead, which maps every determination on the way.
+    if (rows.some((r) => r.line?.startsWith('SKIPPED payroll accounts'))) {
+      this.logger.warn(`Company ${companyId} has no chart of accounts after seeding; bootstrapping financials`);
+      return this.bootstrapFinancials(this.prisma, companyId);
+    }
     const skipped = rows.filter((r) => r.line?.startsWith('SKIPPED'));
     for (const r of skipped) this.logger.warn(`Payroll defaults for ${companyId}: ${r.line}`);
+    return rows.map((r) => r.line);
+  }
+
+  /**
+   * Currency master, a starter chart of accounts, this year's posting
+   * periods, numbering, and every account determination (PAYROLL, AR/AP,
+   * cash) — the database function `erp_bootstrap_financials`. Only inserts
+   * what is missing, so it is safe on a company that has part of it.
+   *
+   * Takes the client so plain company creation can run it inside the same
+   * transaction as the company row.
+   */
+  async bootstrapFinancials(db: Pick<Prisma.TransactionClient, '$queryRaw'>, companyId: string) {
+    const rows = await db.$queryRaw<{ line: string }[]>`
+      SELECT erp_bootstrap_financials(${companyId}) AS line`;
     return rows.map((r) => r.line);
   }
 

@@ -113,7 +113,18 @@ export class CompaniesService {
   async create(dto: CreateCompanyDto) {
     const existing = await this.prisma.company.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new BadRequestException('Company slug already taken');
-    return this.prisma.company.create({ data: dto });
+    // A company without a chart of accounts and its determinations can run
+    // payroll but never post it ("No G/L account is mapped for
+    // PAYROLL/salary_expense"), so it gets them with the company row or not at
+    // all. Onboarding seeds the same through DemoDataSeederService.
+    return this.prisma.$transaction(
+      async (tx) => {
+        const company = await tx.company.create({ data: dto });
+        await this.demoData.bootstrapFinancials(tx, company.id);
+        return company;
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
   }
 
   async update(id: string, dto: UpdateCompanyDto) {
@@ -143,6 +154,9 @@ export class CompaniesService {
   /**
    * Bulk-assign modules. Each must be on the company's plan; the call fails
    * the whole batch if any module is missing rather than silently skipping.
+   *
+   * Core modules (Financials) are always kept, whether or not the list names
+   * them — the company_modules guard refuses removing them anyway.
    */
   async assignModules(id: string, dto: AssignModulesDto, audit: AuditContext) {
     await this.findOne(id);
@@ -153,14 +167,22 @@ export class CompaniesService {
       throw new BadRequestException('One or more module ids are unknown');
     }
     for (const mod of modules) {
-      await this.subscriptions.assertModuleOnPlan(id, mod.slug);
+      if (!mod.isCore) await this.subscriptions.assertModuleOnPlan(id, mod.slug);
     }
+    const core = await this.prisma.systemModule.findMany({ where: { isCore: true }, select: { id: true } });
+    const moduleIds = [...new Set([...dto.moduleIds, ...core.map((m) => m.id)])];
 
-    await this.prisma.companyModule.deleteMany({ where: { companyId: id } });
-    await this.prisma.companyModule.createMany({
-      data: dto.moduleIds.map((moduleId) => ({ companyId: id, moduleId, isEnabled: true })),
-      skipDuplicates: true,
-    });
+    await this.prisma.$transaction([
+      this.prisma.companyModule.deleteMany({ where: { companyId: id, moduleId: { notIn: moduleIds } } }),
+      this.prisma.companyModule.createMany({
+        data: moduleIds.map((moduleId) => ({ companyId: id, moduleId, isEnabled: true })),
+        skipDuplicates: true,
+      }),
+      this.prisma.companyModule.updateMany({
+        where: { companyId: id, moduleId: { in: moduleIds }, isEnabled: false },
+        data: { isEnabled: true },
+      }),
+    ]);
     await this.recordActivity(id, audit, 'tenancy.modules.assigned', { moduleIds: dto.moduleIds });
     return this.findOne(id);
   }
@@ -174,7 +196,12 @@ export class CompaniesService {
     const mod = await this.prisma.systemModule.findUnique({ where: { id: moduleId } });
     if (!mod) throw new NotFoundException(`Module ${moduleId} not found`);
 
-    if (isEnabled) {
+    // A core module is on for every company regardless of plan, and cannot be
+    // switched off: payroll and every other posting module book to its G/L.
+    if (mod.isCore && !isEnabled) {
+      throw new BadRequestException(`${mod.name} is a core module and is always enabled for every company.`);
+    }
+    if (isEnabled && !mod.isCore) {
       await this.subscriptions.assertModuleOnPlan(companyId, mod.slug);
     }
 
