@@ -7,6 +7,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ledgerStatusWhere } from '../ledger-status';
+import { AccountsService } from '../accounts/accounts.service';
+import { JournalEntriesService } from '../journal-entries/journal-entries.service';
 import {
   TenantCrudService,
   TenantCrudOptions,
@@ -618,43 +620,166 @@ export class PostingTemplatesService extends TenantCrudService {
       },
     },
   };
-  constructor(prisma: PrismaService) { super(prisma); }
+  constructor(
+    prisma: PrismaService,
+    private readonly accounts: AccountsService,
+  ) {
+    super(prisma);
+  }
 
   async create(companyId: string, dto: Record<string, unknown>) {
     const cid = this.requireCompany(companyId);
-    const lines = (dto.lines ?? []) as { accountId: string; percentage: number; side: string; description?: string; ordering?: number }[];
+    const lines = (dto.lines ?? []) as {
+      accountId: string;
+      percentage: number;
+      side: string;
+      description?: string;
+      ordering?: number;
+    }[];
     this.assertPercentages(lines);
-    return this.prisma.postingTemplate.create({
-      data: {
-        companyId: cid,
-        code: dto.code as string,
-        description: dto.description as string,
-        isActive: (dto.isActive as boolean) ?? true,
-        lines: { create: lines.map((l, i) => ({ ...l, ordering: l.ordering ?? i })) },
-      },
-      ...this.readArgs(),
-    });
+    await this.accounts.assertPostableMany(
+      cid,
+      lines.map((l) => l.accountId),
+    );
+    try {
+      return await this.prisma.postingTemplate.create({
+        data: {
+          companyId: cid,
+          code: dto.code as string,
+          description: dto.description as string,
+          isActive: (dto.isActive as boolean) ?? true,
+          lines: {
+            create: lines.map((l, i) => ({ ...l, ordering: l.ordering ?? i })),
+          },
+        },
+        ...this.readArgs(),
+      });
+    } catch (e) {
+      throw this.translatePrismaError(e, dto);
+    }
   }
 
   async update(companyId: string, id: string, dto: Record<string, unknown>) {
     const cid = this.requireCompany(companyId);
     await this.findOne(cid, id);
-    const lines = dto.lines as { accountId: string; percentage: number; side: string; description?: string; ordering?: number }[] | undefined;
-    if (lines) this.assertPercentages(lines);
+    const lines = dto.lines as
+      | {
+          accountId: string;
+          percentage: number;
+          side: string;
+          description?: string;
+          ordering?: number;
+        }[]
+      | undefined;
+    if (lines) {
+      this.assertPercentages(lines);
+      await this.accounts.assertPostableMany(
+        cid,
+        lines.map((l) => l.accountId),
+      );
+    }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (lines) await tx.postingTemplateLine.deleteMany({ where: { templateId: id } });
-      return tx.postingTemplate.update({
-        where: { id },
-        data: {
-          ...(dto.code !== undefined ? { code: dto.code as string } : {}),
-          ...(dto.description !== undefined ? { description: dto.description as string } : {}),
-          ...(dto.isActive !== undefined ? { isActive: dto.isActive as boolean } : {}),
-          ...(lines ? { lines: { create: lines.map((l, i) => ({ ...l, ordering: l.ordering ?? i })) } } : {}),
-        },
-        ...this.readArgs(),
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (lines)
+          await tx.postingTemplateLine.deleteMany({
+            where: { templateId: id },
+          });
+        return tx.postingTemplate.update({
+          where: { id },
+          data: {
+            ...(dto.code !== undefined ? { code: dto.code as string } : {}),
+            ...(dto.description !== undefined
+              ? { description: dto.description as string }
+              : {}),
+            ...(dto.isActive !== undefined
+              ? { isActive: dto.isActive as boolean }
+              : {}),
+            ...(lines
+              ? {
+                  lines: {
+                    create: lines.map((l, i) => ({
+                      ...l,
+                      ordering: l.ordering ?? i,
+                    })),
+                  },
+                }
+              : {}),
+          },
+          ...this.readArgs(),
+        });
       });
+    } catch (e) {
+      throw this.translatePrismaError(e, dto);
+    }
+  }
+
+  /**
+   * Deleting a template that entries were built from would null their
+   * `templateId` (ON DELETE SET NULL) and lose that audit trail, so a used
+   * template can only be deactivated.
+   */
+  async remove(companyId: string, id: string) {
+    const cid = this.requireCompany(companyId);
+    await this.findOne(cid, id);
+    const used = await this.prisma.journalEntry.count({
+      where: { companyId: cid, templateId: id },
     });
+    if (used > 0) {
+      throw new ConflictException(
+        `This posting template was used by ${used} journal entr${used === 1 ? 'y' : 'ies'} and cannot be deleted. Deactivate it instead.`,
+      );
+    }
+    return super.remove(cid, id);
+  }
+
+  /**
+   * Spreads `amount` across the template's lines by percentage, giving the
+   * journal-entry lines the user then reviews and posts. Each side is rounded
+   * to cents and the last line on that side absorbs the leftover, so debits and
+   * credits each total exactly `amount`.
+   */
+  async apply(companyId: string, id: string, amount: number) {
+    const cid = this.requireCompany(companyId);
+    const template = await this.prisma.postingTemplate.findFirst({
+      where: { id, companyId: cid },
+      include: {
+        lines: {
+          orderBy: { ordering: 'asc' },
+          include: {
+            account: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!template)
+      throw new NotFoundException(`Posting template ${id} not found`);
+    if (!template.isActive) {
+      throw new BadRequestException(
+        `Posting template ${template.code} is inactive.`,
+      );
+    }
+
+    const total = D(amount).toDecimalPlaces(2);
+    if (total.lte(0))
+      throw new BadRequestException('Amount must be greater than zero.');
+
+    const lines = spreadByPercentage(total, template.lines);
+    return {
+      templateId: template.id,
+      code: template.code,
+      description: template.description,
+      amount: total.toFixed(2),
+      lines: lines.map((l) => ({
+        accountId: l.accountId,
+        account: l.account,
+        description: l.description,
+        percentage: l.percentage.toString(),
+        side: l.side,
+        debit: l.side === 'debit' ? l.amount.toFixed(2) : '0.00',
+        credit: l.side === 'credit' ? l.amount.toFixed(2) : '0.00',
+      })),
+    };
   }
 
   /**
@@ -662,10 +787,17 @@ export class PostingTemplatesService extends TenantCrudService {
    * account for the whole amount — otherwise the generated entry cannot balance.
    */
   private assertPercentages(lines: { percentage: number; side: string }[]) {
+    if (lines.some((l) => !(Number(l.percentage) > 0))) {
+      throw new BadRequestException(
+        'Every posting template line needs a percentage above 0.',
+      );
+    }
     for (const side of ['debit', 'credit']) {
       const sideLines = lines.filter((l) => l.side === side);
       if (!sideLines.length) {
-        throw new BadRequestException(`A posting template needs at least one ${side} line.`);
+        throw new BadRequestException(
+          `A posting template needs at least one ${side} line.`,
+        );
       }
       const total = sideLines.reduce((s, l) => s + Number(l.percentage), 0);
       if (Math.abs(total - 100) > 0.0001) {
@@ -678,6 +810,41 @@ export class PostingTemplatesService extends TenantCrudService {
 }
 
 // ─── RECURRING POSTINGS ───────────────────────────────────────────────────────
+/** `JournalEntry.source` of entries posted from a recurring posting. */
+export const RECURRING_POSTING_SOURCE = 'recurring_posting';
+
+type RecurringLineInput = {
+  accountId: string;
+  debit?: number;
+  credit?: number;
+  description?: string;
+  ordering?: number;
+};
+
+type ScheduleState = {
+  frequency: string;
+  nextExecution: Date;
+  validUntil: Date | null;
+  executionCount: number;
+  maxExecutions: number | null;
+};
+
+/**
+ * Interactive-transaction budget for an execution: it allocates a document
+ * number and posts a journal, the same work JournalEntriesService gives 20s.
+ */
+const EXECUTE_TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
+
+/**
+ * Recurring postings: a fixed, balanced set of journal lines that repeats on a
+ * schedule (rent, insurance, monthly accruals).
+ *
+ * Nothing posts by itself. Due postings appear in the confirmation list and the
+ * user executes them. One execution posts one journal entry, dated at the
+ * scheduled date unless the user overrides it, and moves the schedule on by one
+ * interval in the same transaction. Missed runs therefore stay due and are
+ * caught up one instance at a time, each in its own period.
+ */
 @Injectable()
 export class RecurringPostingsService extends TenantCrudService {
   protected readonly modelName = 'recurringPosting';
@@ -694,119 +861,389 @@ export class RecurringPostingsService extends TenantCrudService {
       },
     },
   };
-  constructor(prisma: PrismaService) { super(prisma); }
+  constructor(
+    prisma: PrismaService,
+    private readonly accounts: AccountsService,
+    private readonly journals: JournalEntriesService,
+  ) {
+    super(prisma);
+  }
 
   async create(companyId: string, dto: Record<string, unknown>) {
     const cid = this.requireCompany(companyId);
-    const lines = (dto.lines ?? []) as { accountId: string; debit?: number; credit?: number; description?: string; ordering?: number }[];
-    this.assertBalanced(lines);
-    return this.prisma.recurringPosting.create({
-      data: {
-        companyId: cid,
-        code: dto.code as string,
-        description: dto.description as string,
-        frequency: dto.frequency as never,
-        nextExecution: new Date(dto.nextExecution as string),
-        validUntil: dto.validUntil ? new Date(dto.validUntil as string) : null,
-        maxExecutions: (dto.maxExecutions as number) ?? null,
-        currency: (dto.currency as string) ?? 'USD',
-        isActive: (dto.isActive as boolean) ?? true,
-        lines: {
-          create: lines.map((l, i) => ({
-            accountId: l.accountId,
-            debit: D(l.debit),
-            credit: D(l.credit),
-            description: l.description ?? null,
-            ordering: l.ordering ?? i,
-          })),
+    const lines = (dto.lines ?? []) as RecurringLineInput[];
+    this.assertLines(lines);
+    await this.assertAccounts(cid, lines);
+
+    const schedule: ScheduleState = {
+      frequency: dto.frequency as string,
+      nextExecution: new Date(dto.nextExecution as string),
+      validUntil: dto.validUntil ? new Date(dto.validUntil as string) : null,
+      executionCount: 0,
+      maxExecutions: (dto.maxExecutions as number) ?? null,
+    };
+    const isActive = (dto.isActive as boolean) ?? true;
+    this.assertSchedule(schedule, isActive);
+
+    try {
+      return await this.prisma.recurringPosting.create({
+        data: {
+          companyId: cid,
+          code: dto.code as string,
+          description: dto.description as string,
+          frequency: dto.frequency as never,
+          nextExecution: schedule.nextExecution,
+          validUntil: schedule.validUntil,
+          maxExecutions: schedule.maxExecutions,
+          currency: (dto.currency as string) ?? 'USD',
+          isActive,
+          lines: { create: this.lineRows(lines) },
         },
-      },
-      ...this.readArgs(),
-    });
+        ...this.readArgs(),
+      });
+    } catch (e) {
+      throw this.translatePrismaError(e, dto);
+    }
   }
 
   async update(companyId: string, id: string, dto: Record<string, unknown>) {
     const cid = this.requireCompany(companyId);
-    await this.findOne(cid, id);
-    const lines = dto.lines as { accountId: string; debit?: number; credit?: number; description?: string; ordering?: number }[] | undefined;
-    if (lines) this.assertBalanced(lines);
+    const current = (await this.findOne(
+      cid,
+      id,
+    )) as unknown as ScheduleState & {
+      isActive: boolean;
+    };
+    const lines = dto.lines as RecurringLineInput[] | undefined;
+    if (lines) {
+      this.assertLines(lines);
+      await this.assertAccounts(cid, lines);
+    }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (lines) await tx.recurringPostingLine.deleteMany({ where: { recurringId: id } });
-      return tx.recurringPosting.update({
-        where: { id },
-        data: {
-          ...(dto.code !== undefined ? { code: dto.code as string } : {}),
-          ...(dto.description !== undefined ? { description: dto.description as string } : {}),
-          ...(dto.frequency !== undefined ? { frequency: dto.frequency as never } : {}),
-          ...(dto.nextExecution !== undefined ? { nextExecution: new Date(dto.nextExecution as string) } : {}),
-          ...(dto.validUntil !== undefined ? { validUntil: dto.validUntil ? new Date(dto.validUntil as string) : null } : {}),
-          ...(dto.maxExecutions !== undefined ? { maxExecutions: dto.maxExecutions as number } : {}),
-          ...(dto.isActive !== undefined ? { isActive: dto.isActive as boolean } : {}),
-          ...(lines
-            ? {
-                lines: {
-                  create: lines.map((l, i) => ({
-                    accountId: l.accountId,
-                    debit: D(l.debit),
-                    credit: D(l.credit),
-                    description: l.description ?? null,
-                    ordering: l.ordering ?? i,
-                  })),
-                },
-              }
-            : {}),
-        },
-        ...this.readArgs(),
+    // Check the schedule as it will be after this update, not just the fields
+    // sent — re-activating a finished posting is an update of `isActive` alone.
+    const schedule: ScheduleState = {
+      frequency: (dto.frequency as string) ?? current.frequency,
+      nextExecution:
+        dto.nextExecution !== undefined
+          ? new Date(dto.nextExecution as string)
+          : current.nextExecution,
+      validUntil:
+        dto.validUntil !== undefined
+          ? dto.validUntil
+            ? new Date(dto.validUntil as string)
+            : null
+          : current.validUntil,
+      executionCount: current.executionCount,
+      maxExecutions:
+        dto.maxExecutions !== undefined
+          ? ((dto.maxExecutions as number) ?? null)
+          : current.maxExecutions,
+    };
+    this.assertSchedule(
+      schedule,
+      (dto.isActive as boolean) ?? current.isActive,
+    );
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (lines) {
+          await tx.recurringPostingLine.deleteMany({
+            where: { recurringId: id },
+          });
+        }
+        return tx.recurringPosting.update({
+          where: { id },
+          data: {
+            ...(dto.code !== undefined ? { code: dto.code as string } : {}),
+            ...(dto.description !== undefined
+              ? { description: dto.description as string }
+              : {}),
+            ...(dto.frequency !== undefined
+              ? { frequency: dto.frequency as never }
+              : {}),
+            ...(dto.nextExecution !== undefined
+              ? { nextExecution: schedule.nextExecution }
+              : {}),
+            ...(dto.validUntil !== undefined
+              ? { validUntil: schedule.validUntil }
+              : {}),
+            ...(dto.maxExecutions !== undefined
+              ? { maxExecutions: schedule.maxExecutions }
+              : {}),
+            ...(dto.currency !== undefined
+              ? { currency: dto.currency as string }
+              : {}),
+            ...(dto.isActive !== undefined
+              ? { isActive: dto.isActive as boolean }
+              : {}),
+            ...(lines ? { lines: { create: this.lineRows(lines) } } : {}),
+          },
+          ...this.readArgs(),
+        });
       });
-    });
+    } catch (e) {
+      throw this.translatePrismaError(e, dto);
+    }
   }
 
-  /** Templates that are due — the "Confirmation of Recurring Transactions" list. */
+  /**
+   * A posting that has produced journal entries is kept, so those entries can
+   * still be traced back to it. It can be deactivated instead.
+   */
+  async remove(companyId: string, id: string) {
+    const cid = this.requireCompany(companyId);
+    await this.findOne(cid, id);
+    const posted = await this.prisma.journalEntry.count({
+      where: { companyId: cid, source: RECURRING_POSTING_SOURCE, sourceId: id },
+    });
+    if (posted > 0) {
+      throw new ConflictException(
+        `This recurring posting has posted ${posted} journal entr${posted === 1 ? 'y' : 'ies'} and cannot be deleted. Deactivate it instead.`,
+      );
+    }
+    return super.remove(cid, id);
+  }
+
+  /** Postings that are due — the "Confirmation of Recurring Transactions" list. */
   async due(companyId: string, asOf: Date = new Date()) {
+    const cid = this.requireCompany(companyId);
     return this.prisma.recurringPosting.findMany({
       where: {
-        companyId,
+        companyId: cid,
         isActive: true,
         nextExecution: { lte: asOf },
-        OR: [{ validUntil: null }, { validUntil: { gte: asOf } }],
       },
       include: this.options.include as never,
       orderBy: { nextExecution: 'asc' },
     });
   }
 
-  /** Advances the schedule after an execution. */
-  async advance(companyId: string, id: string) {
+  /** Journal entries this posting has produced, newest first. */
+  async entries(companyId: string, id: string) {
     const cid = this.requireCompany(companyId);
-    const rec = await this.prisma.recurringPosting.findFirst({ where: { id, companyId: cid } });
-    if (!rec) throw new NotFoundException('Recurring posting not found');
-
-    const next = addInterval(rec.nextExecution, rec.frequency);
-    const executionCount = rec.executionCount + 1;
-    const exhausted =
-      (rec.maxExecutions !== null && executionCount >= rec.maxExecutions) ||
-      (rec.validUntil !== null && next > rec.validUntil) ||
-      rec.frequency === 'ONE_TIME';
-
-    return this.prisma.recurringPosting.update({
-      where: { id },
-      data: {
-        executionCount,
-        lastExecutedAt: new Date(),
-        nextExecution: next,
-        isActive: !exhausted,
+    await this.findOne(cid, id);
+    return this.prisma.journalEntry.findMany({
+      where: { companyId: cid, source: RECURRING_POSTING_SOURCE, sourceId: id },
+      select: {
+        id: true,
+        number: true,
+        date: true,
+        status: true,
+        reference: true,
+        totalDebit: true,
+        reversal: { select: { id: true, number: true } },
       },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
-  private assertBalanced(lines: { debit?: number; credit?: number }[]) {
-    const debit = lines.reduce((s, l) => s.plus(D(l.debit)), new Prisma.Decimal(0));
-    const credit = lines.reduce((s, l) => s.plus(D(l.credit)), new Prisma.Decimal(0));
+  /**
+   * Executes the next instance: posts its journal entry and advances the
+   * schedule, together or not at all. `postingDate` defaults to the scheduled
+   * date, so a catch-up run lands in the period it belongs to.
+   */
+  async execute(
+    companyId: string,
+    userId: string | null,
+    id: string,
+    postingDate?: string,
+  ) {
+    const cid = this.requireCompany(companyId);
+    return this.prisma.$transaction(async (tx) => {
+      const rec = await tx.recurringPosting.findFirst({
+        where: { id, companyId: cid },
+        include: { lines: { orderBy: { ordering: 'asc' } } },
+      });
+      if (!rec) throw new NotFoundException('Recurring posting not found');
+      if (!rec.isActive) {
+        throw new BadRequestException(
+          `Recurring posting ${rec.code} is inactive and cannot be executed.`,
+        );
+      }
+
+      const instance = rec.executionCount + 1;
+      // Claim the instance before posting. Two users executing the same row at
+      // once both read the same count; only one of these updates matches, so
+      // the other fails here instead of posting the instance a second time.
+      await this.claimInstance(tx, rec, { lastExecutedAt: new Date() });
+
+      const entry = await this.journals.postFromSource(tx, cid, userId, {
+        date: postingDate ? new Date(postingDate) : rec.nextExecution,
+        source: RECURRING_POSTING_SOURCE,
+        sourceId: rec.id,
+        description: rec.description,
+        reference: `${rec.code} #${instance}`,
+        currency: rec.currency,
+        lines: rec.lines.map((l) => ({
+          accountId: l.accountId,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+          description: l.description ?? undefined,
+          ordering: l.ordering,
+        })),
+      });
+
+      const recurringPosting = await tx.recurringPosting.findUniqueOrThrow({
+        where: { id },
+        include: this.options.include as never,
+      });
+      return {
+        instance,
+        journalEntry: {
+          id: entry.id,
+          number: entry.number,
+          date: entry.date,
+          totalDebit: entry.totalDebit,
+        },
+        recurringPosting,
+      };
+    }, EXECUTE_TX_OPTIONS);
+  }
+
+  /**
+   * Skips the next instance without posting it: the schedule moves on by one
+   * interval and the instance counts toward Max Executions.
+   */
+  async advance(companyId: string, id: string) {
+    const cid = this.requireCompany(companyId);
+    return this.prisma.$transaction(async (tx) => {
+      const rec = await tx.recurringPosting.findFirst({
+        where: { id, companyId: cid },
+      });
+      if (!rec) throw new NotFoundException('Recurring posting not found');
+      if (!rec.isActive) {
+        throw new BadRequestException(
+          `Recurring posting ${rec.code} is inactive.`,
+        );
+      }
+      await this.claimInstance(tx, rec, {});
+      return tx.recurringPosting.findUniqueOrThrow({
+        where: { id },
+        include: this.options.include as never,
+      });
+    });
+  }
+
+  /**
+   * Moves the schedule on by one instance, conditional on nobody having done so
+   * since `rec` was read. Deactivates the posting when that was its last run.
+   */
+  private async claimInstance(
+    tx: Prisma.TransactionClient,
+    rec: ScheduleState & { id: string; code: string },
+    extra: { lastExecutedAt?: Date },
+  ) {
+    const executionCount = rec.executionCount + 1;
+    const next = addInterval(rec.nextExecution, rec.frequency);
+    const finished =
+      rec.frequency === 'ONE_TIME' ||
+      (rec.maxExecutions !== null && executionCount >= rec.maxExecutions) ||
+      (rec.validUntil !== null && next > rec.validUntil);
+
+    const claimed = await tx.recurringPosting.updateMany({
+      where: { id: rec.id, executionCount: rec.executionCount, isActive: true },
+      data: {
+        ...extra,
+        executionCount,
+        nextExecution: rec.frequency === 'ONE_TIME' ? rec.nextExecution : next,
+        isActive: !finished,
+      },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException(
+        `Instance ${executionCount} of ${rec.code} was already processed by another user. Refresh the list.`,
+      );
+    }
+  }
+
+  private lineRows(lines: RecurringLineInput[]) {
+    return lines.map((l, i) => ({
+      accountId: l.accountId,
+      debit: D(l.debit),
+      credit: D(l.credit),
+      description: l.description ?? null,
+      ordering: l.ordering ?? i,
+    }));
+  }
+
+  /** The lines must be able to post as they are, every time the posting runs. */
+  private assertLines(lines: RecurringLineInput[]) {
+    for (const [i, l] of lines.entries()) {
+      const debit = D(l.debit);
+      const credit = D(l.credit);
+      if (debit.gt(0) && credit.gt(0)) {
+        throw new BadRequestException(
+          `Line ${i + 1}: put an amount in either debit or credit, not both.`,
+        );
+      }
+      if (debit.eq(0) && credit.eq(0)) {
+        throw new BadRequestException(
+          `Line ${i + 1}: debit and credit are both zero.`,
+        );
+      }
+    }
+    const debit = lines.reduce(
+      (s, l) => s.plus(D(l.debit)),
+      new Prisma.Decimal(0),
+    );
+    const credit = lines.reduce(
+      (s, l) => s.plus(D(l.credit)),
+      new Prisma.Decimal(0),
+    );
     if (!debit.equals(credit)) {
       throw new BadRequestException(
         `Recurring posting is out of balance: debits ${debit.toFixed(2)} vs credits ${credit.toFixed(2)}.`,
       );
+    }
+  }
+
+  /**
+   * Lines carry no business partner, so a control account (A/R, A/P) could
+   * never post from here; refusing it at save beats failing at every run.
+   */
+  private async assertAccounts(companyId: string, lines: RecurringLineInput[]) {
+    const accounts = await this.accounts.assertPostableMany(
+      companyId,
+      lines.map((l) => l.accountId),
+    );
+    for (const [i, l] of lines.entries()) {
+      const account = accounts.get(l.accountId)!;
+      if (account.isControl) {
+        throw new BadRequestException(
+          `Line ${i + 1}: account ${account.code} is a control account and needs a business partner, which recurring postings do not carry.`,
+        );
+      }
+    }
+  }
+
+  private assertSchedule(s: ScheduleState, isActive: boolean) {
+    if (Number.isNaN(s.nextExecution.getTime())) {
+      throw new BadRequestException('Next Execution is not a valid date.');
+    }
+    if (s.validUntil && s.validUntil < s.nextExecution) {
+      throw new BadRequestException(
+        'Valid Until cannot be before Next Execution.',
+      );
+    }
+    if (s.maxExecutions !== null && s.maxExecutions < s.executionCount) {
+      throw new BadRequestException(
+        `Max Executions cannot be below the ${s.executionCount} instance(s) already run.`,
+      );
+    }
+    // Activating a posting that has nothing left to run would put it straight
+    // back on the confirmation list with nothing it is allowed to post.
+    if (isActive && s.executionCount > 0) {
+      if (s.frequency === 'ONE_TIME') {
+        throw new BadRequestException(
+          'This one-time posting has already run. Create a new posting instead.',
+        );
+      }
+      if (s.maxExecutions !== null && s.executionCount >= s.maxExecutions) {
+        throw new BadRequestException(
+          `All ${s.maxExecutions} instance(s) have run. Raise Max Executions to activate it again.`,
+        );
+      }
     }
   }
 }
@@ -1076,16 +1513,76 @@ export class BudgetLinesService extends TenantCrudService {
   }
 }
 
-function addInterval(from: Date, frequency: string): Date {
+/**
+ * The next scheduled date. Month-based steps keep the day of the month, clamped
+ * to the month's length (31 Jan → 28 Feb); a date on the last day of its month
+ * stays on the last day (28 Feb → 31 Mar), so month-end accruals don't drift.
+ */
+export function addInterval(from: Date, frequency: string): Date {
   const d = new Date(from);
   switch (frequency) {
-    case 'DAILY': d.setUTCDate(d.getUTCDate() + 1); break;
-    case 'WEEKLY': d.setUTCDate(d.getUTCDate() + 7); break;
-    case 'MONTHLY': d.setUTCMonth(d.getUTCMonth() + 1); break;
-    case 'QUARTERLY': d.setUTCMonth(d.getUTCMonth() + 3); break;
-    case 'SEMIANNUALLY': d.setUTCMonth(d.getUTCMonth() + 6); break;
-    case 'ANNUALLY': d.setUTCFullYear(d.getUTCFullYear() + 1); break;
-    default: break; // ONE_TIME never advances
+    case 'DAILY':
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d;
+    case 'WEEKLY':
+      d.setUTCDate(d.getUTCDate() + 7);
+      return d;
+    case 'MONTHLY':
+      return addMonths(d, 1);
+    case 'QUARTERLY':
+      return addMonths(d, 3);
+    case 'SEMIANNUALLY':
+      return addMonths(d, 6);
+    case 'ANNUALLY':
+      return addMonths(d, 12);
+    default:
+      return d; // ONE_TIME never advances
   }
+}
+
+function addMonths(from: Date, months: number): Date {
+  const daysIn = (y: number, m: number) =>
+    new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const day = from.getUTCDate();
+  const monthEnd = day === daysIn(from.getUTCFullYear(), from.getUTCMonth());
+  const d = new Date(from);
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const last = daysIn(d.getUTCFullYear(), d.getUTCMonth());
+  d.setUTCDate(monthEnd ? last : Math.min(day, last));
   return d;
+}
+
+/**
+ * Splits `total` across lines by percentage, per side. Every line but the last
+ * on a side is rounded half-up to cents; the last takes whatever is left, so
+ * the side sums to `total` exactly and the resulting entry balances.
+ */
+export function spreadByPercentage<
+  L extends { side: string; percentage: Prisma.Decimal | number | string },
+>(total: Prisma.Decimal, lines: L[]): (L & { amount: Prisma.Decimal })[] {
+  const out = lines.map((l) => ({ ...l, amount: new Prisma.Decimal(0) }));
+  for (const side of ['debit', 'credit']) {
+    const idx = out
+      .map((l, i) => (l.side === side ? i : -1))
+      .filter((i) => i >= 0);
+    let allocated = new Prisma.Decimal(0);
+    idx.forEach((i, n) => {
+      const amount =
+        n === idx.length - 1
+          ? total.minus(allocated)
+          : total
+              .mul(D(out[i].percentage))
+              .div(100)
+              .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      allocated = allocated.plus(amount);
+      out[i].amount = amount;
+    });
+  }
+  if (out.some((l) => l.amount.lte(0))) {
+    throw new BadRequestException(
+      `${total.toFixed(2)} is too small to split across this template — at least one line would be zero or negative.`,
+    );
+  }
+  return out;
 }

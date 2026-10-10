@@ -57,6 +57,7 @@ const DETAIL_INCLUDE = {
   series: { select: { id: true, name: true } },
   transactionCode: { select: { id: true, code: true, description: true } },
   project: { select: { id: true, code: true, name: true } },
+  template: { select: { id: true, code: true, description: true } },
   reversal: { select: { id: true, number: true } },
   reversalOf: { select: { id: true, number: true } },
 };
@@ -153,6 +154,23 @@ export class JournalEntriesService {
     if (dto.post) this.assertBalanced(totalDebit, totalCredit);
 
     await this.validateLines(companyId, dto.lines);
+
+    if (dto.templateId) {
+      const template = await this.prisma.postingTemplate.findFirst({
+        where: { id: dto.templateId, companyId },
+        select: { isActive: true, code: true },
+      });
+      if (!template) {
+        throw new BadRequestException(
+          'Posting template not found in this company.',
+        );
+      }
+      if (!template.isActive) {
+        throw new BadRequestException(
+          `Posting template ${template.code} is inactive.`,
+        );
+      }
+    }
 
     const period = await this.periods.resolveOpenPeriod(companyId, date, 'general');
 
