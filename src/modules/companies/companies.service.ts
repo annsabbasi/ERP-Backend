@@ -273,6 +273,17 @@ export class CompaniesService {
 
         await this.templates.applyTx(tx, c.id, dto.industry ?? 'generic', planModuleIds);
 
+        // The admin holds the template's Company Admin role. Without it the
+        // company's own admin was refused every permission-gated route: its
+        // roleType widens module access, but permissions come only from roles.
+        const adminRole = await tx.role.findFirst({
+          where: { companyId: c.id, name: 'Company Admin' },
+          select: { id: true },
+        });
+        if (adminRole) {
+          await tx.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } });
+        }
+
         return c;
       },
       { timeout: 20_000, maxWait: 10_000 },

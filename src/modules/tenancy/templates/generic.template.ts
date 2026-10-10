@@ -37,6 +37,7 @@ export const GENERIC_TEMPLATE: IndustryTemplate = {
         'reports.manager',
         'hr-payroll.manager',
         'financials.accountant',
+        'financials.fixed_assets',
       ],
     },
     {

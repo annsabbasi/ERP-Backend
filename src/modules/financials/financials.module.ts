@@ -9,8 +9,18 @@ import { JournalEntriesController } from './journal-entries/journal-entries.cont
 import { JournalEntriesService } from './journal-entries/journal-entries.service';
 import { FinancialReportsController } from './reports/financial-reports.controller';
 import { FinancialReportsService } from './reports/financial-reports.service';
-import { FixedAssetsController } from './fixed-assets/fixed-assets.controller';
+import {
+  AssetCapitalizationsController,
+  AssetClassesController,
+  DepreciationAreasController,
+  FixedAssetsController,
+} from './fixed-assets/fixed-assets.controller';
 import { FixedAssetsService } from './fixed-assets/fixed-assets.service';
+import {
+  AssetClassesService,
+  DepreciationAreasService,
+} from './fixed-assets/asset-setup.services';
+import { AssetCapitalizationsService } from './fixed-assets/asset-capitalizations.service';
 import { APBillsController, ARInvoicesController } from './ar-ap/ar-ap.controller';
 import { APBillsService, ARInvoicesService } from './ar-ap/ar-ap.service';
 import * as SetupServices from './setup/setup.services';
@@ -76,6 +86,9 @@ const setupControllers = [
     JournalEntriesController,
     FinancialReportsController,
     FixedAssetsController,
+    AssetClassesController,
+    DepreciationAreasController,
+    AssetCapitalizationsController,
     ARInvoicesController,
     APBillsController,
     ...setupControllers,
@@ -86,6 +99,9 @@ const setupControllers = [
     JournalEntriesService,
     FinancialReportsService,
     FixedAssetsService,
+    AssetClassesService,
+    DepreciationAreasService,
+    AssetCapitalizationsService,
     ARInvoicesService,
     APBillsService,
     ...setupServices,

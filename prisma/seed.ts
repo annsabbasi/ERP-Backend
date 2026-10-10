@@ -359,7 +359,7 @@ async function main() {
     purchase_order: 'PO-',     purchase_request: 'PR-',  goods_receipt_po: 'GRPO-',
     incoming_payment: 'RCT-',  outgoing_payment: 'PAY-', activity: 'ACT-',
     opportunity: 'OPP-',       campaign: 'CMP-',         business_partner: 'BP-',
-    fixed_asset: 'FA-',
+    fixed_asset: 'FA-',      fixed_asset_capitalization: 'CAP-', fixed_asset_credit_memo: 'CAPCM-',
   };
   let seriesCreated = 0;
   for (const documentType of NUMBERED_DOCUMENT_TYPES) {
@@ -382,6 +382,15 @@ async function main() {
     seriesCreated++;
   }
   console.log(`✅ ${seriesCreated} numbering series seeded`);
+
+  // Fixed asset defaults: depreciation areas, the asset accounts and a default
+  // asset class — the same database function migration 20261009010000 applies
+  // to every existing company and onboarding applies to new ones. On a fresh
+  // database the migration runs before this seed creates the company, so the
+  // seed has to apply it too. Idempotent.
+  const faLog = await prisma.$queryRaw<{ line: string }[]>`
+    SELECT erp_apply_fixed_asset_defaults(${demoCompany.id}) AS line`;
+  console.log(`✅ fixed asset defaults: ${faLog.map((r) => r.line).join('; ')}`);
 
   // A fiscal year and its twelve months.
   //

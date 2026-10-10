@@ -39,6 +39,18 @@ const SUBLEDGER_OWNED_SOURCES: Record<string, { document: string; undo: string }
   payroll_run: { document: 'a payroll run', undo: 'Use Cancel Posting in HR Payroll → Payroll Process' },
   ar_invoice: { document: 'an A/R invoice', undo: 'Void the invoice in Sales – A/R' },
   ap_bill: { document: 'an A/P invoice', undo: 'Void the bill in Purchasing – A/P' },
+  fixed_asset_capitalization: {
+    document: 'a capitalization',
+    undo: 'Cancel it in Financials → Fixed Assets → Capitalization',
+  },
+  fixed_asset_credit_memo: {
+    document: 'a capitalization credit memo',
+    undo: 'Cancel it in Financials → Fixed Assets → Capitalization Credit Memo',
+  },
+  fixed_asset_depreciation: {
+    document: 'a depreciation run',
+    undo: 'Fixed Assets owns depreciation postings; reversing one here would leave the asset values out of step with the G/L',
+  },
 };
 
 const DETAIL_INCLUDE = {
@@ -152,7 +164,7 @@ export class JournalEntriesService {
     // Anything heading straight to POSTED must balance first.
     if (dto.post) this.assertBalanced(totalDebit, totalCredit);
 
-    await this.validateLines(companyId, dto.lines);
+    await this.validateLines(companyId, dto.lines, 'manual');
 
     const period = await this.periods.resolveOpenPeriod(companyId, date, 'general');
 
@@ -221,7 +233,7 @@ export class JournalEntriesService {
 
     let totals: { totalDebit: Prisma.Decimal; totalCredit: Prisma.Decimal } | null = null;
     if (dto.lines) {
-      await this.validateLines(companyId, dto.lines);
+      await this.validateLines(companyId, dto.lines, 'manual');
       totals = this.totals(dto.lines);
       if (dto.post) this.assertBalanced(totals.totalDebit, totals.totalCredit);
     } else if (dto.post) {
@@ -463,7 +475,7 @@ export class JournalEntriesService {
     // ledger, which is the whole thing this method exists to prevent: control
     // accounts would accept lines with no business partner, and the subledger
     // would silently stop reconciling to the GL.
-    await this.validateLines(companyId, input.lines);
+    await this.validateLines(companyId, input.lines, input.source);
 
     const period = await this.periods.resolveOpenPeriod(
       companyId,
@@ -531,17 +543,34 @@ export class JournalEntriesService {
     }
   }
 
-  private async validateLines(companyId: string, lines: JournalLineDto[]) {
+  private async validateLines(companyId: string, lines: JournalLineDto[], source: string) {
     // One query for every account and one for every business partner, instead
     // of one (or two) per line. The per-line rules below are unchanged.
     const bpIds = [...new Set(lines.map((l) => l.bpId).filter((x): x is string => !!x))];
-    const [accounts, partners] = await Promise.all([
+    const accountIds = [...new Set(lines.map((l) => l.accountId))];
+    const [accounts, partners, assetClasses] = await Promise.all([
       this.accounts.assertPostableMany(companyId, lines.map((l) => l.accountId)),
       bpIds.length
         ? this.prisma.businessPartner.findMany({ where: { id: { in: bpIds }, companyId }, select: { id: true } })
         : Promise.resolve([] as { id: string }[]),
+      // QA FA-D9: an account holding asset cost or accumulated depreciation is
+      // maintained by the Fixed Assets subledger, the way a control account is
+      // maintained through business partners. Any other posting to it would
+      // leave the asset register out of step with the G/L.
+      source.startsWith('fixed_asset_')
+        ? Promise.resolve([] as { assetAccountId: string; accumulatedDepreciationAccountId: string }[])
+        : this.prisma.assetClass.findMany({
+            where: {
+              companyId,
+              OR: [{ assetAccountId: { in: accountIds } }, { accumulatedDepreciationAccountId: { in: accountIds } }],
+            },
+            select: { assetAccountId: true, accumulatedDepreciationAccountId: true },
+          }),
     ]);
     const knownBp = new Set(partners.map((b) => b.id));
+    const fixedAssetAccounts = new Set(
+      assetClasses.flatMap((c) => [c.assetAccountId, c.accumulatedDepreciationAccountId]),
+    );
     for (const [i, l] of lines.entries()) {
       const debit = D(l.debit);
       const credit = D(l.credit);
@@ -559,6 +588,11 @@ export class JournalEntriesService {
 
       const account = accounts.get(l.accountId)!;
 
+      if (fixedAssetAccounts.has(l.accountId)) {
+        throw new BadRequestException(
+          `Line ${i + 1}: Account ${account.code} is maintained by Fixed Assets; post through Capitalization / Credit Memo.`,
+        );
+      }
       if (account.isControl && !l.bpId) {
         throw new BadRequestException(
           `Line ${i + 1}: account ${account.code} is a control account and requires a business partner.`,

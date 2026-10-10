@@ -74,6 +74,26 @@ export class DemoDataSeederService {
 
     // Needs the accounts, currencies and categories above, so it runs last.
     await this.step('payroll defaults', () => this.seedPayrollDefaults(companyId));
+    // Needs the chart of accounts and the currency master, like payroll.
+    await this.step('fixed asset defaults', () =>
+      this.seedFixedAssetDefaults(companyId),
+    );
+  }
+
+  /**
+   * Depreciation areas, the FA-/CAP-/CAPCM- numbering series, the four asset
+   * accounts and the default asset class. The rules live in the database
+   * function `erp_apply_fixed_asset_defaults` — the one migration
+   * 20261009010000 applied to every company that already existed — so there
+   * is no second copy here to drift.
+   */
+  private async seedFixedAssetDefaults(companyId: string) {
+    const rows = await this.prisma.$queryRaw<{ line: string }[]>`
+      SELECT erp_apply_fixed_asset_defaults(${companyId}) AS line`;
+    for (const r of rows.filter((x) => x.line?.startsWith('SKIPPED'))) {
+      this.logger.warn(`Fixed asset defaults for ${companyId}: ${r.line}`);
+    }
+    return rows.map((r) => r.line);
   }
 
   /**

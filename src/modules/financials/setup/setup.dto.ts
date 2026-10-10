@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   AccountDeterminationArea,
-  DepreciationMethod,
   PaymentDirection,
   RecurrenceFrequency,
   TaxCodeType,
@@ -317,49 +316,3 @@ export class CreateDunningTermDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 export class UpdateDunningTermDto extends PartialType(CreateDunningTermDto) {}
-
-// ─── FIXED ASSETS ─────────────────────────────────────────────────────────────
-export class CreateFixedAssetDto {
-  @ApiProperty() @IsString() @IsNotEmpty() code!: string;
-  @ApiProperty() @IsString() @IsNotEmpty() name!: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() assetClass?: string;
-
-  @ApiPropertyOptional({ default: 60 })
-  @IsOptional() @IsInt() @Min(1) usefulLifeMonths?: number;
-
-  @ApiPropertyOptional({ enum: DepreciationMethod })
-  @IsOptional() @IsEnum(DepreciationMethod) depreciationMethod?: DepreciationMethod;
-
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) acquisitionCost?: number;
-
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) salvageValue?: number;
-
-  @ApiPropertyOptional({ default: 'USD' }) @IsOptional() @IsString() currency?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() costAccountId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() depreciationAccountId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() accumulatedAccountId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() costCenterId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() serialNumber?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() location?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() remarks?: string;
-}
-export class UpdateFixedAssetDto extends PartialType(CreateFixedAssetDto) {}
-
-export class CapitalizeAssetDto {
-  @ApiProperty() @IsDateString() postingDate!: string;
-  @ApiProperty() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) amount!: number;
-  @ApiPropertyOptional() @IsOptional() @IsString() remarks?: string;
-}
-
-export class DepreciationRunDto {
-  @ApiProperty({ description: 'Depreciate up to and including this date' })
-  @IsDateString() postingDate!: string;
-
-  @ApiPropertyOptional({ description: 'Limit the run to these assets' })
-  @IsOptional() @IsArray() @IsString({ each: true }) assetIds?: string[];
-
-  @ApiPropertyOptional({ default: false, description: 'Compute without writing' })
-  @IsOptional() @IsBoolean() dryRun?: boolean;
-}

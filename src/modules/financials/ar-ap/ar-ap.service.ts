@@ -875,6 +875,35 @@ export class APBillsService extends SubledgerService {
           `Reverse the payments first.`,
       );
     }
+    // Fixed Assets: an amount capitalized from this bill now sits in an asset.
+    // Voiding the bill would reverse its clearing-account debit while the asset
+    // keeps the value, leaving the clearing account negative.
+    const capitalized = await this.prisma.assetCapitalizationLine.findMany({
+      where: {
+        apBillLine: { billId: bill.id },
+        capitalization: { status: 'POSTED' },
+      },
+      select: {
+        amount: true,
+        capitalization: { select: { kind: true, number: true } },
+      },
+    });
+    const netCapitalized = capitalized.reduce(
+      (s, l) =>
+        l.capitalization.kind === 'CREDIT_MEMO'
+          ? s.minus(l.amount)
+          : s.plus(l.amount),
+      ZERO,
+    );
+    if (netCapitalized.gt(ZERO)) {
+      const docs = [
+        ...new Set(capitalized.map((l) => l.capitalization.number)),
+      ].join(', ');
+      throw new ConflictException(
+        `A/P bill ${bill.number} has ${netCapitalized.toFixed(2)} capitalized into fixed assets (${docs}). ` +
+          `Cancel those capitalizations, or post capitalization credit memos, first.`,
+      );
+    }
 
     return this.prisma.$transaction(async (tx) => {
       if (bill.journalEntryId) {
