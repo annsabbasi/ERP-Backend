@@ -23,6 +23,8 @@ import {
 import { AssetCapitalizationsService } from './fixed-assets/asset-capitalizations.service';
 import { APBillsController, ARInvoicesController } from './ar-ap/ar-ap.controller';
 import { APBillsService, ARInvoicesService } from './ar-ap/ar-ap.service';
+import { DocumentPrintingController } from './document-printing/document-printing.controller';
+import { DocumentPrintingService } from './document-printing/document-printing.service';
 import * as SetupServices from './setup/setup.services';
 import * as SetupControllers from './setup/setup.controllers';
 
@@ -91,6 +93,7 @@ const setupControllers = [
     AssetCapitalizationsController,
     ARInvoicesController,
     APBillsController,
+    DocumentPrintingController,
     ...setupControllers,
   ],
   providers: [
@@ -104,6 +107,7 @@ const setupControllers = [
     AssetCapitalizationsService,
     ARInvoicesService,
     APBillsService,
+    DocumentPrintingService,
     ...setupServices,
   ],
   // Exported so CRM (Customer 360) and future AR/AP modules can reuse the

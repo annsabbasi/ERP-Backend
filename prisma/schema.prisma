@@ -182,6 +182,7 @@ model Company {
   assetClasses                 AssetClass[]
   depreciationAreas            DepreciationArea[]
   assetCapitalizations         AssetCapitalization[]
+  documentOutputStatuses       DocumentOutputStatus[]
 
   @@map("companies")
 }
@@ -2953,6 +2954,32 @@ model DocumentSetting {
 
   @@unique([companyId, documentType])
   @@map("document_settings")
+}
+
+// Document Printing — SAP's "Printed" / "E-Mailed" flags, kept in one table
+// for every document type rather than a column on each document table. A row
+// exists once a document has been printed or e-mailed at least once; no row
+// means "still to be printed and e-mailed". documentType is the Document
+// Printing type key ("journal_entry", "ar_invoice", …) and documentId the id
+// of the row in that type's table.
+model DocumentOutputStatus {
+  id              String    @id @default(uuid())
+  companyId       String
+  documentType    String
+  documentId      String
+  printCount      Int       @default(0)
+  lastPrintedAt   DateTime?
+  lastPrintedById String?
+  emailCount      Int       @default(0)
+  lastEmailedAt   DateTime?
+  lastEmailedById String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, documentType, documentId])
+  @@map("document_output_statuses")
 }
 
 model UserGroup {
