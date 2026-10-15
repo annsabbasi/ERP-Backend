@@ -17,6 +17,10 @@ model SystemModule {
   description String?
   icon        String?
   isActive    Boolean  @default(true)
+  // Always enabled for every company, whatever its plan (Financials: the G/L
+  // every posting module books to). Enforced by triggers on companies and
+  // company_modules — see migration 20261005000000_core_modules_financials.
+  isCore      Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   companyModules CompanyModule[]
@@ -176,6 +180,10 @@ model Company {
   periodEndClosingRuns         PeriodEndClosingRun[]
   employeePaymentDetails       EmployeePaymentDetail[]
   employeePaymentDetailChanges EmployeePaymentDetailChange[]
+  assetClasses                 AssetClass[]
+  depreciationAreas            DepreciationArea[]
+  assetCapitalizations         AssetCapitalization[]
+  documentOutputStatuses       DocumentOutputStatus[]
 
   @@map("companies")
 }
@@ -201,8 +209,10 @@ model Branch {
   employees        Employee[]               @relation("EmployeeBranch")
   positions        Position[]               @relation("PositionBranch")
   attendanceSheets MonthlyAttendanceSheet[]
+  fixedAssets      FixedAsset[]
 
   @@unique([companyId, name])
+  @@unique([companyId, id])
   @@index([companyId])
   @@index([managerId])
   @@map("branches")
@@ -651,7 +661,10 @@ model Employee {
   loans                  EmployeeLoan[]
   paymentDetail          EmployeePaymentDetail?
   paymentDetailChanges   EmployeePaymentDetailChange[]
+  fixedAssetsCustodian   FixedAsset[]                  @relation("FixedAssetEmployee")
+  fixedAssetsTechnician  FixedAsset[]                  @relation("FixedAssetTechnician")
 
+  @@unique([companyId, id])
   @@index([companyId])
   @@index([branchId])
   @@index([managerId])
@@ -2329,26 +2342,27 @@ model Account {
   arInvoiceLines ARInvoiceLine[]
   apBillLines    APBillLine[]
 
-  cashFlowLineItem        CashFlowLineItem?        @relation(fields: [cashFlowLineItemId], references: [id])
-  accountDeterminations   AccountDetermination[]
-  postingTemplateLines    PostingTemplateLine[]
-  recurringPostingLines   RecurringPostingLine[]
-  budgetLines             BudgetLine[]
-  houseBankAccounts       HouseBankAccount[]
-  taxCodes                TaxCode[]
-  assetsCost              FixedAsset[]             @relation("AssetCostAccount")
-  assetsDepreciation      FixedAsset[]             @relation("AssetDepreciationAccount")
-  assetsAccumulated       FixedAsset[]             @relation("AssetAccumulatedAccount")
-  coDefaultAr             Company[]                @relation("CoDefaultAr")
-  coDefaultAp             Company[]                @relation("CoDefaultAp")
-  coDefaultCash           Company[]                @relation("CoDefaultCash")
-  coDefaultTaxPay         Company[]                @relation("CoDefaultTaxPay")
-  coDefaultTaxRec         Company[]                @relation("CoDefaultTaxRec")
-  coDefaultRevenue        Company[]                @relation("CoDefaultRevenue")
-  coDefaultExpense        Company[]                @relation("CoDefaultExpense")
-  bpControlAccounts       BusinessPartner[]        @relation("BpControlAccount")
-  bpDownPaymentAccounts   BusinessPartner[]        @relation("BpDownPaymentAccount")
-  internalReconciliations InternalReconciliation[]
+  cashFlowLineItem         CashFlowLineItem?        @relation(fields: [cashFlowLineItemId], references: [id])
+  accountDeterminations    AccountDetermination[]
+  postingTemplateLines     PostingTemplateLine[]
+  recurringPostingLines    RecurringPostingLine[]
+  budgetLines              BudgetLine[]
+  houseBankAccounts        HouseBankAccount[]
+  taxCodes                 TaxCode[]
+  assetClassesAsset        AssetClass[]             @relation("AssetClassAssetAccount")
+  assetClassesAccumulated  AssetClass[]             @relation("AssetClassAccumulatedAccount")
+  assetClassesDepreciation AssetClass[]             @relation("AssetClassDepreciationAccount")
+  assetClassesClearing     AssetClass[]             @relation("AssetClassClearingAccount")
+  coDefaultAr              Company[]                @relation("CoDefaultAr")
+  coDefaultAp              Company[]                @relation("CoDefaultAp")
+  coDefaultCash            Company[]                @relation("CoDefaultCash")
+  coDefaultTaxPay          Company[]                @relation("CoDefaultTaxPay")
+  coDefaultTaxRec          Company[]                @relation("CoDefaultTaxRec")
+  coDefaultRevenue         Company[]                @relation("CoDefaultRevenue")
+  coDefaultExpense         Company[]                @relation("CoDefaultExpense")
+  bpControlAccounts        BusinessPartner[]        @relation("BpControlAccount")
+  bpDownPaymentAccounts    BusinessPartner[]        @relation("BpDownPaymentAccount")
+  internalReconciliations  InternalReconciliation[]
 
   currencyRef Currency @relation("accounts", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
 
@@ -2482,7 +2496,9 @@ model JournalEntry {
   apPayment  APPayment?
   payrollRun PayrollRun?
 
-  currencyRef Currency @relation("journalEntries", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  currencyRef                     Currency             @relation("journalEntries", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  assetCapitalization             AssetCapitalization? @relation("AssetCapitalizationEntry")
+  assetCapitalizationCancellation AssetCapitalization? @relation("AssetCapitalizationCancellation")
 
   @@unique([companyId, number])
   @@unique([companyId, id])
@@ -2756,7 +2772,8 @@ model APBill {
   payments     APPayment[]
   journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
-  currencyRef Currency @relation("apBills", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  currencyRef          Currency              @relation("apBills", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  assetCapitalizations AssetCapitalization[]
 
   @@unique([companyId, bpId, number])
   // Target for composite tenant-scoped foreign keys (F6).
@@ -2781,9 +2798,11 @@ model APBillLine {
 
   companyId String
 
-  bill    APBill   @relation(fields: [companyId, billId], references: [companyId, id], onDelete: Cascade)
-  account Account? @relation(fields: [companyId, accountId], references: [companyId, id])
+  bill                     APBill                    @relation(fields: [companyId, billId], references: [companyId, id], onDelete: Cascade)
+  account                  Account?                  @relation(fields: [companyId, accountId], references: [companyId, id])
+  assetCapitalizationLines AssetCapitalizationLine[]
 
+  @@unique([companyId, id])
   @@index([companyId])
   @@index([billId])
   @@index([accountId])
@@ -2949,7 +2968,10 @@ model NumberingSeries {
   company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
 
+  assetCapitalizations AssetCapitalization[] @relation("AssetCapitalizationSeries")
+
   @@unique([companyId, documentType, name])
+  @@unique([companyId, id])
   @@index([companyId, documentType])
   @@map("numbering_series")
 }
@@ -2967,6 +2989,32 @@ model DocumentSetting {
 
   @@unique([companyId, documentType])
   @@map("document_settings")
+}
+
+// Document Printing — SAP's "Printed" / "E-Mailed" flags, kept in one table
+// for every document type rather than a column on each document table. A row
+// exists once a document has been printed or e-mailed at least once; no row
+// means "still to be printed and e-mailed". documentType is the Document
+// Printing type key ("journal_entry", "ar_invoice", …) and documentId the id
+// of the row in that type's table.
+model DocumentOutputStatus {
+  id              String    @id @default(uuid())
+  companyId       String
+  documentType    String
+  documentId      String
+  printCount      Int       @default(0)
+  lastPrintedAt   DateTime?
+  lastPrintedById String?
+  emailCount      Int       @default(0)
+  lastEmailedAt   DateTime?
+  lastEmailedById String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, documentType, documentId])
+  @@map("document_output_statuses")
 }
 
 model UserGroup {
@@ -3434,7 +3482,8 @@ model BusinessPartner {
   orders                  Order[]                  @relation("BpOrders")
   internalReconciliations InternalReconciliation[]
 
-  currencyRef Currency @relation("businessPartners", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  currencyRef       Currency     @relation("businessPartners", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  fixedAssetsVendor FixedAsset[] @relation("FixedAssetVendor")
 
   @@unique([companyId, cardCode])
   // Target for composite tenant-scoped foreign keys (F6).
@@ -3992,6 +4041,8 @@ model Currency {
   journalEntries   JournalEntry[]    @relation("journalEntries")
   accounts         Account[]         @relation("accounts")
 
+  assetCapitalizations AssetCapitalization[] @relation("assetCapitalizations")
+
   @@unique([companyId, code])
   @@map("currencies")
 }
@@ -4038,6 +4089,7 @@ model FinanceProject {
   company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
   journalLines   JournalLine[]
+  fixedAssets    FixedAsset[]   @relation("FixedAssetProject")
 
   @@unique([companyId, code])
   @@unique([companyId, id])
@@ -4261,6 +4313,7 @@ model DistributionRule {
   dimension    Dimension              @relation(fields: [dimensionId], references: [id])
   lines        DistributionRuleLine[]
   journalLines JournalLine[]
+  fixedAssets  FixedAsset[]           @relation("FixedAssetDistributionRule")
 
   @@unique([companyId, dimensionId, code])
   @@unique([companyId, id])
@@ -4540,45 +4593,169 @@ enum FixedAssetStatus {
   SOLD
 }
 
+// Asset Master Data (20261009010000). An asset's accounts and default
+// depreciation rules come from its Asset Class; its values (APC, accumulated
+// depreciation, net book value) live per Depreciation Area in
+// fixed_asset_area_values, never on this row — one place for each figure.
+// Amounts are in the company's local currency (companies.currency).
+// Every link is a composite (companyId, id) foreign key, so an asset can
+// never point at another company's record (QA FA-1 B7).
 model FixedAsset {
+  id                   String           @id @default(uuid())
+  companyId            String
+  code                 String
+  name                 String
+  foreignName          String?
+  barCode              String?
+  assetClassId         String
+  status               FixedAssetStatus @default(NEW)
+  isActive             Boolean          @default(true)
+  // The first capitalization's asset value date; cleared again if credit
+  // memos bring the asset back to New.
+  capitalizedAt        DateTime?
+  retiredAt            DateTime?
+  // Units in service: the sum of its documents' quantities (FA-D15).
+  quantity             Int              @default(0)
+  manufacturer         String?
+  additionalIdentifier String?
+  serialNumber         String?
+  inventoryNo          String?
+  // Purchasing data. vendorCardType is always VENDOR (a CHECK); it is part of
+  // the foreign key so the database itself refuses a customer or a lead.
+  vendorId             String?
+  vendorCardType       BpCardType?
+  mfrCatalogNo         String?
+  purchaseDate         DateTime?
+  // Planned purchase cost; Capitalization offers it as the default amount.
+  purchaseCost         Decimal?         @db.Decimal(19, 4)
+  branchId             String?
+  employeeId           String?
+  technicianId         String?
+  // Cost accounting: the project goes on the capitalization lines; cost
+  // center / distribution rule / project go on the depreciation expense line.
+  costCenterId         String?
+  projectId            String?
+  distributionRuleId   String?
+  remarks              String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  company             Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetClass          AssetClass                @relation(fields: [companyId, assetClassId], references: [companyId, id], onDelete: Restrict)
+  vendor              BusinessPartner?          @relation("FixedAssetVendor", fields: [companyId, vendorId, vendorCardType], references: [companyId, id, cardType], onDelete: Restrict)
+  branch              Branch?                   @relation(fields: [companyId, branchId], references: [companyId, id], onDelete: Restrict)
+  employee            Employee?                 @relation("FixedAssetEmployee", fields: [companyId, employeeId], references: [companyId, id], onDelete: Restrict)
+  technician          Employee?                 @relation("FixedAssetTechnician", fields: [companyId, technicianId], references: [companyId, id], onDelete: Restrict)
+  costCenter          CostCenter?               @relation(fields: [companyId, costCenterId], references: [companyId, id], onDelete: Restrict)
+  project             FinanceProject?           @relation("FixedAssetProject", fields: [companyId, projectId], references: [companyId, id], onDelete: Restrict)
+  distributionRule    DistributionRule?         @relation("FixedAssetDistributionRule", fields: [companyId, distributionRuleId], references: [companyId, id], onDelete: Restrict)
+  transactions        FixedAssetTransaction[]
+  areaValues          FixedAssetAreaValue[]
+  capitalizationLines AssetCapitalizationLine[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, id])
+  @@index([companyId, status])
+  @@index([companyId, assetClassId])
+  @@index([companyId, vendorId, vendorCardType])
+  @@index([companyId, branchId])
+  @@index([companyId, employeeId])
+  @@index([companyId, technicianId])
+  @@index([companyId, costCenterId])
+  @@index([companyId, projectId])
+  @@index([companyId, distributionRuleId])
+  @@map("fixed_assets")
+}
+
+// Setup → Financials → Fixed Assets → Asset Classes. The class decides which
+// G/L accounts an asset posts to and its default depreciation rules. All four
+// accounts are required, so a class can always post (QA FA-D4).
+model AssetClass {
+  id                               String             @id @default(uuid())
+  companyId                        String
+  code                             String
+  name                             String
+  depreciationMethod               DepreciationMethod @default(STRAIGHT_LINE)
+  usefulLifeMonths                 Int                @default(60)
+  // Balance-sheet account holding acquisition and production cost (APC).
+  assetAccountId                   String
+  // Contra-asset account the depreciation run credits.
+  accumulatedDepreciationAccountId String
+  // P&L account the depreciation run debits.
+  depreciationExpenseAccountId     String
+  // Interim account a manual capitalization credits, and that an A/P invoice
+  // for an asset is booked to before the asset is capitalized from it.
+  clearingAccountId                String
+  isActive                         Boolean            @default(true)
+  remarks                          String?
+  createdAt                        DateTime           @default(now())
+  updatedAt                        DateTime           @updatedAt
+
+  company                        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetAccount                   Account      @relation("AssetClassAssetAccount", fields: [companyId, assetAccountId], references: [companyId, id], onDelete: Restrict)
+  accumulatedDepreciationAccount Account      @relation("AssetClassAccumulatedAccount", fields: [companyId, accumulatedDepreciationAccountId], references: [companyId, id], onDelete: Restrict)
+  depreciationExpenseAccount     Account      @relation("AssetClassDepreciationAccount", fields: [companyId, depreciationExpenseAccountId], references: [companyId, id], onDelete: Restrict)
+  clearingAccount                Account      @relation("AssetClassClearingAccount", fields: [companyId, clearingAccountId], references: [companyId, id], onDelete: Restrict)
+  assets                         FixedAsset[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, id])
+  @@index([companyId, assetAccountId])
+  @@index([companyId, accumulatedDepreciationAccountId])
+  @@index([companyId, depreciationExpenseAccountId])
+  @@index([companyId, clearingAccountId])
+  @@map("asset_classes")
+}
+
+// Setup → Financials → Fixed Assets → Depreciation Areas. Exactly one active
+// area per company posts to the G/L (MAIN, seeded); the others are
+// statistical (e.g. tax depreciation) and are valued without a journal entry.
+model DepreciationArea {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  postsToGl Boolean  @default(false)
+  ordering  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company         Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  values          FixedAssetAreaValue[]
+  capitalizations AssetCapitalization[]
+  transactions    FixedAssetTransaction[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, id])
+  @@index([companyId])
+  @@map("depreciation_areas")
+}
+
+// An asset's depreciation parameters and values in one depreciation area.
+// netBookValue = acquisitionCost − accumulatedDepreciation is a CHECK.
+model FixedAssetAreaValue {
   id                      String             @id @default(uuid())
   companyId               String
-  code                    String
-  name                    String
-  assetClass              String?
-  status                  FixedAssetStatus   @default(NEW)
-  capitalizedAt           DateTime?
-  retiredAt               DateTime?
-  usefulLifeMonths        Int                @default(60)
+  assetId                 String
+  areaId                  String
   depreciationMethod      DepreciationMethod @default(STRAIGHT_LINE)
-  acquisitionCost         Decimal            @default(0) @db.Decimal(19, 4)
+  usefulLifeMonths        Int                @default(60)
+  depreciationStartDate   DateTime?
   salvageValue            Decimal            @default(0) @db.Decimal(19, 4)
+  acquisitionCost         Decimal            @default(0) @db.Decimal(19, 4)
   accumulatedDepreciation Decimal            @default(0) @db.Decimal(19, 4)
   netBookValue            Decimal            @default(0) @db.Decimal(19, 4)
-  currency                String             @default("USD")
-  costAccountId           String?
-  depreciationAccountId   String?
-  accumulatedAccountId    String?
-  costCenterId            String?
-  serialNumber            String?
-  location                String?
-  remarks                 String?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
-  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  costAccount         Account?                @relation("AssetCostAccount", fields: [costAccountId], references: [id])
-  depreciationAccount Account?                @relation("AssetDepreciationAccount", fields: [depreciationAccountId], references: [id])
-  accumulatedAccount  Account?                @relation("AssetAccumulatedAccount", fields: [accumulatedAccountId], references: [id])
-  costCenter          CostCenter?             @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
-  transactions        FixedAssetTransaction[]
+  asset FixedAsset       @relation(fields: [companyId, assetId], references: [companyId, id], onDelete: Cascade)
+  area  DepreciationArea @relation(fields: [companyId, areaId], references: [companyId, id], onDelete: Restrict)
 
-  @@unique([companyId, code])
-  @@index([companyId, status])
-  @@index([accumulatedAccountId])
-  @@index([costAccountId])
-  @@index([depreciationAccountId])
-  @@map("fixed_assets")
+  @@unique([assetId, areaId])
+  @@index([companyId, assetId])
+  @@index([companyId, areaId])
+  @@map("fixed_asset_area_values")
 }
 
 enum AssetTransactionType {
@@ -4591,21 +4768,140 @@ enum AssetTransactionType {
   RETIREMENT
 }
 
+// One row per asset, per depreciation area, per movement — the asset's
+// history. Append-only (a trigger): a cancelled document keeps its rows and
+// adds offsetting ones. The asset cannot be deleted while it has any (B5).
 model FixedAssetTransaction {
-  id             String               @id @default(uuid())
-  assetId        String
-  type           AssetTransactionType
-  postingDate    DateTime
-  amount         Decimal              @db.Decimal(19, 4)
-  journalEntryId String?
-  remarks        String?
-  createdAt      DateTime             @default(now())
+  id                   String               @id @default(uuid())
+  companyId            String
+  assetId              String
+  areaId               String?
+  type                 AssetTransactionType
+  postingDate          DateTime
+  // Signed: a cancellation writes the negative of what it undoes.
+  amount               Decimal              @db.Decimal(19, 4)
+  journalEntryId       String?
+  capitalizationId     String?
+  capitalizationLineId String?
+  remarks              String?
+  createdAt            DateTime             @default(now())
 
-  asset        FixedAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  asset              FixedAsset               @relation(fields: [companyId, assetId], references: [companyId, id], onDelete: Restrict)
+  area               DepreciationArea?        @relation(fields: [companyId, areaId], references: [companyId, id], onDelete: Restrict)
+  journalEntry       JournalEntry?            @relation(fields: [companyId, journalEntryId], references: [companyId, id], onDelete: Restrict)
+  capitalization     AssetCapitalization?     @relation(fields: [companyId, capitalizationId], references: [companyId, id], onDelete: Restrict)
+  capitalizationLine AssetCapitalizationLine? @relation(fields: [companyId, capitalizationLineId], references: [companyId, id], onDelete: Restrict)
 
-  @@index([assetId, postingDate])
+  @@index([companyId, assetId, postingDate])
+  @@index([companyId, areaId])
+  @@index([companyId, journalEntryId])
+  @@index([companyId, capitalizationId])
+  @@index([companyId, capitalizationLineId])
   @@map("fixed_asset_transactions")
+}
+
+enum AssetCapitalizationKind {
+  CAPITALIZATION
+  CREDIT_MEMO
+}
+
+enum AssetCapitalizationOrigin {
+  MANUAL
+  AP_INVOICE
+}
+
+enum AssetCapitalizationStatus {
+  POSTED
+  CANCELLED
+}
+
+// Fixed Assets → Capitalization / Capitalization Credit Memo. Posted when it
+// is added; cancelled (its journal entry reversed), never edited or deleted —
+// a trigger allows only POSTED → CANCELLED and the journal links.
+model AssetCapitalization {
+  id                         String                    @id @default(uuid())
+  companyId                  String
+  kind                       AssetCapitalizationKind
+  number                     String
+  seriesId                   String?
+  origin                     AssetCapitalizationOrigin @default(MANUAL)
+  apBillId                   String?
+  // A credit memo may be based on a capitalization; it can then only credit
+  // what that document capitalized and has not been credited yet.
+  baseCapitalizationId       String?
+  // NULL = every active depreciation area ("*" in the window).
+  depreciationAreaId         String?
+  status                     AssetCapitalizationStatus @default(POSTED)
+  reference                  String?
+  postingDate                DateTime
+  documentDate               DateTime
+  assetValueDate             DateTime
+  // The company's local currency at posting; a foreign key to its master.
+  currency                   String
+  // Server-derived: the sum of the lines.
+  total                      Decimal                   @db.Decimal(19, 4)
+  // Accounting tab: becomes the journal entry's description.
+  journalRemark              String
+  remarks                    String?
+  // The Idempotency-Key the document was posted under, unique per company:
+  // a second insert under the same key fails in the same transaction.
+  idempotencyKey             String?
+  journalEntryId             String?
+  cancellationJournalEntryId String?
+  cancelledAt                DateTime?
+  cancelledById              String?
+  createdById                String?
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+
+  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series                   NumberingSeries?          @relation("AssetCapitalizationSeries", fields: [companyId, seriesId], references: [companyId, id], onDelete: Restrict)
+  apBill                   APBill?                   @relation(fields: [companyId, apBillId], references: [companyId, id], onDelete: Restrict)
+  baseCapitalization       AssetCapitalization?      @relation("CapitalizationCreditMemos", fields: [companyId, baseCapitalizationId], references: [companyId, id], onDelete: Restrict)
+  creditMemos              AssetCapitalization[]     @relation("CapitalizationCreditMemos")
+  depreciationArea         DepreciationArea?         @relation(fields: [companyId, depreciationAreaId], references: [companyId, id], onDelete: Restrict)
+  currencyRef              Currency                  @relation("assetCapitalizations", fields: [companyId, currency], references: [companyId, code], onDelete: Restrict)
+  journalEntry             JournalEntry?             @relation("AssetCapitalizationEntry", fields: [companyId, journalEntryId], references: [companyId, id], onDelete: Restrict)
+  cancellationJournalEntry JournalEntry?             @relation("AssetCapitalizationCancellation", fields: [companyId, cancellationJournalEntryId], references: [companyId, id], onDelete: Restrict)
+  lines                    AssetCapitalizationLine[]
+  transactions             FixedAssetTransaction[]
+
+  @@unique([companyId, kind, number])
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@unique([companyId, journalEntryId])
+  @@unique([companyId, cancellationJournalEntryId])
+  @@index([companyId, kind, status])
+  @@index([companyId, apBillId])
+  @@index([companyId, baseCapitalizationId])
+  @@index([companyId, depreciationAreaId])
+  @@index([companyId, seriesId])
+  @@map("asset_capitalizations")
+}
+
+model AssetCapitalizationLine {
+  id               String  @id @default(uuid())
+  companyId        String
+  capitalizationId String
+  assetId          String
+  // Set when the document's origin is an A/P invoice: the bill line whose
+  // clearing-account amount this line capitalizes (or credits back).
+  apBillLineId     String?
+  amount           Decimal @db.Decimal(19, 4)
+  quantity         Int     @default(0)
+  remarks          String?
+  ordering         Int     @default(0)
+
+  capitalization AssetCapitalization     @relation(fields: [companyId, capitalizationId], references: [companyId, id], onDelete: Cascade)
+  asset          FixedAsset              @relation(fields: [companyId, assetId], references: [companyId, id], onDelete: Restrict)
+  apBillLine     APBillLine?             @relation(fields: [companyId, apBillLineId], references: [companyId, id], onDelete: Restrict)
+  transactions   FixedAssetTransaction[]
+
+  @@unique([companyId, id])
+  @@index([companyId, capitalizationId])
+  @@index([companyId, assetId])
+  @@index([companyId, apBillLineId])
+  @@map("asset_capitalization_lines")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

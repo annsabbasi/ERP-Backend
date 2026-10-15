@@ -240,6 +240,44 @@ const FINE_GRAINED: PermissionDef[] = [
   ...standardSet('financials', 'financials.distribution_rule', 'distribution rules'),
   ...standardSet('financials', 'financials.budget', 'budgets and scenarios'),
   ...standardSet('financials', 'financials.fixed_asset', 'fixed assets'),
+  ...standardSet('financials', 'financials.asset_class', 'asset classes'),
+  ...standardSet(
+    'financials',
+    'financials.depreciation_area',
+    'depreciation areas',
+  ),
+  // QA FA-D14: posting to the G/L is its own duty, not "update an asset".
+  {
+    key: 'financials.fixed_asset.depreciate',
+    resource: 'financials.fixed_asset',
+    action: 'depreciate',
+    moduleSlug: 'financials',
+    description: 'Run depreciation and post it to the G/L',
+  },
+  // Capitalization documents: create is posting them to the G/L.
+  {
+    key: 'financials.fixed_asset_document.view',
+    resource: 'financials.fixed_asset_document',
+    action: 'view',
+    moduleSlug: 'financials',
+    description: 'View capitalizations and capitalization credit memos',
+  },
+  {
+    key: 'financials.fixed_asset_document.create',
+    resource: 'financials.fixed_asset_document',
+    action: 'create',
+    moduleSlug: 'financials',
+    description:
+      'Post capitalizations and capitalization credit memos to the G/L',
+  },
+  {
+    key: 'financials.fixed_asset_document.cancel',
+    resource: 'financials.fixed_asset_document',
+    action: 'cancel',
+    moduleSlug: 'financials',
+    description:
+      'Cancel a capitalization or credit memo (reverses its journal entry)',
+  },
   ...standardSet('banking', 'financials.bank', 'banks'),
   ...standardSet('banking', 'financials.house_bank_account', 'house bank accounts'),
   ...standardSet('banking', 'financials.payment_method', 'payment methods'),
@@ -318,11 +356,43 @@ const ACCOUNTANT_SET: SystemSetDef = {
     'finance.journal.post',
     'finance.payment.create',
     'hr.payroll.view',
+    // Fixed assets: view the register and its setup; post and cancel
+    // capitalization documents; run depreciation (20261009010000).
+    'financials.fixed_asset.view',
+    'financials.asset_class.view',
+    'financials.depreciation_area.view',
+    'financials.fixed_asset_document.view',
+    'financials.fixed_asset_document.create',
+    'financials.fixed_asset_document.cancel',
+    'financials.fixed_asset.depreciate',
+  ],
+};
+
+/**
+ * Everything Fixed Assets needs: asset master data, asset classes,
+ * depreciation areas and capitalization documents. The financials module
+ * presets only bind the module-level `financials.*` keys, so without this set
+ * a Company Admin could not open Asset Master Data at all.
+ */
+const FIXED_ASSETS_SET: SystemSetDef = {
+  key: 'financials.fixed_assets',
+  name: 'Financials — Fixed Assets',
+  description:
+    'Asset master data, asset classes, depreciation areas, capitalization and capitalization credit memos, depreciation.',
+  permissionKeys: [
+    ...['fixed_asset', 'asset_class', 'depreciation_area'].flatMap((r) =>
+      STD.map((a) => `financials.${r}.${a}`),
+    ),
+    'financials.fixed_asset.depreciate',
+    'financials.fixed_asset_document.view',
+    'financials.fixed_asset_document.create',
+    'financials.fixed_asset_document.cancel',
   ],
 };
 
 export const SYSTEM_PERMISSION_SETS: SystemSetDef[] = [
   ACCOUNTANT_SET,
+  FIXED_ASSETS_SET,
   ...presetForModule('administration', 'Administration'),
   ...presetForModule('financials', 'Financials'),
   ...presetForModule('hr', 'HR'),

@@ -27,6 +27,8 @@ export const NUMBERED_DOCUMENT_TYPES = [
   'campaign',
   'business_partner',
   'fixed_asset',
+  'fixed_asset_capitalization',
+  'fixed_asset_credit_memo',
 ] as const;
 
 export type NumberedDocumentType = (typeof NUMBERED_DOCUMENT_TYPES)[number];
