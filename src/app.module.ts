@@ -54,6 +54,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { HrModule } from './modules/hr/hr.module';
+import { PayslipSchedulerModule } from './modules/hr/payslip-scheduler/payslip-scheduler.module';
 
 @Module({
   imports: [
@@ -99,6 +100,9 @@ import { HrModule } from './modules/hr/hr.module';
     InventoryModule,
     OrdersModule,
     HrModule,
+
+    // Auto-payslip generation (monthly cron)
+    PayslipSchedulerModule,
   ],
   controllers: [AppController],
   providers: [

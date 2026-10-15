@@ -77,6 +77,7 @@ export class CreateEmployeeDto {
   @IsString() @IsOptional() nationality?: string;
   @IsString() @IsOptional() mobilePhone2?: string;
   @IsDateString() @IsOptional() dateOfJoining?: string;
+  @IsDateString() @IsOptional() expiryDate?: string;
   @IsString() @IsOptional() insurancePolicyNo?: string;
   @IsString() @IsOptional() pfNo?: string;
   @IsString() @IsOptional() esiNo?: string;

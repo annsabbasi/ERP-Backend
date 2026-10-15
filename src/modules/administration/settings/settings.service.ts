@@ -30,6 +30,11 @@ export const SETTINGS_DEFAULTS: Record<string, Record<string, unknown>> = {
     displayCurrencySymbol: true,
   },
   display: {
+    language: 'English',
+    skinStyle: 'classic',
+    timeFormat: '24H',
+    dateFormat: 'dd/MM/yyyy',
+    dateSeparator: '/',
     decimalsAmounts: 2,
     decimalsPrices: 2,
     decimalsRates: 6,

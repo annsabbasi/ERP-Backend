@@ -606,6 +606,7 @@ model Employee {
   nationality         String?
   mobilePhone2        String?
   dateOfJoining       DateTime?
+  expiryDate          DateTime?
   insurancePolicyNo   String?
   pfNo                String?
   esiNo               String?

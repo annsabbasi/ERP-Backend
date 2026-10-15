@@ -656,6 +656,19 @@ export class PayrollRunsService extends TenantCrudService {
    * Supplementary/Off-cycle/Bonus run is extra pay, not the month's recovery.
    */
   async generateLines(companyId: string, runId: string) {
+    return this._generateLines(companyId, runId, []);
+  }
+
+  /**
+   * Variant used by the monthly payslip scheduler: behaves exactly like
+   * `generateLines` but additionally skips the employees whose IDs are listed
+   * in `excludeEmployeeIds` (e.g. contract-expired staff).
+   */
+  async generateLinesExcluding(companyId: string, runId: string, excludeEmployeeIds: string[]) {
+    return this._generateLines(companyId, runId, excludeEmployeeIds);
+  }
+
+  private async _generateLines(companyId: string, runId: string, excludeEmployeeIds: string[]) {
     const run = await this.findOne(companyId, runId) as any;
     this.assertOpen(run, 'regenerated');
 
@@ -676,6 +689,8 @@ export class PayrollRunsService extends TenantCrudService {
             deletedAt: null,
             isActive: true,
             ...(run.employeeCategoryId ? { employeeCategoryId: run.employeeCategoryId } : {}),
+            // Scheduler: skip contract-expired employees.
+            ...(excludeEmployeeIds.length ? { id: { notIn: excludeEmployeeIds } } : {}),
           },
           include: { grade: { include: { payScale: { orderBy: { stage: 'asc' }, take: 1 } } } },
           orderBy: { employeeNumber: 'asc' },
@@ -728,7 +743,21 @@ export class PayrollRunsService extends TenantCrudService {
         reason: e.grade ? `No pay scale for grade ${e.grade.code}` : 'No grade assigned',
       }));
     const unscaledIds = new Set(unscaled.map((u) => u.employeeId));
-    const payable = employees.filter((e) => !excluded.has(e.id) && !unscaledIds.has(e.id));
+
+    // Contract expired before this payroll period began
+    const contractExpired = employees
+      .filter((e) => (e as any).expiryDate && new Date((e as any).expiryDate) < from)
+      .map((e) => ({
+        employeeId: e.id,
+        name: e.employeeNumber ? `${e.employeeNumber} ${e.name}` : e.name,
+        run: '',
+        reason: `Contract expired on ${new Date((e as any).expiryDate).toISOString().slice(0, 10)}`,
+      }));
+    const contractExpiredIds = new Set(contractExpired.map((c) => c.employeeId));
+
+    const payable = employees.filter(
+      (e) => !excluded.has(e.id) && !unscaledIds.has(e.id) && !contractExpiredIds.has(e.id),
+    );
 
     const { byEmployee: attendanceByEmployee, warnings: attendanceWarnings } =
       mergeAttendanceSheets(sheets, employees, this.label(run));
@@ -793,11 +822,22 @@ export class PayrollRunsService extends TenantCrudService {
       // — real attendance, the loan schedule and the tax slabs, not something
       // a plain sum could reconstruct. Only the headline grossPay/totalEarnings
       // /totalDeductions/netPay are then re-derived by `rowTotals` from the
-      // row's own visible cells, so Generate and a later plain Save agree.
+      // If employee's contract expires during this month, cap their working and total days
+      let empTotalDays = totalDays;
+      let empWorkingDays = att?.workingDays != null ? num(att.workingDays) : workingDays;
+      if ((emp as any).expiryDate) {
+        const exp = new Date((emp as any).expiryDate);
+        if (exp >= from && exp < to) {
+          const activeDays = Math.max(1, Math.min(totalDays, inclusiveDays(from, exp)));
+          empTotalDays = activeDays;
+          empWorkingDays = Math.min(empWorkingDays, activeDays);
+        }
+      }
+
       const slip = computePayslip({
         stage,
-        workingDays: att?.workingDays != null ? num(att.workingDays) : workingDays,
-        totalDays,
+        workingDays: empWorkingDays,
+        totalDays: empTotalDays,
         presentDays: att?.presentDays != null ? num(att.presentDays) : null,
         leave,
         loanDue: loanDueByEmployee.get(emp.id) ?? 0,
@@ -865,12 +905,15 @@ export class PayrollRunsService extends TenantCrudService {
     }
     return {
       lines: await this.linesOf(runId),
-      skipped: conflicts.map((c) => ({
-        employeeId: c.employeeId,
-        name: c.employeeName,
-        run: c.runLabel,
-        reason: `Already in Regular run ${c.runLabel} for this period`,
-      })),
+      skipped: [
+        ...conflicts.map((c) => ({
+          employeeId: c.employeeId,
+          name: c.employeeName,
+          run: c.runLabel,
+          reason: `Already in Regular run ${c.runLabel} for this period`,
+        })),
+        ...contractExpired,
+      ],
       noPayScale: unscaled,
       warnings: attendanceWarnings,
     };
