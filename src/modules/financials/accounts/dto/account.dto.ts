@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { AccountSubtype, AccountType } from '@prisma/client';
 import {
   IsBoolean,
@@ -13,14 +13,11 @@ import {
 } from 'class-validator';
 
 export class CreateAccountDto {
-  @ApiProperty({ example: '1100', description: 'Account code, unique per company' })
+  @ApiProperty({ example: '3010', description: 'Account code, 2-digit pure numeric format up to 7 levels (14 digits max)' })
   @IsString()
-  @IsNotEmpty()
-  @Length(1, 32)
-  // Codes appear in reports and exports; keeping them to a predictable
-  // alphanumeric/dash/dot shape avoids breaking CSV and ledger layouts.
-  @Matches(/^[A-Za-z0-9._-]+$/, {
-    message: 'code may contain only letters, digits, dot, dash and underscore',
+  @IsNotEmpty({ message: 'Account code is required' })
+  @Matches(/^(\d{2}){1,7}$/, {
+    message: 'code must follow 2-digit pure numeric format up to 7 levels (e.g. 30, 3010, 301001)',
   })
   code!: string;
 
@@ -88,4 +85,4 @@ export class CreateAccountDto {
   level?: number;
 }
 
-export class UpdateAccountDto extends PartialType(CreateAccountDto) {}
+export class UpdateAccountDto extends PartialType(OmitType(CreateAccountDto, ['code'] as const)) {}

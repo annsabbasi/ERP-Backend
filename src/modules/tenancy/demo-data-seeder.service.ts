@@ -273,18 +273,18 @@ export class DemoDataSeederService {
     const held = await this.prisma.currency.findFirst({ where: { companyId, code: company?.currency ?? '' } });
     const currency = held ? held.code : 'USD';
     const titles: { code: string; name: string; type: AccountType }[] = [
-      { code: '1000', name: 'Assets', type: AccountType.ASSET },
-      { code: '2000', name: 'Liabilities', type: AccountType.LIABILITY },
-      { code: '3000', name: 'Equity', type: AccountType.EQUITY },
-      { code: '4000', name: 'Income', type: AccountType.INCOME },
-      { code: '5000', name: 'Expenses', type: AccountType.EXPENSE },
+      { code: '10', name: 'Assets', type: AccountType.ASSET },
+      { code: '20', name: 'Liabilities', type: AccountType.LIABILITY },
+      { code: '30', name: 'Equity', type: AccountType.EQUITY },
+      { code: '40', name: 'Income', type: AccountType.INCOME },
+      { code: '50', name: 'Expenses', type: AccountType.EXPENSE },
     ];
     // Batched into createMany + a lookup rather than 15 sequential creates:
     // each individual round trip to the cross-region Supabase pooler runs
     // several hundred milliseconds, and this step used to be the largest
     // single contributor to onboarding latency.
     await this.prisma.account.createMany({
-      data: titles.map((t) => ({ companyId, code: t.code, name: t.name, type: t.type, isTitle: true, currency })),
+      data: titles.map((t) => ({ companyId, code: t.code, name: t.name, type: t.type, isTitle: true, currency, level: 1 })),
       skipDuplicates: true,
     });
     const titleRows = await this.prisma.account.findMany({
@@ -297,16 +297,16 @@ export class DemoDataSeederService {
       code: string; name: string; type: AccountType; subtype: AccountSubtype;
       isControl?: boolean; parent: string;
     }[] = [
-      { code: '1010', name: 'Cash on Hand', type: AccountType.ASSET, subtype: AccountSubtype.CASH, parent: '1000' },
-      { code: '1020', name: 'Bank Account', type: AccountType.ASSET, subtype: AccountSubtype.BANK, parent: '1000' },
-      { code: '1200', name: 'Accounts Receivable', type: AccountType.ASSET, subtype: AccountSubtype.ACCOUNTS_RECEIVABLE, isControl: true, parent: '1000' },
-      { code: '2100', name: 'Accounts Payable', type: AccountType.LIABILITY, subtype: AccountSubtype.ACCOUNTS_PAYABLE, isControl: true, parent: '2000' },
-      { code: '2200', name: 'Tax Payable', type: AccountType.LIABILITY, subtype: AccountSubtype.TAX_PAYABLE, parent: '2000' },
-      { code: '3100', name: 'Share Capital', type: AccountType.EQUITY, subtype: AccountSubtype.SHARE_CAPITAL, parent: '3000' },
-      { code: '3900', name: 'Retained Earnings', type: AccountType.EQUITY, subtype: AccountSubtype.RETAINED_EARNINGS, parent: '3000' },
-      { code: '4100', name: 'Sales Revenue', type: AccountType.INCOME, subtype: AccountSubtype.REVENUE, parent: '4000' },
-      { code: '5100', name: 'Cost of Goods Sold', type: AccountType.EXPENSE, subtype: AccountSubtype.COST_OF_GOODS_SOLD, parent: '5000' },
-      { code: '5200', name: 'Operating Expenses', type: AccountType.EXPENSE, subtype: AccountSubtype.OPERATING_EXPENSE, parent: '5000' },
+      { code: '10-01', name: 'Cash on Hand', type: AccountType.ASSET, subtype: AccountSubtype.CASH, parent: '10' },
+      { code: '10-02', name: 'Bank Account', type: AccountType.ASSET, subtype: AccountSubtype.BANK, parent: '10' },
+      { code: '10-03', name: 'Accounts Receivable', type: AccountType.ASSET, subtype: AccountSubtype.ACCOUNTS_RECEIVABLE, isControl: true, parent: '10' },
+      { code: '20-01', name: 'Accounts Payable', type: AccountType.LIABILITY, subtype: AccountSubtype.ACCOUNTS_PAYABLE, isControl: true, parent: '20' },
+      { code: '20-02', name: 'Tax Payable', type: AccountType.LIABILITY, subtype: AccountSubtype.TAX_PAYABLE, parent: '20' },
+      { code: '30-01', name: 'Share Capital', type: AccountType.EQUITY, subtype: AccountSubtype.SHARE_CAPITAL, parent: '30' },
+      { code: '30-02', name: 'Retained Earnings', type: AccountType.EQUITY, subtype: AccountSubtype.RETAINED_EARNINGS, parent: '30' },
+      { code: '40-01', name: 'Sales Revenue', type: AccountType.INCOME, subtype: AccountSubtype.REVENUE, parent: '40' },
+      { code: '50-01', name: 'Cost of Goods Sold', type: AccountType.EXPENSE, subtype: AccountSubtype.COST_OF_GOODS_SOLD, parent: '50' },
+      { code: '50-02', name: 'Operating Expenses', type: AccountType.EXPENSE, subtype: AccountSubtype.OPERATING_EXPENSE, parent: '50' },
     ];
     await this.prisma.account.createMany({
       data: leaves.map((l) => ({
@@ -334,12 +334,12 @@ export class DemoDataSeederService {
     await this.prisma.company.update({
       where: { id: companyId },
       data: {
-        defaultArAccountId: acct['1200'],
-        defaultApAccountId: acct['2100'],
-        defaultCashAccountId: acct['1010'],
-        defaultTaxPayableAccountId: acct['2200'],
-        defaultRevenueAccountId: acct['4100'],
-        defaultExpenseAccountId: acct['5200'],
+        defaultArAccountId: acct['10-03'] ?? acct['1200'],
+        defaultApAccountId: acct['20-01'] ?? acct['2100'],
+        defaultCashAccountId: acct['10-01'] ?? acct['1010'],
+        defaultTaxPayableAccountId: acct['20-02'] ?? acct['2200'],
+        defaultRevenueAccountId: acct['40-01'] ?? acct['4100'],
+        defaultExpenseAccountId: acct['50-02'] ?? acct['5200'],
       },
     });
   }

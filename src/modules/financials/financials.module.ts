@@ -3,6 +3,8 @@ import { AdministrationModule } from '../administration/administration.module';
 
 import { AccountsController } from './accounts/accounts.controller';
 import { AccountsService } from './accounts/accounts.service';
+import { CoaDrawersController } from './accounts/coa-drawers.controller';
+import { CoaDrawersService } from './accounts/coa-drawers.service';
 import { FiscalPeriodsController } from './fiscal-periods/fiscal-periods.controller';
 import { FiscalPeriodsService } from './fiscal-periods/fiscal-periods.service';
 import { JournalEntriesController } from './journal-entries/journal-entries.controller';
@@ -84,6 +86,7 @@ const setupControllers = [
   imports: [forwardRef(() => AdministrationModule)],
   controllers: [
     AccountsController,
+    CoaDrawersController,
     FiscalPeriodsController,
     JournalEntriesController,
     FinancialReportsController,
@@ -98,6 +101,7 @@ const setupControllers = [
   ],
   providers: [
     AccountsService,
+    CoaDrawersService,
     FiscalPeriodsService,
     JournalEntriesService,
     FinancialReportsService,
@@ -114,6 +118,7 @@ const setupControllers = [
   // ledger rather than writing their own GL access.
   exports: [
     AccountsService,
+    CoaDrawersService,
     FiscalPeriodsService,
     JournalEntriesService,
     FinancialReportsService,

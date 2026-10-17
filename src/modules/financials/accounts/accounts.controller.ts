@@ -22,8 +22,19 @@ export class AccountsController extends TenantCrudController({
     super();
   }
 
-  // Declared before the inherited `:id` route would be reached, so 'tree' and
-  // 'balances' are never mistaken for account ids.
+  // Declared before the inherited `:id` route would be reached, so 'tree',
+  // 'balances', and 'next-code' are never mistaken for account ids.
+  @ApiOperation({ summary: 'Get next available hierarchical 2-digit code' })
+  @RequirePermission('financials.account.view')
+  @Get('next-code')
+  nextCode(
+    @CurrentUser() user: AuthedUser,
+    @Query('parentId') parentId?: string,
+    @Query('type') type?: AccountType,
+  ) {
+    return this.service.getNextChildCode(user.companyId as string, parentId, type);
+  }
+
   @ApiOperation({ summary: 'Chart of accounts as a nested tree' })
   @RequirePermission('financials.account.view')
   @Get('tree')
