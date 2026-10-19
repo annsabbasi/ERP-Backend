@@ -399,6 +399,13 @@ export class BudgetScenariosController extends TenantCrudController({
   updateDto: Dto.UpdateBudgetScenarioDto,
 }) {
   constructor(protected readonly service: S.BudgetScenariosService) { super(); }
+
+  @ApiOperation({ summary: 'Copy a scenario with ratio multiplier' })
+  @RequirePermission('financials.budget.create')
+  @Post('copy')
+  copy(@CurrentUser() user: AuthedUser, @Body() dto: Dto.CopyBudgetScenarioDto) {
+    return this.service.copyScenario(user.companyId as string, dto);
+  }
 }
 
 @ApiTags('Financials — Budget Distribution Methods')
@@ -423,6 +430,20 @@ export class BudgetLinesController extends TenantCrudController({
   updateDto: Dto.UpdateBudgetLineDto,
 }) {
   constructor(protected readonly service: S.BudgetLinesService) { super(); }
+
+  @ApiOperation({ summary: 'Get all budget lines for a scenario' })
+  @RequirePermission('financials.budget.view')
+  @Get('by-scenario/:scenarioId')
+  byScenario(@CurrentUser() user: AuthedUser, @Param('scenarioId') scenarioId: string) {
+    return this.service.getForScenario(user.companyId as string, scenarioId);
+  }
+
+  @ApiOperation({ summary: 'Bulk save/update budget lines for a scenario' })
+  @RequirePermission('financials.budget.create')
+  @Post('bulk')
+  bulkSave(@CurrentUser() user: AuthedUser, @Body() dto: Dto.BulkBudgetLinesDto) {
+    return this.service.bulkUpsert(user.companyId as string, dto);
+  }
 
   @ApiOperation({ summary: 'Budget versus actual for a scenario' })
   @RequirePermission('financials.budget.view')

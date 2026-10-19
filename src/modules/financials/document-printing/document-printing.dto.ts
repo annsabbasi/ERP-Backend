@@ -28,6 +28,7 @@ export const PRINTABLE_DOCUMENT_TYPES = [
   'incoming_payment',
   'ap_invoice',
   'outgoing_payment',
+  'budget_scenario',
 ] as const;
 export type PrintableDocumentType = (typeof PRINTABLE_DOCUMENT_TYPES)[number];
 

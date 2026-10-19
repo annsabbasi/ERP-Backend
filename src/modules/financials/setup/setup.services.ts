@@ -1364,6 +1364,66 @@ export class BudgetScenariosService extends TenantCrudService {
     include: { basedOn: { select: { id: true, code: true, name: true } } },
   };
   constructor(prisma: PrismaService) { super(prisma); }
+
+  async findAll(companyId: string, query?: Record<string, unknown>) {
+    const res = await super.findAll(companyId, query);
+    const rows = (res as { data?: unknown[] }).data ?? (Array.isArray(res) ? res : []);
+    if (rows.length === 0) {
+      const currentYear = new Date().getFullYear();
+      await this.prisma.budgetScenario.create({
+        data: {
+          companyId,
+          code: 'MAIN',
+          name: `Main Budget ${currentYear}`,
+          fiscalYear: currentYear,
+          initialRatio: new Prisma.Decimal(100),
+          isActive: true,
+        },
+      });
+      return super.findAll(companyId, query);
+    }
+    return res;
+  }
+
+  async copyScenario(companyId: string, dto: { sourceScenarioId: string; code: string; name: string; fiscalYear: number; initialRatio?: number }) {
+    const source = await this.prisma.budgetScenario.findFirst({
+      where: { id: dto.sourceScenarioId, companyId },
+      include: { lines: true },
+    });
+    if (!source) throw new NotFoundException('Source budget scenario not found');
+
+    const ratio = dto.initialRatio ?? 100;
+    const ratioMultiplier = new Prisma.Decimal(ratio).dividedBy(100);
+
+    const created = await this.prisma.budgetScenario.create({
+      data: {
+        companyId,
+        code: dto.code,
+        name: dto.name,
+        fiscalYear: dto.fiscalYear,
+        basedOnScenarioId: source.id,
+        initialRatio: new Prisma.Decimal(ratio),
+        isActive: true,
+      },
+    });
+
+    for (const line of source.lines) {
+      await this.prisma.budgetLine.create({
+        data: {
+          companyId,
+          scenarioId: created.id,
+          accountId: line.accountId,
+          costCenterId: line.costCenterId,
+          distributionMethodId: line.distributionMethodId,
+          annualDebit: line.annualDebit.times(ratioMultiplier),
+          annualCredit: line.annualCredit.times(ratioMultiplier),
+          breakdown: line.breakdown as unknown as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    return this.findOne(companyId, created.id);
+  }
 }
 
 @Injectable()
@@ -1378,6 +1438,24 @@ export class BudgetDistributionMethodsService extends TenantCrudService {
   };
   constructor(prisma: PrismaService) { super(prisma); }
 
+  async findAll(companyId: string, query?: Record<string, unknown>) {
+    const res = await super.findAll(companyId, query);
+    const rows = (res as { data?: unknown[] }).data ?? (Array.isArray(res) ? res : []);
+    if (rows.length === 0) {
+      await this.prisma.budgetDistributionMethod.create({
+        data: {
+          companyId,
+          code: 'EQUAL',
+          name: 'Equal Distribution',
+          monthlyRatios: [8.33, 8.33, 8.34, 8.33, 8.33, 8.34, 8.33, 8.33, 8.34, 8.33, 8.33, 8.34],
+          isActive: true,
+        },
+      });
+      return super.findAll(companyId, query);
+    }
+    return res;
+  }
+
   protected beforeWrite(dto: Record<string, unknown>) {
     const out = super.beforeWrite(dto);
     if (Array.isArray(out.monthlyRatios)) {
@@ -1386,7 +1464,7 @@ export class BudgetDistributionMethodsService extends TenantCrudService {
         throw new BadRequestException('monthlyRatios must contain exactly 12 values.');
       }
       const total = ratios.reduce((s, r) => s + Number(r), 0);
-      if (Math.abs(total - 100) > 0.01) {
+      if (Math.abs(total - 100) > 0.05) {
         throw new BadRequestException(
           `Monthly ratios total ${total.toFixed(2)}%, but must total 100%.`,
         );
@@ -1427,6 +1505,68 @@ export class BudgetLinesService extends TenantCrudService {
     await super.update(companyId, id, dto);
     await this.recomputeBreakdown(companyId, id);
     return this.findOne(companyId, id);
+  }
+
+  async getForScenario(companyId: string, scenarioId: string) {
+    return this.prisma.budgetLine.findMany({
+      where: { companyId, scenarioId },
+      include: {
+        account: { select: { id: true, code: true, name: true, type: true } },
+        distributionMethod: true,
+      },
+      orderBy: { account: { code: 'asc' } },
+    });
+  }
+
+  async bulkUpsert(companyId: string, dto: { scenarioId: string; lines: Array<{ accountId: string; annualDebit?: number; annualCredit?: number; distributionMethodId?: string; costCenterId?: string }> }) {
+    const scenario = await this.prisma.budgetScenario.findFirst({
+      where: { id: dto.scenarioId, companyId },
+    });
+    if (!scenario) throw new NotFoundException('Budget scenario not found');
+
+    for (const item of dto.lines) {
+      const existing = await this.prisma.budgetLine.findFirst({
+        where: {
+          companyId,
+          scenarioId: dto.scenarioId,
+          accountId: item.accountId,
+        },
+      });
+
+      const debit = new Prisma.Decimal(item.annualDebit ?? 0);
+      const credit = new Prisma.Decimal(item.annualCredit ?? 0);
+
+      // If both debit and credit are 0, and row exists, remove it or set to 0
+      let lineId: string;
+      if (existing) {
+        const updated = await this.prisma.budgetLine.update({
+          where: { id: existing.id },
+          data: {
+            annualDebit: debit,
+            annualCredit: credit,
+            distributionMethodId: item.distributionMethodId || null,
+            costCenterId: item.costCenterId || null,
+          },
+        });
+        lineId = updated.id;
+      } else {
+        const created = await this.prisma.budgetLine.create({
+          data: {
+            companyId,
+            scenarioId: dto.scenarioId,
+            accountId: item.accountId,
+            annualDebit: debit,
+            annualCredit: credit,
+            distributionMethodId: item.distributionMethodId || null,
+            costCenterId: item.costCenterId || null,
+          },
+        });
+        lineId = created.id;
+      }
+      await this.recomputeBreakdown(companyId, lineId);
+    }
+
+    return this.getForScenario(companyId, dto.scenarioId);
   }
 
   private async recomputeBreakdown(companyId: string, id: string) {

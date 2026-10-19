@@ -55,6 +55,11 @@ export const DOCUMENT_TYPE_DEFS: Record<PrintableDocumentType, TypeDef> = {
     permission: 'financials.ap.view',
     side: 'VENDOR',
   },
+  budget_scenario: {
+    label: 'Budget Scenario',
+    permission: 'financials.budget.view',
+    side: 'ANY',
+  },
 };
 
 /** More than this and the window is asked to narrow the selection. */
@@ -555,6 +560,29 @@ export class DocumentPrintingService {
     const take = MAX_LOADED;
 
     switch (dto.documentType) {
+      case 'budget_scenario': {
+        const rows = await this.prisma.budgetScenario.findMany({
+          where: { companyId },
+          include: { lines: true },
+          take,
+          orderBy: [{ fiscalYear: 'desc' }, { code: 'asc' }],
+        });
+        return rows.map((r) => {
+          const totalDebit = r.lines.reduce((s, l) => s.plus(l.annualDebit), new Prisma.Decimal(0));
+          return {
+            id: r.id,
+            number: r.code,
+            postingDate: new Date(Date.UTC(r.fiscalYear, 0, 1)),
+            bpCode: null,
+            bpName: r.name,
+            total: totalDebit,
+            currency: 'USD',
+            status: r.isActive ? 'ACTIVE' : 'INACTIVE',
+            isCancelled: false,
+          };
+        });
+      }
+
       case 'journal_entry': {
         const lineFilters: Prisma.JournalEntryWhereInput[] = [];
         if (lines) lineFilters.push({ lines: lines });
@@ -745,6 +773,13 @@ export class DocumentPrintingService {
     const where = { companyId, id: { in: ids } };
     const select = { id: true } as const;
     switch (type) {
+      case 'budget_scenario':
+        return (
+          await this.prisma.budgetScenario.findMany({
+            where,
+            select,
+          })
+        ).map((r) => r.id);
       case 'journal_entry':
         return (
           await this.prisma.journalEntry.findMany({
@@ -919,6 +954,64 @@ export class DocumentPrintingService {
     });
 
     switch (type) {
+      case 'budget_scenario': {
+        const rows = await this.prisma.budgetScenario.findMany({
+          where: { companyId, id: { in: ids } },
+          include: {
+            lines: {
+              include: {
+                account: { select: { code: true, name: true } },
+                distributionMethod: { select: { name: true } },
+              },
+              orderBy: { account: { code: 'asc' } },
+            },
+          },
+        });
+        return rows.map((r) =>
+          base({
+            id: r.id,
+            documentType: 'budget_scenario',
+            title: `Budget Scenario — ${r.name}`,
+            number: r.code,
+            postingDate: new Date(Date.UTC(r.fiscalYear, 0, 1)),
+            dueDate: new Date(Date.UTC(r.fiscalYear, 11, 31)),
+            reference: `Fiscal Year: ${r.fiscalYear}`,
+            remarks: r.name,
+            currency: 'USD',
+            status: r.isActive ? 'ACTIVE' : 'INACTIVE',
+            isCancelled: false,
+            columns: [
+              'Account Code',
+              'Account Name',
+              'Annual Debit',
+              'Annual Credit',
+              'Distribution Method',
+            ],
+            lines: r.lines.map((l) => [
+              l.account.code,
+              l.account.name,
+              l.annualDebit.isZero() ? '0.00' : l.annualDebit.toFixed(2),
+              l.annualCredit.isZero() ? '0.00' : l.annualCredit.toFixed(2),
+              l.distributionMethod?.name ?? 'Equal',
+            ]),
+            totals: [
+              {
+                label: 'Total Budgeted Debit',
+                value: r.lines
+                  .reduce((s, l) => s.plus(l.annualDebit), new Prisma.Decimal(0))
+                  .toFixed(2),
+              },
+              {
+                label: 'Total Budgeted Credit',
+                value: r.lines
+                  .reduce((s, l) => s.plus(l.annualCredit), new Prisma.Decimal(0))
+                  .toFixed(2),
+              },
+            ],
+          }),
+        );
+      }
+
       case 'journal_entry': {
         const rows = await this.prisma.journalEntry.findMany({
           where: { companyId, id: { in: ids }, status: { not: 'DRAFT' } },

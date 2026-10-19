@@ -281,6 +281,31 @@ export class CreateBudgetLineDto {
 }
 export class UpdateBudgetLineDto extends PartialType(CreateBudgetLineDto) {}
 
+export class CopyBudgetScenarioDto {
+  @ApiProperty() @IsString() @IsNotEmpty() sourceScenarioId!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() code!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() name!: string;
+  @ApiProperty({ example: 2026 }) @IsInt() @Min(1900) @Max(2200) fiscalYear!: number;
+  @ApiPropertyOptional({ example: 100 }) @IsOptional() @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) initialRatio?: number;
+}
+
+export class BulkBudgetLineItemDto {
+  @ApiProperty() @IsString() @IsNotEmpty() accountId!: string;
+  @ApiPropertyOptional({ default: 0 }) @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) annualDebit?: number;
+  @ApiPropertyOptional({ default: 0 }) @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) annualCredit?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() distributionMethodId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() costCenterId?: string;
+}
+
+export class BulkBudgetLinesDto {
+  @ApiProperty() @IsString() @IsNotEmpty() scenarioId!: string;
+  @ApiProperty({ type: [BulkBudgetLineItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkBudgetLineItemDto)
+  lines!: BulkBudgetLineItemDto[];
+}
+
 // ─── BANKING SETUP ────────────────────────────────────────────────────────────
 export class CreateBankDto {
   @ApiProperty() @IsString() @IsNotEmpty() code!: string;
