@@ -1,0 +1,12 @@
+{
+  "extends": "@erp/config/tsconfig/node.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "isolatedModules": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["node", "jest"]
+  },
+  "include": ["src", "test"]
+}
