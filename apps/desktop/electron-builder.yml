@@ -1,0 +1,18 @@
+# Packaging config only. Installers are built by a later task.
+appId: com.erp.system
+productName: ERP System
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+# Packaged builds load the web app from these files (see src/main.ts).
+extraResources:
+  - from: ../web/dist
+    to: web
+win:
+  target: nsis
+mac:
+  target: dmg
+linux:
+  target: AppImage

@@ -1,0 +1,22 @@
+{
+  "name": "@erp/desktop",
+  "productName": "ERP System",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json && wait-on http-get://localhost:5173 && electron .",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@erp/config": "workspace:*",
+    "@types/node": "22.20.5",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "eslint": "10.13.0",
+    "typescript": "6.0.3",
+    "wait-on": "9.5.1"
+  }
+}
