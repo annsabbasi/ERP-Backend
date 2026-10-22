@@ -1,0 +1,18 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Packages allowed to run install scripts (pnpm 10 blocks all others).
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+  - prisma
+  - '@prisma/engines'
+
+# Install scripts that are not needed: optional native speed-ups and the
+# Windows installer helper (installers are built by a later task).
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - electron-winstaller
+  - msgpackr-extract
+  - unrs-resolver
