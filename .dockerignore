@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.turbo
+**/release
+**/coverage
+**/src/generated
+.git
+.env
+.env.*
+!.env.example
