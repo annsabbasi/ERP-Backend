@@ -1,0 +1,4 @@
+{
+  "extends": "@erp/config/tsconfig/library.json",
+  "include": ["src"]
+}
