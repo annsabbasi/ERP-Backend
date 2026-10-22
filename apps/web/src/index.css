@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+body {
+  background: var(--erp-color-background);
+  color: var(--erp-color-text);
+  font-family: system-ui, 'Segoe UI', sans-serif;
+}
