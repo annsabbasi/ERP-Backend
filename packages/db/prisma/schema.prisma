@@ -1,0 +1,12 @@
+// No models yet. The connection URL comes from the environment (see prisma.config.ts).
+// The new build lives only in these schemas (Part 11 §11.1); schema public is never used.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["platform", "identity", "app"]
+}

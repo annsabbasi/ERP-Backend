@@ -1,0 +1,10 @@
+{
+  // Prisma loads prisma.config.ts with its own TypeScript loader, which
+  // resolves imports like a bundler, so the type check does the same.
+  "extends": "@erp/config/tsconfig/library.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["prisma.config.ts", "src"],
+  "exclude": ["src/generated"]
+}
