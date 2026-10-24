@@ -1,0 +1,24 @@
+#!/bin/sh
+# Refuses a commit whose message has a Co-authored-by line or whose author or
+# committer e-mail is not the repository owner's (docs/adr/0004-direct-commits-to-main.md).
+# Enable once per clone:  git config core.hooksPath .githooks
+# CI job commit-hygiene applies the same rules to every commit on main.
+
+allowed='annsabbasi54@gmail.com'
+
+# Ignore comment lines and everything below the scissors line of `git commit -v`.
+message=$(sed -e '/^# -\{8,\} >8 -\{8,\}$/,$d' -e '/^#/d' "$1")
+
+if printf '%s\n' "$message" | grep -qi '^[[:space:]]*co-authored-by:'; then
+  echo 'commit-msg: refused. The message has a Co-authored-by line; remove it.' >&2
+  exit 1
+fi
+
+for role in AUTHOR COMMITTER; do
+  email=$(git var "GIT_${role}_IDENT" | sed -n 's/.*<\(.*\)>.*/\1/p')
+  if [ "$email" != "$allowed" ]; then
+    echo "commit-msg: refused. The $(echo "$role" | tr 'A-Z' 'a-z') e-mail is <$email>; it must be <$allowed>." >&2
+    echo "Fix it with: git config user.email $allowed" >&2
+    exit 1
+  fi
+done

@@ -19,6 +19,7 @@ its old branches are tags under `legacy/`. New code does not come from there unl
 ```sh
 corepack enable
 pnpm install
+git config core.hooksPath .githooks   # commit checks, see docs/adr/0004-direct-commits-to-main.md
 cp .env.example .env        # local settings; never commit .env
 docker compose -f infra/docker-compose.yml up -d
 ```
