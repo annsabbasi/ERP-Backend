@@ -6,11 +6,11 @@
 
 allowed='annsabbasi54@gmail.com'
 
-# Ignore comment lines and everything below the scissors line of `git commit -v`.
-message=$(sed -e '/^# -\{8,\} >8 -\{8,\}$/,$d' -e '/^#/d' "$1")
-
-if printf '%s\n' "$message" | grep -qi '^[[:space:]]*co-authored-by:'; then
-  echo 'commit-msg: refused. The message has a Co-authored-by line; remove it.' >&2
+# Every line of the message file is checked, comment lines and anything below a scissors
+# line included, because `git commit -F` keeps those lines in the commit. With
+# `git commit -v` a diff that contains the phrase is refused too; commit without -v then.
+if grep -qi 'co-authored-by' "$1"; then
+  echo 'commit-msg: refused. The message contains "Co-authored-by"; remove that line.' >&2
   exit 1
 fi
 
