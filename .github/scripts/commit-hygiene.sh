@@ -1,6 +1,7 @@
 #!/bin/sh
 # Checks the commits on a branch: author and committer e-mail must be the repository
-# owner's, and no message may have a Co-authored-by line (docs/adr/0004-direct-commits-to-main.md).
+# owner's, and no message may contain "Co-authored-by" on any line
+# (docs/adr/0004-direct-commits-to-main.md).
 #
 #   sh .github/scripts/commit-hygiene.sh [baseline] [head]
 #
@@ -29,8 +30,8 @@ for sha in $(git rev-list "$range"); do
     echo "::error::$sha: author <$author>, committer <$committer>; both must be <$allowed>."
     failed=1
   fi
-  if git log -1 --format=%B "$sha" | grep -qi '^[[:space:]]*co-authored-by:'; then
-    echo "::error::$sha: the message has a Co-authored-by line."
+  if git log -1 --format=%B "$sha" | grep -qi 'co-authored-by'; then
+    echo "::error::$sha: the message contains \"Co-authored-by\"."
     failed=1
   fi
 done

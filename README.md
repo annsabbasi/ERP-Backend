@@ -71,7 +71,7 @@ All work is committed straight to `main`: no feature branches, no pull requests
   specification section in the body (`Spec: Part 03 §3.9.2`).
 - Unfinished endpoints stay behind feature flags until their stage passes QA.
 
-To check the history yourself: `sh .github/scripts/commit-hygiene.sh <baseline>`.
+To check the history yourself: `sh .github/scripts/commit-hygiene.sh`.
 
 ## Folder map
 

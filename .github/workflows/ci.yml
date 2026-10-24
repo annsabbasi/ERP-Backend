@@ -21,8 +21,9 @@ jobs:
   commit-hygiene:
     runs-on: ubuntu-latest
     env:
-      # The commits up to and including 40fff4a were made before this rule (decision D1).
-      HYGIENE_BASELINE: 40fff4a3fe45a35f54facd128941f383db0e92de
+      # Empty baseline: since the one-time clean-up (decision D1) the whole history is clean,
+      # so every commit is checked.
+      HYGIENE_BASELINE: ''
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v5
