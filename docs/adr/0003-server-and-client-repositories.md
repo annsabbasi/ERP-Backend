@@ -1,6 +1,7 @@
 # 0003. Two repositories: server in ERP-Backend, clients in erp-electron
 
-Date: 24 October 2026 · Status: accepted · Supersedes 0002
+Date: 24 October 2026 · Status: accepted; amended by 0004 (direct commits to main) · Supersedes
+0002
 
 ## Context
 
@@ -19,8 +20,8 @@ record is the deviation from it.
 - Each repository is a pnpm + Turborepo monorepo (ADR 0001) with its own lockfile and CI.
 - `packages/contracts` (request and response shapes, and later the module, feature and permission
   registry of §10.7.1) is owned by ERP-Backend. erp-electron keeps an exact copy; its CI job
-  `contracts` fails whenever the copy differs from ERP-Backend `main`. A contract change is merged in
-  ERP-Backend first and then copied, unchanged, to erp-electron.
+  `contracts` fails whenever the copy differs from ERP-Backend `main`. A contract change is
+  committed to ERP-Backend `main` first and then copied, unchanged, to erp-electron the same day.
 - `packages/config` starts as the same files in both repositories; each repository may change its own
   copy.
 - In both repositories the previous build stays on branch `backup/2026-10-22-pre-rebuild`, and every
@@ -28,9 +29,10 @@ record is the deviation from it.
 
 ## Consequences
 
-- A feature that changes both the API and its screens needs a pull request in each repository,
-  ERP-Backend first. A contract change no longer fails the client's type check in the same pull
-  request (ADR 0001); the `contracts` check catches drift on the next client build instead.
+- A feature that changes both the API and its screens needs commits in each repository, pushed to
+  `main` in ERP-Backend first (ADR 0004). A contract change no longer fails the client's type check
+  in the same change (ADR 0001); the `contracts` check catches drift on the next client build
+  instead.
 - Two CI workflows. The API and worker deploy from ERP-Backend; the web app and Platform Console
   deploy from erp-electron, so their hosting projects connect to that repository.
 - erp-electron belongs to a personal GitHub account, so its settings and rulesets can be changed only
