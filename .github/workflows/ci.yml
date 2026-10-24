@@ -16,3 +16,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run lint typecheck test build
+
+  # Every commit comes from the owner's account with no co-author lines (ADR 0004).
+  commit-hygiene:
+    runs-on: ubuntu-latest
+    env:
+      # The commits up to and including 40fff4a were made before this rule (decision D1).
+      HYGIENE_BASELINE: 40fff4a3fe45a35f54facd128941f383db0e92de
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - run: sh .github/scripts/commit-hygiene.sh "$HYGIENE_BASELINE" "$HEAD_SHA"
