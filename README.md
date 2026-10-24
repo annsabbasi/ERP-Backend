@@ -54,7 +54,24 @@ Tests use only the local Docker services.
 
 `packages/contracts` (request and response shapes) is owned by this repository. erp-electron keeps an
 exact copy, and its CI fails when the copy differs from `main` here. After a contract change is
-merged here, copy the same files to erp-electron in a pull request there.
+pushed to `main` here, copy the same files to erp-electron and push them to its `main` the same day.
+
+## How changes land
+
+All work is committed straight to `main`: no feature branches, no pull requests
+(`docs/adr/0004-direct-commits-to-main.md`).
+
+- Every commit is authored and pushed as `annsabbasi <annsabbasi54@gmail.com>`, with no co-author
+  or generated-by lines. The `commit-msg` hook (Set up, above) and the CI job `commit-hygiene`
+  refuse anything else.
+- Before every push, `pnpm turbo run lint typecheck test build` passes locally. After the push, CI
+  must be green before the next batch starts. A red `main` is fixed forward the same day; never
+  force-push.
+- Commits are small, follow Conventional Commits (`feat(api): …`), build on their own, and name the
+  specification section in the body (`Spec: Part 03 §3.9.2`).
+- Unfinished endpoints stay behind feature flags until their stage passes QA.
+
+To check the history yourself: `sh .github/scripts/commit-hygiene.sh <baseline>`.
 
 ## Folder map
 
@@ -68,4 +85,6 @@ packages/
   config/         Shared TypeScript, ESLint and Prettier configuration
 infra/            docker-compose.yml for local services
 docs/adr/         Architecture decision records
+.githooks/        Git hooks (git config core.hooksPath .githooks)
+.github/          CI workflow and its scripts
 ```
