@@ -1,6 +1,7 @@
 # 0001. Monorepo with pnpm workspaces and Turborepo
 
-Date: 22 October 2026 · Status: accepted
+Date: 22 October 2026 · Status: accepted; amended by 0003 (the apps are split across two
+repositories, each one a monorepo as described here)
 
 ## Context
 

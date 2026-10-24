@@ -1,6 +1,6 @@
 # 0002. One repository: ERP-Backend; erp-electron archived
 
-Date: 22 October 2026 · Status: accepted
+Date: 22 October 2026 · Status: superseded by 0003 (24 October 2026)
 
 ## Context
 
