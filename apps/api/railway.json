@@ -3,14 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "apps/api/Dockerfile",
-    "watchPatterns": [
-      "apps/api/**",
-      "packages/**",
-      "package.json",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
-      "turbo.json"
-    ]
+    "watchPatterns": ["deploy/railway-release.txt"]
   },
   "deploy": {
     "preDeployCommand": ["pnpm --filter @erp/db db:migrate:deploy"],

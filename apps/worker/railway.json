@@ -3,14 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "apps/worker/Dockerfile",
-    "watchPatterns": [
-      "apps/worker/**",
-      "packages/**",
-      "package.json",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
-      "turbo.json"
-    ]
+    "watchPatterns": ["deploy/railway-release.txt"]
   },
   "deploy": {
     "restartPolicyType": "ON_FAILURE"
