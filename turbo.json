@@ -21,7 +21,7 @@
     },
     "build": {
       "dependsOn": ["^build", "generate"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", "openapi.json"]
     },
     "lint": {
       "dependsOn": ["generate"]
