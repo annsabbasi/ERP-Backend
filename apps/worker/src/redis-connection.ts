@@ -1,6 +1,7 @@
 import type { ConnectionOptions } from 'bullmq';
 
-const DEFAULT_REDIS_URL = 'redis://localhost:6379';
+// The local Docker Redis (infra/docker-compose.yml); hosted Redis always sets REDIS_URL.
+const DEFAULT_REDIS_URL = 'redis://localhost:6381';
 
 /** BullMQ connection options from REDIS_URL (redis:// or rediss://). */
 export function redisConnection(
