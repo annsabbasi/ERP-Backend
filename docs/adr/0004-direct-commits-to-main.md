@@ -1,6 +1,7 @@
 # 0004. Direct commits to main
 
-Date: 24 October 2026 · Status: accepted
+Date: 24 October 2026 · Status: accepted; updated 25 October 2026 (D1 done, ruleset, whole-history
+check)
 
 ## Context
 
@@ -23,20 +24,28 @@ lands, so this record lists what takes the place of that review. It is a deviati
   another author or committer e-mail; enable it once per clone with
   `git config core.hooksPath .githooks`.
 - **Checks after the push.** CI runs on every push: job `check` (lint, type check, tests, build)
-  and job `commit-hygiene`, which applies the hook's rules to every commit on `main` after the
-  baseline set in `.github/workflows/ci.yml`. The next batch of work starts only when CI is green.
+  and job `commit-hygiene`, which applies the hook's rules to every commit in the whole history of
+  `main` (the baseline in `.github/workflows/ci.yml` is empty). The next batch of work starts only
+  when CI is green.
 - **Fix forward.** A red `main` is fixed with a new commit the same day. History is never
-  rewritten; the only exception is the one-time removal of co-author trailers from ERP-Backend
-  `main` (decision D1 of the staged delivery plan).
+  rewritten. The one exception, decision D1 of the staged delivery plan, was done on 24 October
+  2026: co-author trailers were removed from ERP-Backend `main` after a mirror backup
+  (`git-mirror-ERP-Backend-before-trailer-cleanup-20261024T170346Z.zip` in the owner's backup
+  folder); file contents were unchanged.
+- **Ruleset.** A GitHub ruleset on `main` blocks force-pushes and branch deletion. It has no
+  pull-request, review or status-check rule (those would block direct pushes) and an empty bypass
+  list. ERP-Backend: ruleset 25789305, active since 24 October 2026. erp-electron: added by the
+  owning account.
 - **Small commits.** Conventional Commits (`feat(api): …`). Each commit builds and passes on its
   own, and its body names the specification section it implements (`Spec: Part 03 §3.9.2`).
 - **Contracts.** A change to `packages/contracts` is committed in ERP-Backend first and copied
   unchanged to erp-electron the same day, so the `contracts` job there stays green (ADR 0003).
 - **Feature flags.** Unfinished endpoints and screens stay behind feature flags until their stage
   passes QA, so a push to `main` never shows half-built work to customers.
-- **Staging first** (once decision D2 is confirmed). A push to `main` deploys automatically to
-  staging. Production changes only by a manual promote, after the change has been checked on
-  staging.
+- **Staging first** (decision D2, confirmed 24 October 2026). A push to `main` deploys
+  automatically to staging. Production changes only by a manual promote, after the change has been
+  checked on staging. Until staging is live, commits that touch the paths the production deploy
+  watches are kept local (push gate in the staged delivery plan).
 - **QA per stage.** Work is delivered in stages. At the end of each stage the developer reports
   the commits, CI runs and raw evidence; QA checks authors, trailers and CI on GitHub and runs the
   stage's acceptance criteria before the next stage starts. The report names every commit that
@@ -50,5 +59,6 @@ lands, so this record lists what takes the place of that review. It is a deviati
 - `main` can be red for a short time; making it green comes before any new work.
 - Commits from any other account are refused by the hook and fail `commit-hygiene`. Accepting
   another contributor needs a new decision.
-- GitHub rules that require pull requests or reviews are not used.
+- The only GitHub rules on `main` block force-pushes and deletion. A future history rewrite would
+  need the ruleset switched off first, which only the repository owner can do.
 - Part 12 §12.10.4 of the specification needs a note pointing to this record.
