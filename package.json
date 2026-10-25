@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "local:up": "docker compose -f infra/docker-compose.yml up -d --wait && turbo run build --filter=@erp/db && pnpm --filter @erp/db db:migrate:deploy && pnpm --filter @erp/db db:seed",
+    "local:up": "docker compose -f infra/docker-compose.yml up -d --wait && turbo run build --filter=@erp/db && pnpm --filter @erp/db db:migrate:deploy && pnpm --filter @erp/db db:local-roles && pnpm --filter @erp/db db:seed",
     "local:down": "docker compose -f infra/docker-compose.yml down",
     "dev": "turbo run dev",
     "build": "turbo run build",

@@ -54,11 +54,14 @@ describe('assertLocalOnly', () => {
     expect(() => assertLocalOnly(LOCAL, 'the api')).not.toThrow();
   });
 
-  it.each(['DATABASE_URL', 'DIRECT_URL', 'REDIS_URL'])('refuses a non-local %s', (name) => {
-    expect(() => assertLocalOnly({ ...LOCAL, [name]: LIVE_DB }, 'the api')).toThrow(
-      `LOCAL_ONLY is set, so the api refuses to run: ${name} points at "aws-1-ap-southeast-1.pooler.supabase.com"`,
-    );
-  });
+  it.each(['DATABASE_URL', 'DIRECT_URL', 'OPS_DATABASE_URL', 'REDIS_URL'])(
+    'refuses a non-local %s',
+    (name) => {
+      expect(() => assertLocalOnly({ ...LOCAL, [name]: LIVE_DB }, 'the api')).toThrow(
+        `LOCAL_ONLY is set, so the api refuses to run: ${name} points at "aws-1-ap-southeast-1.pooler.supabase.com"`,
+      );
+    },
+  );
 
   it('never puts the URL or its password in the message', () => {
     expect(() => assertLocalOnly({ ...LOCAL, DATABASE_URL: LIVE_DB }, 'the api')).toThrow(

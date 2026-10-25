@@ -1,17 +1,36 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "stream",
+  "globalPassThroughEnv": [
+    "LOCAL_ONLY",
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "OPS_DATABASE_URL",
+    "REDIS_URL",
+    "DATABASE_CA_CERT",
+    "FEATURE_FLAGS",
+    "TEST_PG_SERVER",
+    "TEST_APP_USER_PASSWORD",
+    "TEST_APP_OPS_PASSWORD",
+    "TEST_REDIS_URL"
+  ],
   "tasks": {
+    "generate": {
+      "inputs": ["prisma/schema.prisma"],
+      "outputs": ["src/generated/**"]
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "generate"],
       "outputs": ["dist/**"]
     },
-    "lint": {},
+    "lint": {
+      "dependsOn": ["generate"]
+    },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "generate"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "generate"]
     },
     "dev": {
       "dependsOn": ["^build"],

@@ -6,7 +6,12 @@
 export const LOCAL_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 /** The connection settings the guard checks. */
-export const GUARDED_URLS = ['DATABASE_URL', 'DIRECT_URL', 'REDIS_URL'] as const;
+export const GUARDED_URLS = [
+  'DATABASE_URL',
+  'DIRECT_URL',
+  'OPS_DATABASE_URL',
+  'REDIS_URL',
+] as const;
 
 export type GuardedUrl = (typeof GUARDED_URLS)[number];
 
