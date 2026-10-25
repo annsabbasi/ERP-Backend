@@ -34,8 +34,8 @@ lands, so this record lists what takes the place of that review. It is a deviati
   folder); file contents were unchanged.
 - **Ruleset.** A GitHub ruleset on `main` blocks force-pushes and branch deletion. It has no
   pull-request, review or status-check rule (those would block direct pushes) and an empty bypass
-  list. ERP-Backend: ruleset 25789305, active since 24 October 2026. erp-electron: added by the
-  owning account.
+  list. ERP-Backend: ruleset 25789305, active since 24 October 2026. erp-electron: still to be
+  added by the owning account; its id is recorded here once it exists.
 - **Small commits.** Conventional Commits (`feat(api): …`). Each commit builds and passes on its
   own, and its body names the specification section it implements (`Spec: Part 03 §3.9.2`).
 - **Contracts.** A change to `packages/contracts` is committed in ERP-Backend first and copied
@@ -44,8 +44,7 @@ lands, so this record lists what takes the place of that review. It is a deviati
   passes QA, so a push to `main` never shows half-built work to customers.
 - **Staging first** (decision D2, confirmed 24 October 2026). A push to `main` deploys
   automatically to staging. Production changes only by a manual promote, after the change has been
-  checked on staging. Until staging is live, commits that touch the paths the production deploy
-  watches are kept local (push gate in the staged delivery plan).
+  checked on staging. Until go-live nothing deploys at all (ADR 0007, local-only development).
 - **QA per stage.** Work is delivered in stages. At the end of each stage the developer reports
   the commits, CI runs and raw evidence; QA checks authors, trailers and CI on GitHub and runs the
   stage's acceptance criteria before the next stage starts. The report names every commit that
