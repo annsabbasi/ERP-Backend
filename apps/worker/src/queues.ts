@@ -1,3 +1,5 @@
+import type { Queue } from 'bullmq';
+
 /** Scheduled system work: outbox dispatch, expiries, reminders, scheduled changes. */
 export const SYSTEM_QUEUE = 'system';
 
@@ -10,3 +12,21 @@ export const SCHEDULES = {
   // Expiries, reminders and scheduled entitlement changes plug in here from Stage 5 on.
   maintenanceTick: { id: 'maintenance-tick', name: 'maintenance.tick', every: 60_000 },
 } as const;
+
+/**
+ * Registers the schedules on the system queue. Upserting by id means every worker can call
+ * this on start and there is still one scheduler per schedule. Finished runs are trimmed:
+ * the outbox schedule alone runs 43,200 times a day.
+ */
+export async function registerSchedules(system: Queue): Promise<void> {
+  for (const schedule of Object.values(SCHEDULES)) {
+    await system.upsertJobScheduler(
+      schedule.id,
+      { every: schedule.every },
+      {
+        name: schedule.name,
+        opts: { removeOnComplete: { count: 100 }, removeOnFail: { count: 1_000 } },
+      },
+    );
+  }
+}

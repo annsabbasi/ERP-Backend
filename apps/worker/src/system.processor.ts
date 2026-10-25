@@ -4,7 +4,7 @@ import type { PrismaClient } from '@erp/db';
 import type { Job, Queue } from 'bullmq';
 import { OPS_DB } from './database';
 import { OutboxDispatcher } from './outbox/outbox-dispatcher';
-import { EVENTS_QUEUE, SCHEDULES, SYSTEM_QUEUE } from './queues';
+import { EVENTS_QUEUE, registerSchedules, SCHEDULES, SYSTEM_QUEUE } from './queues';
 import { redisTarget } from './redis-connection';
 
 /**
@@ -28,13 +28,7 @@ export class SystemProcessor extends WorkerHost implements OnApplicationBootstra
   async onApplicationBootstrap(): Promise<void> {
     // Resolves only once the worker's Redis connection is up.
     await this.worker.waitUntilReady();
-    for (const schedule of Object.values(SCHEDULES)) {
-      await this.system.upsertJobScheduler(
-        schedule.id,
-        { every: schedule.every },
-        { name: schedule.name },
-      );
-    }
+    await registerSchedules(this.system);
     this.logger.log(
       `worker ready (queues: ${SYSTEM_QUEUE}, ${EVENTS_QUEUE}; schedules: ` +
         `${Object.values(SCHEDULES)
