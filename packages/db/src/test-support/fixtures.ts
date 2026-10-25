@@ -33,8 +33,11 @@ export type TenantFixture = {
   legalEntityId: string;
   branchId: string;
   departmentId: string;
+  positionId: string;
+  teamId: string;
   membershipId: string;
   roleId: string;
+  invitationId: string;
   invitationTokenHash: string;
 };
 
@@ -62,8 +65,11 @@ export async function createTenantWithData(
     legalEntityId: uuidv7(),
     branchId: uuidv7(),
     departmentId: uuidv7(),
+    positionId: uuidv7(),
+    teamId: uuidv7(),
     membershipId: uuidv7(),
     roleId: uuidv7(),
+    invitationId: uuidv7(),
     invitationTokenHash: `${label}-${uuidv7()}`.padEnd(64, '0').slice(0, 64),
   };
   const t = f.tenantId;
@@ -89,11 +95,10 @@ export async function createTenantWithData(
   );
   await q(
     `INSERT INTO app.positions (id, tenant_id, title, department_id) VALUES ($1, $2, 'Chef', $3)`,
-    [uuidv7(), t, f.departmentId],
+    [f.positionId, t, f.departmentId],
   );
-  const teamId = uuidv7();
   await q(`INSERT INTO app.teams (id, tenant_id, name) VALUES ($1, $2, 'Evening shift')`, [
-    teamId,
+    f.teamId,
     t,
   ]);
   await q(
@@ -103,7 +108,7 @@ export async function createTenantWithData(
   );
   await q(`INSERT INTO app.team_members (tenant_id, team_id, membership_id) VALUES ($1, $2, $3)`, [
     t,
-    teamId,
+    f.teamId,
     f.membershipId,
   ]);
   await q(
@@ -148,7 +153,7 @@ export async function createTenantWithData(
   await q(
     `INSERT INTO identity.invitations (id, tenant_id, membership_id, email, kind, token_hash, expires_at)
      VALUES ($1, $2, $3, $4, 'member', $5, now() + interval '7 days')`,
-    [uuidv7(), t, f.membershipId, `${label}@example.com`, f.invitationTokenHash],
+    [f.invitationId, t, f.membershipId, `${label}@example.com`, f.invitationTokenHash],
   );
   return f;
 }

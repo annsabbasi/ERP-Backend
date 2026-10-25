@@ -332,6 +332,7 @@ model User {
   recoveryCodes  RecoveryCode[]
   sessions       Session[]
   passwordResets PasswordReset[]
+  memberships    Membership[]
 
   @@unique([emailNormalized, accountKind])
   @@map("users")
@@ -440,6 +441,8 @@ model Invitation {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy    String?   @map("created_by") @db.Uuid
 
+  membership Membership @relation(fields: [tenantId, membershipId], references: [tenantId, id], onDelete: Cascade)
+
   @@index([tenantId, membershipId])
   @@map("invitations")
   @@schema("identity")
@@ -483,8 +486,11 @@ model Membership {
   kind               String
   displayName        String    @map("display_name")
   status             String
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   primaryBranchId    String?   @map("primary_branch_id") @db.Uuid
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   departmentId       String?   @map("department_id") @db.Uuid
+  /// The People module's employee record; its FK arrives with that table.
   employeeId         String?   @map("employee_id") @db.Uuid
   startsOn           DateTime? @map("starts_on") @db.Date
   endsOn             DateTime? @map("ends_on") @db.Date
@@ -495,14 +501,17 @@ model Membership {
   updatedBy          String?   @map("updated_by") @db.Uuid
   version            Int       @default(1)
 
-  primaryBranch Branch?               @relation(fields: [primaryBranchId], references: [id])
-  department    Department?           @relation(fields: [departmentId], references: [id])
-  roles         MembershipRole[]
-  exceptions    MembershipException[]
-  teams         TeamMember[]
+  user        User?                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  roles       MembershipRole[]
+  exceptions  MembershipException[]
+  teams       TeamMember[]
+  invitations Invitation[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId, primaryBranchId])
+  @@index([tenantId, departmentId])
   @@map("memberships")
   @@schema("app")
 }
@@ -620,6 +629,7 @@ model Branch {
   phone               String?
   timeZone            String?   @map("time_zone")
   status              String    @default("active")
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   managerMembershipId String?   @map("manager_membership_id") @db.Uuid
   archivedAt          DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -628,11 +638,11 @@ model Branch {
   updatedBy           String?   @map("updated_by") @db.Uuid
   version             Int       @default(1)
 
-  legalEntity LegalEntity  @relation(fields: [tenantId, legalEntityId], references: [tenantId, id])
-  memberships Membership[]
+  legalEntity LegalEntity @relation(fields: [tenantId, legalEntityId], references: [tenantId, id])
 
   @@unique([tenantId, id])
   @@unique([tenantId, code])
+  @@index([tenantId, managerMembershipId])
   @@map("branches")
   @@schema("app")
 }
@@ -642,7 +652,9 @@ model Department {
   tenantId         String    @map("tenant_id") @db.Uuid
   name             String
   code             String
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   parentId         String?   @map("parent_id") @db.Uuid
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   headMembershipId String?   @map("head_membership_id") @db.Uuid
   archivedAt       DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -651,13 +663,10 @@ model Department {
   updatedBy        String?   @map("updated_by") @db.Uuid
   version          Int       @default(1)
 
-  parent      Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
-  children    Department[] @relation("DepartmentTree")
-  memberships Membership[]
-  positions   Position[]
-
   @@unique([tenantId, id])
   @@unique([tenantId, code])
+  @@index([tenantId, parentId])
+  @@index([tenantId, headMembershipId])
   @@map("departments")
   @@schema("app")
 }
@@ -666,6 +675,7 @@ model Team {
   id               String    @id @default(uuid(7)) @db.Uuid
   tenantId         String    @map("tenant_id") @db.Uuid
   name             String
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   leadMembershipId String?   @map("lead_membership_id") @db.Uuid
   archivedAt       DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -677,6 +687,7 @@ model Team {
   members TeamMember[]
 
   @@unique([tenantId, id])
+  @@index([tenantId, leadMembershipId])
   @@map("teams")
   @@schema("app")
 }
@@ -700,7 +711,9 @@ model Position {
   tenantId            String    @map("tenant_id") @db.Uuid
   title               String
   grade               String?
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   departmentId        String?   @map("department_id") @db.Uuid
+  /// Same-tenant reference: composite FK written in SQL (migration tenant_safe_references), not a Prisma relation, because Prisma cannot model an optional reference whose key includes the required tenant_id.
   reportsToPositionId String?   @map("reports_to_position_id") @db.Uuid
   archivedAt          DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -709,11 +722,9 @@ model Position {
   updatedBy           String?   @map("updated_by") @db.Uuid
   version             Int       @default(1)
 
-  department Department? @relation(fields: [departmentId], references: [id])
-  reportsTo  Position?   @relation("PositionTree", fields: [reportsToPositionId], references: [id])
-  reports    Position[]  @relation("PositionTree")
-
   @@unique([tenantId, id])
+  @@index([tenantId, departmentId])
+  @@index([tenantId, reportsToPositionId])
   @@map("positions")
   @@schema("app")
 }
