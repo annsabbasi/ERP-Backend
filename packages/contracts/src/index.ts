@@ -5,3 +5,4 @@ export {
   type ReadinessResponse,
 } from './health';
 export * from './ids';
+export * from './registry';
