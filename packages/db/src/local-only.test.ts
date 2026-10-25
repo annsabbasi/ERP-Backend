@@ -15,12 +15,17 @@ const LIVE_DB =
   'postgresql://user:secret-password@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres';
 
 describe('isLocalOnly', () => {
-  it.each(['1', 'true', 'TRUE', ' 1 '])('is on for %j', (value) => {
+  it.each([undefined, '', '1', 'true', 'false', 'off', 'no', ' 1 '])('is on for %j', (value) => {
     expect(isLocalOnly({ LOCAL_ONLY: value })).toBe(true);
   });
 
-  it.each([undefined, '', '0', 'false', 'yes'])('is off for %j', (value) => {
+  it.each(['0', ' 0 '])('is off only for LOCAL_ONLY=%j', (value) => {
     expect(isLocalOnly({ LOCAL_ONLY: value })).toBe(false);
+  });
+
+  it('is off with NODE_ENV=production, whatever LOCAL_ONLY says', () => {
+    expect(isLocalOnly({ NODE_ENV: 'production', LOCAL_ONLY: '1' })).toBe(false);
+    expect(isLocalOnly({ NODE_ENV: 'development' })).toBe(true);
   });
 });
 
@@ -58,7 +63,7 @@ describe('assertLocalOnly', () => {
     'refuses a non-local %s',
     (name) => {
       expect(() => assertLocalOnly({ ...LOCAL, [name]: LIVE_DB }, 'the api')).toThrow(
-        `LOCAL_ONLY is set, so the api refuses to run: ${name} points at "aws-1-ap-southeast-1.pooler.supabase.com"`,
+        `LOCAL_ONLY is on, so the api refuses to run: ${name} points at "aws-1-ap-southeast-1.pooler.supabase.com"`,
       );
     },
   );
@@ -69,8 +74,12 @@ describe('assertLocalOnly', () => {
     );
   });
 
-  it('does nothing when LOCAL_ONLY is not set', () => {
-    expect(() => assertLocalOnly({ DATABASE_URL: LIVE_DB }, 'the api')).not.toThrow();
+  it('guards even when LOCAL_ONLY is missing', () => {
+    expect(() => assertLocalOnly({ DATABASE_URL: LIVE_DB }, 'the api')).toThrow('LOCAL_ONLY is on');
+  });
+
+  it('does nothing when switched off with LOCAL_ONLY=0', () => {
+    expect(() => assertLocalOnly({ LOCAL_ONLY: '0', DATABASE_URL: LIVE_DB }, 'the api')).not.toThrow();
   });
 });
 
@@ -99,7 +108,7 @@ describe('prisma.config.ts in local-only mode', () => {
       const env = { ...LOCAL, DATABASE_URL: LIVE_DB, DIRECT_URL: LIVE_DB };
       const result = prisma(command.split(' '), env);
       expect(result.status).not.toBe(0);
-      expect(result.stdout + result.stderr).toContain('LOCAL_ONLY is set');
+      expect(result.stdout + result.stderr).toContain('LOCAL_ONLY is on');
       expect(result.stdout + result.stderr).not.toContain('secret-password');
     },
   );

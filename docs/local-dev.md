@@ -96,8 +96,9 @@ worker tests use their own Redis key prefix.
 
 ## The LOCAL_ONLY guard
 
-With `LOCAL_ONLY=1` (the default in `.env.example`, and set in CI), the API, the worker, the seed and
-every Prisma command, `migrate deploy` included, refuse to run when `DATABASE_URL`, `DIRECT_URL`,
+The guard is on unless `LOCAL_ONLY=0` or `NODE_ENV=production` (`.env.example` and CI also set
+`LOCAL_ONLY=1`). While it is on, the API, the worker, the seed and every Prisma command, `migrate
+deploy` included, refuse to run when `DATABASE_URL`, `DIRECT_URL`,
 `OPS_DATABASE_URL` or `REDIS_URL` points anywhere but `localhost`, `127.0.0.1` or `::1`. The error
 names the setting and its host, never the password.
 
@@ -107,6 +108,6 @@ names the setting and its host, never the password.
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `pnpm local:up` fails with "Cannot connect to the Docker daemon" or "error during connect" | Start Docker Desktop, wait until it shows "Engine running", then run it again                                                                                                                                      |
 | "Bind for 0.0.0.0:5433 failed: port is already allocated" (or another port)                | Find the program with `netstat -ano \| findstr :5433` (Windows) and stop it, or choose another port in `infra/.env` and in `.env`                                                                                  |
-| The API stops with "LOCAL_ONLY is set, so the API refuses to run"                          | A URL in `.env` points at another machine. Copy the line back from `.env.example`                                                                                                                                  |
+| The API stops with "LOCAL_ONLY is on, so the API refuses to run"                           | A URL in `.env` points at another machine. Copy the line back from `.env.example`                                                                                                                                  |
 | `/health/ready` answers `"db":"error"` or `"redis":"error"`                                | The Docker services are not up: run `pnpm local:up`                                                                                                                                                                |
 | Windows says "An Application Control policy has blocked this file"                         | Smart App Control blocks some unsigned programs (the Railway CLI is one; Electron 45 runs). Event Viewer › CodeIntegrity › Operational, event 3077, names the file. Run such tools from their Docker image instead |

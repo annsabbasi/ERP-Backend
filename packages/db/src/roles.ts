@@ -12,13 +12,13 @@ type Env = Readonly<Record<string, string | undefined>>;
 /**
  * Local and CI only: lets app_user and app_ops sign in, with the passwords written in their
  * own connection URLs, so each password lives in one place (.env). Hosted databases set
- * these passwords by hand at go-live (ADR 0007); this refuses to run without LOCAL_ONLY.
+ * these passwords by hand at go-live (ADR 0007); this refuses to run when LOCAL_ONLY is off.
  */
 export async function enableLocalLoginRoles(
   env: Env,
   adminUrl: string | undefined = env.DIRECT_URL,
 ): Promise<string[]> {
-  if (!isLocalOnly(env)) throw new Error('db:local-roles runs only with LOCAL_ONLY=1');
+  if (!isLocalOnly(env)) throw new Error('db:local-roles runs only while LOCAL_ONLY is on');
   assertLocalOnly({ ...env, DIRECT_URL: adminUrl }, 'db:local-roles');
   if (!adminUrl) throw new Error('db:local-roles needs DIRECT_URL (the database owner)');
   const admin = new pg.Client({ connectionString: withoutSchema(adminUrl) });

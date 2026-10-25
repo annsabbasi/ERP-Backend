@@ -1,6 +1,6 @@
 # 0007. Local-only development until go-live
 
-Date: 25 October 2026 · Status: accepted; updated 25 October 2026 (`OPS_DATABASE_URL` guarded; `app_ops` least privilege)
+Date: 25 October 2026 · Status: accepted; updated 25 October 2026 (`OPS_DATABASE_URL` guarded; `app_ops` least privilege; guard on by default)
 
 ## Context
 
@@ -29,8 +29,10 @@ development, staging and production environments; they are deferred until go-liv
   only the grants of the current cross-tenant jobs (today the outbox dispatch, plus the tables behind
   the functions it owns) and nothing on sign-in secrets or migration history. Each stage that adds a
   job adds its grants.
-- **`LOCAL_ONLY` guard.** `LOCAL_ONLY=1` is set in `.env.example` and in CI. While it is set, the
-  api and the worker refuse to start, the seed refuses to run, and `packages/db/prisma.config.ts`
+- **`LOCAL_ONLY` guard.** The guard is on by default: only `LOCAL_ONLY=0` or `NODE_ENV=production`
+  switches it off, so a missing or misspelt line cannot disable it. `.env.example` and CI also set
+  `LOCAL_ONLY=1`, to make it visible. While it is on, the api and the worker refuse to start, the
+  seed refuses to run, and `packages/db/prisma.config.ts`
   refuses every Prisma command, `migrate deploy` included, when `DATABASE_URL`, `DIRECT_URL`,
   `OPS_DATABASE_URL` or `REDIS_URL` points at any host other than `localhost`, `127.0.0.1` or `::1`.
 - **Deploy switches off, inside the repositories:**
@@ -61,8 +63,8 @@ The `watchPatterns` before this change, to restore at go-live:
 2. The developer builds staging (Railway in asia-southeast1, Vercel), with secrets only in the
    platforms' variables, never in a repository. Then the switches above are turned back on for
    staging only: the original `watchPatterns` restored and `deploymentEnabled` removed for the
-   staging projects. `LOCAL_ONLY` is never set in a hosted environment. Production deploys only by
-   manual promote.
+   staging projects. Hosted environments run with `NODE_ENV=production`, which switches the guard
+   off. Production deploys only by manual promote.
 3. Local, CI and Supabase are checked to run the same Postgres major version, and the Gate C flows
    are run again on staging.
 4. QA approves, then production is promoted.
@@ -74,6 +76,6 @@ The `watchPatterns` before this change, to restore at go-live:
 - Mistakes that only show on hosted infrastructure (TLS to the database, the connection pooler,
   cross-site cookies, real e-mail delivery) surface at go-live, not earlier. The go-live steps
   above exist to catch them.
-- A database or Redis URL that is not local stops the api, the worker, the seed and Prisma while
-  `LOCAL_ONLY` is set, so the live database cannot be touched by accident.
+- A database or Redis URL that is not local stops the api, the worker, the seed and Prisma while the
+  guard is on, so the live database cannot be touched by accident.
 - Part 10 §10.16 of the specification needs a note pointing to this record.
