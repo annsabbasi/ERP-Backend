@@ -3,18 +3,24 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prepareTestDatabase } from './testing';
 import { createTenantWithData, type TenantFixture } from './test-support/fixtures';
+import { grantsOf } from './test-support/grants';
 
 // app_ops bypasses RLS, so it may hold only what today's cross-tenant work uses (QA finding
-// F2): the outbox dispatch, and the tables behind the SECURITY DEFINER functions it owns.
+// F2): the outbox dispatch, and the columns behind the SECURITY DEFINER functions it owns
+// (audit chain, invitation lookup, and the sign-in lookups of ADR 0008).
 // A stage that adds a job adds its grants and updates EXPECTED here.
 
 const EXPECTED = [
+  'app.membership_roles SELECT (membership_id, role_id, tenant_id)',
+  'app.memberships SELECT (display_name, id, kind, permissions_version, status, tenant_id, user_id)',
   'app.outbox SELECT',
-  'app.outbox UPDATE (attempts)',
-  'app.outbox UPDATE (dispatched_at)',
+  'app.outbox UPDATE (attempts, dispatched_at)',
+  'app.roles SELECT (id, is_protected, key, tenant_id)',
+  'app.settings SELECT (key, module_key, scope_type, tenant_id, value)',
   'identity.invitations SELECT',
   'platform.platform_audit_log INSERT',
   'platform.platform_audit_log SELECT',
+  'platform.tenants SELECT (code, display_name, id, slug, status)',
 ];
 
 let owner: pg.Client;
@@ -37,21 +43,7 @@ afterAll(async () => {
 
 describe('app_ops privileges', () => {
   it('holds exactly the grants of the current jobs', async () => {
-    const { rows } = await owner.query<{ grant: string }>(
-      `SELECT table_schema || '.' || table_name || ' ' || privilege_type AS grant
-       FROM information_schema.role_table_grants
-       WHERE grantee = 'app_ops' AND table_schema IN ('platform', 'identity', 'app')
-       UNION
-       SELECT table_schema || '.' || table_name || ' ' || privilege_type || ' (' || column_name || ')'
-       FROM information_schema.column_privileges
-       WHERE grantee = 'app_ops' AND table_schema IN ('platform', 'identity', 'app')
-         AND NOT EXISTS (SELECT 1 FROM information_schema.role_table_grants t
-                         WHERE t.grantee = 'app_ops' AND t.table_schema = column_privileges.table_schema
-                           AND t.table_name = column_privileges.table_name
-                           AND t.privilege_type = column_privileges.privilege_type)
-       ORDER BY 1`,
-    );
-    expect(rows.map((r) => r.grant)).toEqual(EXPECTED);
+    expect(await grantsOf(owner, 'app_ops')).toEqual(EXPECTED);
   });
 
   it.each([

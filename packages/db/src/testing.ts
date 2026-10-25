@@ -18,6 +18,8 @@ export type TestDatabase = {
   appUrl: string;
   /** app_ops: BYPASSRLS jobs. */
   opsUrl: string;
+  /** app_auth: the auth module; sign-in secrets, no tenant data (ADR 0008). */
+  authUrl: string;
 };
 
 const DEFAULT_SERVER = 'postgresql://erp:erp@localhost:5433';
@@ -56,6 +58,12 @@ export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
       name,
     ),
     opsUrl: urlFor(server, 'app_ops', process.env.TEST_APP_OPS_PASSWORD ?? 'app_ops_local', name),
+    authUrl: urlFor(
+      server,
+      'app_auth',
+      process.env.TEST_APP_AUTH_PASSWORD ?? 'app_auth_local',
+      name,
+    ),
   };
 
   const admin = new pg.Client({
@@ -75,7 +83,12 @@ export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
     await admin.query(`CREATE DATABASE "${name}"`);
     migrate(db);
     await enableLocalLoginRoles(
-      { LOCAL_ONLY: '1', DATABASE_URL: db.appUrl, OPS_DATABASE_URL: db.opsUrl },
+      {
+        LOCAL_ONLY: '1',
+        DATABASE_URL: db.appUrl,
+        OPS_DATABASE_URL: db.opsUrl,
+        AUTH_DATABASE_URL: db.authUrl,
+      },
       db.ownerUrl,
     );
   } finally {
@@ -102,6 +115,7 @@ function migrate(db: TestDatabase): void {
       DATABASE_URL: `${db.ownerUrl}?schema=platform`,
       DIRECT_URL: `${db.ownerUrl}?schema=platform`,
       OPS_DATABASE_URL: db.opsUrl,
+      AUTH_DATABASE_URL: db.authUrl,
       REDIS_URL: redis && LOCAL_HOSTS.has(hostOf(redis) ?? '') ? redis : 'redis://localhost:6381',
     },
     encoding: 'utf8',

@@ -243,7 +243,12 @@ model StaffUser {
   lastSignInAt    DateTime? @map("last_sign_in_at") @db.Timestamptz(6)
   version         Int       @default(1)
 
-  roles StaffRoleAssignment[]
+  roles         StaffRoleAssignment[]
+  credentials   StaffCredential[]
+  mfaFactors    StaffMfaFactor[]
+  recoveryCodes StaffRecoveryCode[]
+  sessions      StaffSession[]
+  setupTokens   StaffSetupToken[]
 
   @@map("staff_users")
   @@schema("platform")
@@ -297,6 +302,130 @@ model PlatformAuditLog {
   @@schema("platform")
 }
 
+// ── Staff sign-in (D5): built-in accounts with mandatory TOTP, stored apart from members ──
+// Same shape as the identity tables; the field is `userId` so one auth service serves both.
+
+model StaffCredential {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @map("staff_user_id") @db.Uuid
+  kind           String   @default("password")
+  hash           String
+  algorithm      String
+  params         Json     @default("{}")
+  singleFactorOk Boolean  @default(false) @map("single_factor_ok")
+  changedAt      DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  user StaffUser @relation(fields: [userId], references: [id])
+
+  @@unique([userId, kind])
+  @@map("staff_credentials")
+  @@schema("platform")
+}
+
+model StaffMfaFactor {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @map("staff_user_id") @db.Uuid
+  kind         String
+  secret       Bytes?
+  publicKey    Bytes?    @map("public_key")
+  label        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+  confirmedAt  DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  lastUsedStep BigInt?   @map("last_used_step")
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(6)
+
+  user StaffUser @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("staff_mfa_factors")
+  @@schema("platform")
+}
+
+model StaffRecoveryCode {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("staff_user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+
+  user StaffUser @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("staff_recovery_codes")
+  @@schema("platform")
+}
+
+model StaffSession {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  userId        String    @map("staff_user_id") @db.Uuid
+  client        String    @default("web")
+  ip            String?   @db.Inet
+  userAgent     String?   @map("user_agent")
+  deviceHash    String?   @map("device_hash")
+  amr           String[]  @default([])
+  mfaVerifiedAt DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt    DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason  String?   @map("revoke_reason")
+
+  user          StaffUser           @relation(fields: [userId], references: [id])
+  refreshTokens StaffRefreshToken[]
+
+  @@index([userId])
+  @@map("staff_sessions")
+  @@schema("platform")
+}
+
+model StaffRefreshToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  sessionId String    @map("session_id") @db.Uuid
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  issuedAt  DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  session StaffSession @relation(fields: [sessionId], references: [id])
+
+  @@index([familyId])
+  @@map("staff_refresh_tokens")
+  @@schema("platform")
+}
+
+/// One-time links for staff: the first Platform Owner's setup link, and password resets.
+model StaffSetupToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("staff_user_id") @db.Uuid
+  kind      String    @default("setup")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user StaffUser @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("staff_setup_tokens")
+  @@schema("platform")
+}
+
+model StaffLoginAttempt {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  emailNormalized String   @map("email_normalized")
+  ip              String?  @db.Inet
+  at              DateTime @default(now()) @db.Timestamptz(6)
+  success         Boolean
+  reason          String?
+
+  @@index([emailNormalized, at])
+  @@map("staff_login_attempts")
+  @@schema("platform")
+}
+
 model FeatureFlag {
   key         String   @id
   description String
@@ -332,6 +461,7 @@ model User {
   recoveryCodes  RecoveryCode[]
   sessions       Session[]
   passwordResets PasswordReset[]
+  emailChanges   EmailChange[]
   memberships    Membership[]
 
   @@unique([emailNormalized, accountKind])
@@ -340,13 +470,15 @@ model User {
 }
 
 model Credential {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  kind      String   @default("password")
-  hash      String
-  algorithm String
-  params    Json     @default("{}")
-  changedAt DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  kind           String   @default("password")
+  hash           String
+  algorithm      String
+  params         Json     @default("{}")
+  /// The password meets the single-factor length (15), so MFA may be turned off (gap G16).
+  singleFactorOk Boolean  @default(false) @map("single_factor_ok")
+  changedAt      DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -356,16 +488,20 @@ model Credential {
 }
 
 model MfaFactor {
-  id         String    @id @default(uuid(7)) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  kind       String
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  kind         String
   /// TOTP secret, encrypted by the application.
-  secret     Bytes?
-  publicKey  Bytes?    @map("public_key")
-  label      String?
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
-  disabledAt DateTime? @map("disabled_at") @db.Timestamptz(6)
+  secret       Bytes?
+  publicKey    Bytes?    @map("public_key")
+  label        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+  /// Set when the first code is confirmed; until then the factor is an enrolment in progress.
+  confirmedAt  DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  /// Last TOTP time step accepted, so a code cannot be used twice.
+  lastUsedStep BigInt?   @map("last_used_step")
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -389,16 +525,27 @@ model RecoveryCode {
 }
 
 model Session {
-  id           String    @id @default(uuid(7)) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
-  audience     String
-  membershipId String?   @map("membership_id") @db.Uuid
-  deviceLabel  String?   @map("device_label")
-  ip           String?   @db.Inet
-  userAgent    String?   @map("user_agent")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastSeenAt   DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
-  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  id            String    @id @default(uuid(7)) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  audience      String
+  membershipId  String?   @map("membership_id") @db.Uuid
+  deviceLabel   String?   @map("device_label")
+  /// web (refresh token in a cookie) or desktop (kept by the main process).
+  client        String    @default("web")
+  ip            String?   @db.Inet
+  userAgent     String?   @map("user_agent")
+  /// SHA-256 of the browser's or desktop's device id, to notice a new device.
+  deviceHash    String?   @map("device_hash")
+  /// Authentication methods of the sign-in: pwd, otp, recovery.
+  amr           String[]  @default([])
+  /// Last MFA check, for step-up on sensitive actions.
+  mfaVerifiedAt DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt    DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  /// Absolute end of the session (30 days at most).
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason  String?   @map("revoke_reason")
 
   user          User           @relation(fields: [userId], references: [id])
   refreshTokens RefreshToken[]
@@ -451,6 +598,8 @@ model Invitation {
 model PasswordReset {
   id        String    @id @default(uuid(7)) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
+  /// reset (forgot password), lockout (the "this wasn't me" link) or setup (first password).
+  kind      String    @default("reset")
   tokenHash String    @unique @map("token_hash")
   expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
   usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
@@ -460,6 +609,24 @@ model PasswordReset {
 
   @@index([userId])
   @@map("password_resets")
+  @@schema("identity")
+}
+
+/// A pending change of e-mail address, confirmed from a link sent to the new address.
+model EmailChange {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  newEmail           String    @map("new_email")
+  newEmailNormalized String    @map("new_email_normalized")
+  tokenHash          String    @unique @map("token_hash")
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt             DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("email_changes")
   @@schema("identity")
 }
 

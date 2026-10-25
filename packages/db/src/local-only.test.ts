@@ -59,7 +59,7 @@ describe('assertLocalOnly', () => {
     expect(() => assertLocalOnly(LOCAL, 'the api')).not.toThrow();
   });
 
-  it.each(['DATABASE_URL', 'DIRECT_URL', 'OPS_DATABASE_URL', 'REDIS_URL'])(
+  it.each(['DATABASE_URL', 'DIRECT_URL', 'OPS_DATABASE_URL', 'AUTH_DATABASE_URL', 'REDIS_URL'])(
     'refuses a non-local %s',
     (name) => {
       expect(() => assertLocalOnly({ ...LOCAL, [name]: LIVE_DB }, 'the api')).toThrow(
@@ -79,7 +79,9 @@ describe('assertLocalOnly', () => {
   });
 
   it('does nothing when switched off with LOCAL_ONLY=0', () => {
-    expect(() => assertLocalOnly({ LOCAL_ONLY: '0', DATABASE_URL: LIVE_DB }, 'the api')).not.toThrow();
+    expect(() =>
+      assertLocalOnly({ LOCAL_ONLY: '0', DATABASE_URL: LIVE_DB }, 'the api'),
+    ).not.toThrow();
   });
 });
 
