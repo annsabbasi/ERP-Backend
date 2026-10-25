@@ -110,3 +110,5 @@ function migrate(db: TestDatabase): void {
     throw new Error(`migrate deploy failed for ${db.name}:\n${result.stdout}\n${result.stderr}`);
   }
 }
+
+export { createTenantWithData, TENANT_TABLES, type TenantFixture } from './test-support/fixtures';

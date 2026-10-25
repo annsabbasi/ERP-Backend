@@ -24,3 +24,4 @@ export {
 } from './tenant';
 export { syncCatalogue, type CatalogueSyncResult } from './catalogue-sync';
 export { enableLocalLoginRoles, LOGIN_ROLES, withoutSchema } from './roles';
+export { addOutboxEvent, EVENT_TYPE, runOnce, type DomainEventInput } from './events';
