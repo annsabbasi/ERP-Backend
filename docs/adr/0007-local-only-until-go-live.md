@@ -1,6 +1,6 @@
 # 0007. Local-only development until go-live
 
-Date: 25 October 2026 · Status: accepted
+Date: 25 October 2026 · Status: accepted; updated 25 October 2026 (`OPS_DATABASE_URL` guarded)
 
 ## Context
 
@@ -27,8 +27,8 @@ development, staging and production environments; they are deferred until go-liv
   `.env.live`, which `.gitignore` excludes like every `.env.*` file.
 - **`LOCAL_ONLY` guard.** `LOCAL_ONLY=1` is set in `.env.example` and in CI. While it is set, the
   api and the worker refuse to start, the seed refuses to run, and `packages/db/prisma.config.ts`
-  refuses every Prisma command, `migrate deploy` included, when `DATABASE_URL`, `DIRECT_URL` or
-  `REDIS_URL` points at any host other than `localhost`, `127.0.0.1` or `::1`.
+  refuses every Prisma command, `migrate deploy` included, when `DATABASE_URL`, `DIRECT_URL`,
+  `OPS_DATABASE_URL` or `REDIS_URL` points at any host other than `localhost`, `127.0.0.1` or `::1`.
 - **Deploy switches off, inside the repositories:**
   - erp-electron `apps/web/vercel.json` and `apps/console/vercel.json`:
     `"git": { "deploymentEnabled": false }`.

@@ -27,11 +27,11 @@ Do the same in erp-electron (its `docs/local-dev.md`).
 
 Start in this order, each in its own terminal:
 
-| Step | Where        | Command         | What it does                                                                                                 |
-| ---- | ------------ | --------------- | ------------------------------------------------------------------------------------------------------------ |
-| 1    | ERP-Backend  | `pnpm local:up` | Starts Postgres, Redis, MinIO and Mailpit in Docker, waits until they are healthy, applies migrations, seeds |
-| 2    | ERP-Backend  | `pnpm dev`      | Starts the API on port 3000 and the worker                                                                   |
-| 3    | erp-electron | `pnpm dev`      | Starts the web app (5173), the Platform Console (5174) and the desktop window                                |
+| Step | Where        | Command         | What it does                                                                                                                                                            |
+| ---- | ------------ | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | ERP-Backend  | `pnpm local:up` | Starts Postgres, Redis, MinIO and Mailpit in Docker, waits until they are healthy, applies migrations, gives the local database roles their logins, loads the catalogue |
+| 2    | ERP-Backend  | `pnpm dev`      | Starts the API on port 3000 and the worker                                                                                                                              |
+| 3    | erp-electron | `pnpm dev`      | Starts the web app (5173), the Platform Console (5174) and the desktop window                                                                                           |
 
 Check that everything is connected:
 
@@ -73,12 +73,33 @@ Passwords are never written here. Each comes from your local `.env`.
 Application accounts (the Platform Owner from Stage 2, demo companies from Stage 5) are created by
 the seed and listed here when they arrive.
 
+## Database connections
+
+| Setting            | Role       | Used by                                                     |
+| ------------------ | ---------- | ----------------------------------------------------------- |
+| `DATABASE_URL`     | `app_user` | the API and the worker's event handlers; row-level security |
+| `OPS_DATABASE_URL` | `app_ops`  | the worker's cross-tenant jobs (outbox dispatch)            |
+| `DIRECT_URL`       | `erp`      | migrations and the seed                                     |
+
+`packages/db/README.md` explains the roles and how tenant data is reached.
+
+## Tests
+
+```sh
+pnpm local:up                            # the tests need the Docker Postgres and Redis
+pnpm turbo run lint typecheck test build # what CI runs on every push
+```
+
+Each database test file builds its own `erp_test_*` database from the migrations, so the
+development database `erp` is never touched. The API tests run against `erp_test_api`, and the
+worker tests use their own Redis key prefix.
+
 ## The LOCAL_ONLY guard
 
 With `LOCAL_ONLY=1` (the default in `.env.example`, and set in CI), the API, the worker, the seed and
-every Prisma command, `migrate deploy` included, refuse to run when `DATABASE_URL`, `DIRECT_URL` or
-`REDIS_URL` points anywhere but `localhost`, `127.0.0.1` or `::1`. The error names the setting and
-its host, never the password.
+every Prisma command, `migrate deploy` included, refuse to run when `DATABASE_URL`, `DIRECT_URL`,
+`OPS_DATABASE_URL` or `REDIS_URL` points anywhere but `localhost`, `127.0.0.1` or `::1`. The error
+names the setting and its host, never the password.
 
 ## Troubleshooting
 
