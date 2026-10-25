@@ -1,19 +1,19 @@
-# Local services for development (§10.16). Start with:
-#   docker compose -f infra/docker-compose.yml up -d
-# Host ports can be changed in infra/.env (for example POSTGRES_PORT=5433)
-# when another program already uses the default port.
+# Local services for development (§10.16, ADR 0007). Start everything with `pnpm local:up`
+# (docs/local-dev.md). Host ports can be changed in infra/.env when another program already
+# uses one; the .env URLs must then use the same ports.
+# Postgres and Redis are pinned to the versions CI uses (.github/workflows/ci.yml).
 
 name: erp
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.13-alpine
     environment:
       POSTGRES_USER: erp
       POSTGRES_PASSWORD: erp
       POSTGRES_DB: erp
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -23,10 +23,10 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.8-alpine
     command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - '${REDIS_PORT:-6379}:6379'
+      - '${REDIS_PORT:-6381}:6379'
     volumes:
       - redis-data:/data
     healthcheck:

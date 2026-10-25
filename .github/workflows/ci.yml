@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# Local-only mode (ADR 0007): nothing in CI may reach a database or Redis off the runner.
+env:
+  LOCAL_ONLY: '1'
+
 jobs:
   check:
     runs-on: ubuntu-latest
