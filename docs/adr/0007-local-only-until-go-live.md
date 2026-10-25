@@ -1,6 +1,6 @@
 # 0007. Local-only development until go-live
 
-Date: 25 October 2026 · Status: accepted; updated 25 October 2026 (`OPS_DATABASE_URL` guarded)
+Date: 25 October 2026 · Status: accepted; updated 25 October 2026 (`OPS_DATABASE_URL` guarded; `app_ops` least privilege)
 
 ## Context
 
@@ -25,6 +25,10 @@ development, staging and production environments; they are deferred until go-liv
 - **Local credentials only.** Each `.env` is created from `.env.example`. The live database values
   are not in the active `.env`; in the owner's ERP-Backend clone they are kept, unused, in
   `.env.live`, which `.gitignore` excludes like every `.env.*` file.
+- **The ops connection.** `OPS_DATABASE_URL` connects as `app_ops`, which bypasses RLS. It holds
+  only the grants of the current cross-tenant jobs (today the outbox dispatch, plus the tables behind
+  the functions it owns) and nothing on sign-in secrets or migration history. Each stage that adds a
+  job adds its grants.
 - **`LOCAL_ONLY` guard.** `LOCAL_ONLY=1` is set in `.env.example` and in CI. While it is set, the
   api and the worker refuse to start, the seed refuses to run, and `packages/db/prisma.config.ts`
   refuses every Prisma command, `migrate deploy` included, when `DATABASE_URL`, `DIRECT_URL`,

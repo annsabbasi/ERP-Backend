@@ -24,10 +24,12 @@ runs before every Prisma command, including direct `prisma …` calls.
 | Role           | Connection URL     | Used by                                       | Row-level security      |
 | -------------- | ------------------ | --------------------------------------------- | ----------------------- |
 | `app_user`     | `DATABASE_URL`     | the API, and the worker's event handlers      | applies; no `BYPASSRLS` |
-| `app_ops`      | `OPS_DATABASE_URL` | the worker's cross-tenant jobs (outbox)       | `BYPASSRLS`             |
+| `app_ops`      | `OPS_DATABASE_URL` | the worker's cross-tenant jobs (outbox)       | `BYPASSRLS`; few grants |
 | `app_migrator` | `DIRECT_URL`       | migrations (locally the `erp` superuser runs) | owner of the tables     |
 
-The migration creates the roles without a login. Hosted environments give them passwords in the
+`app_ops` holds only the grants of the current jobs (migration `ops_least_privilege`); a stage
+that adds a job adds its grants there and in `src/ops.int.test.ts`. The migration creates the roles
+without a login. Hosted environments give them passwords in the
 provider's console; locally `db:local-roles` sets the passwords of the URLs in `.env`.
 
 ## Tenant data
@@ -46,6 +48,12 @@ query sees no rows.
   `@append-only` in their comment get `SELECT` and `INSERT` only. Add the model to `TENANT_MODELS`
   (`src/tenant.ts`) and the table to `TENANT_TABLES` (`src/test-support/fixtures.ts`); the
   isolation suite fails until both are done.
+- **References between tenant rows** include `tenant_id`, so a row can only point at a row of its
+  own tenant. Required ones are Prisma relations on `(tenantId, id)`. Optional ones cannot be Prisma
+  relations, so they are composite foreign keys written in SQL, named `*_tenant_fk`, with
+  `ON DELETE SET NULL (column)`. `prisma migrate dev` proposes dropping them in every new migration:
+  delete those lines. `src/migrations.test.ts` and the schema test in `src/references.int.test.ts`
+  fail if one is dropped, and every new `*_id` column needs a foreign key or a reason in that test.
 - **Events** go to `app.outbox` with `addOutboxEvent(tx, …)` in the same transaction as the change.
   Consumers wrap their work in `runOnce(tx, consumer, eventId, …)` so a repeated delivery is
   skipped.
@@ -60,10 +68,12 @@ the development database `erp`. Defaults match `infra/docker-compose.yml`; `TEST
 `TEST_APP_USER_PASSWORD` and `TEST_APP_OPS_PASSWORD` override them, and a server that is not local
 is refused.
 
-| Suite                        | Checks                                                          |
-| ---------------------------- | --------------------------------------------------------------- |
-| `isolation.int.test.ts`      | RLS on every tenant table, cross-tenant reads and writes, roles |
-| `tenant.int.test.ts`         | `withTenant` and the tenant-scoped client against the database  |
-| `audit.int.test.ts`          | append-only audit logs and the platform hash chain              |
-| `catalogue-sync.int.test.ts` | the catalogue sync, including removed entries                   |
-| `*.test.ts` (no database)    | query scoping, the `LOCAL_ONLY` guard and the migration guard   |
+| Suite                        | Checks                                                            |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `isolation.int.test.ts`      | RLS on every tenant table, cross-tenant reads and writes, roles   |
+| `references.int.test.ts`     | references stay inside the tenant; every `*_id` has a foreign key |
+| `ops.int.test.ts`            | `app_ops` holds exactly the grants of the current jobs            |
+| `tenant.int.test.ts`         | `withTenant` and the tenant-scoped client against the database    |
+| `audit.int.test.ts`          | append-only audit logs and the platform hash chain                |
+| `catalogue-sync.int.test.ts` | the catalogue sync, including removed entries                     |
+| `*.test.ts` (no database)    | query scoping, the guards, no migration drops a `*_tenant_fk`     |
