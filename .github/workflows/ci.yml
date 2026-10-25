@@ -11,6 +11,37 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The tests build their own databases from the migrations on these containers, which use
+    # the same images and ports as infra/docker-compose.yml.
+    services:
+      postgres:
+        image: postgres:16.13-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U erp -d erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4.8-alpine
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    # The values of .env.example: throwaway local passwords for the runner's own containers.
+    env:
+      DATABASE_URL: postgresql://app_user:app_user_local@localhost:5433/erp?schema=platform
+      DIRECT_URL: postgresql://erp:erp@localhost:5433/erp?schema=platform
+      OPS_DATABASE_URL: postgresql://app_ops:app_ops_local@localhost:5433/erp?schema=platform
+      REDIS_URL: redis://localhost:6381
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -20,6 +51,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run lint typecheck test build
+      # The build writes apps/api/openapi.json; the committed copy must match the routes.
+      - name: OpenAPI file is up to date
+        run: git diff --exit-code -- apps/api/openapi.json
 
   # Every commit comes from the owner's account with no co-author lines (ADR 0004).
   commit-hygiene:
