@@ -18,7 +18,8 @@ const CODE_FOR_STATUS: Record<number, ProblemCode> = {
   403: 'permission_denied',
   404: 'not_found',
   409: 'conflict',
-  412: 'conflict',
+  412: 'precondition_failed',
+  428: 'precondition_required',
   422: 'validation_failed',
   429: 'rate_limited',
 };

@@ -9,6 +9,8 @@ export const PROBLEM_CODES = [
   'not_found',
   'validation_failed',
   'conflict',
+  'precondition_required',
+  'precondition_failed',
   'limit_reached',
   'period_closed',
   'tenant_read_only',

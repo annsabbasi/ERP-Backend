@@ -144,7 +144,8 @@ describe('ETag and If-Match', () => {
       .patch(`/api/v1/test/branches/${a.branchId}`)
       .set('X-Test-Tenant', a.tenantId)
       .send({ name: 'Gulberg' })
-      .expect(428);
+      .expect(428)
+      .expect((r) => expect(r.body.code).toBe('precondition_required'));
     const updated = await request(server())
       .patch(`/api/v1/test/branches/${a.branchId}`)
       .set('X-Test-Tenant', a.tenantId)
@@ -158,7 +159,7 @@ describe('ETag and If-Match', () => {
       .set('If-Match', etag)
       .send({ name: 'DHA' })
       .expect(412);
-    expect(stale.body.code).toBe('conflict');
+    expect(stale.body.code).toBe('precondition_failed');
   });
 });
 

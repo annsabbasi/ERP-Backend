@@ -14,20 +14,23 @@ export function versionFromIfMatch(header: string | undefined): number | undefin
 }
 
 /**
- * Throws 412 conflict when If-Match does not name the current version, so a client never
- * overwrites a change it has not seen. `*` matches any version.
+ * Throws 412 precondition_failed when If-Match does not name the current version, so a client
+ * never overwrites a change it has not seen, and 428 precondition_required without it. `*`
+ * matches any version.
  */
 export function assertIfMatch(header: string | undefined, currentVersion: number): void {
   if (header?.trim() === '*') return;
   const given = versionFromIfMatch(header);
   if (given === undefined) {
-    throw new ProblemException('conflict', 'Send the ETag of the record you read in If-Match', {
-      status: 428,
-    });
+    throw new ProblemException(
+      'precondition_required',
+      'Send the ETag of the record you read in If-Match',
+    );
   }
   if (given !== currentVersion) {
-    throw new ProblemException('conflict', 'The record was changed by someone else; reload it', {
-      status: 412,
-    });
+    throw new ProblemException(
+      'precondition_failed',
+      'The record was changed by someone else; reload it',
+    );
   }
 }

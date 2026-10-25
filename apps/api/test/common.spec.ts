@@ -38,8 +38,12 @@ describe('ETag helpers', () => {
   });
 
   it('answers 428 without If-Match and 412 on another version', () => {
-    expect(() => assertIfMatch(undefined, 1)).toThrow(expect.objectContaining({ status: 428 }));
-    expect(() => assertIfMatch('W/"1"', 2)).toThrow(expect.objectContaining({ status: 412 }));
+    expect(() => assertIfMatch(undefined, 1)).toThrow(
+      expect.objectContaining({ status: 428, code: 'precondition_required' }),
+    );
+    expect(() => assertIfMatch('W/"1"', 2)).toThrow(
+      expect.objectContaining({ status: 412, code: 'precondition_failed' }),
+    );
     expect(() => assertIfMatch('W/"2"', 2)).not.toThrow();
     expect(() => assertIfMatch('*', 9)).not.toThrow();
   });
