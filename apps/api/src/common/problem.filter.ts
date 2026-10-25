@@ -23,6 +23,16 @@ const CODE_FOR_STATUS: Record<number, ProblemCode> = {
   429: 'rate_limited',
 };
 
+/**
+ * Base of the problem `type` URIs. The domain is decision D3, so it comes from the
+ * environment; the default uses the reserved .invalid TLD (RFC 2606), which never resolves
+ * and so can never point at someone else's site.
+ */
+export function problemTypeUri(code: ProblemCode): string {
+  const base = process.env.PROBLEM_TYPE_BASE || 'https://erp.invalid/problems/';
+  return `${base.endsWith('/') ? base : `${base}/`}${code.replace(/_/g, '-')}`;
+}
+
 /** Prisma error codes that mean something to the caller. */
 const PRISMA_CODES: Record<string, ProblemCode> = {
   P2025: 'not_found', // record not found (also: another tenant's record)
@@ -62,7 +72,7 @@ export class ProblemFilter implements ExceptionFilter {
 
   private toProblem(exception: unknown, request: Request): ProblemDetails {
     const base = (code: ProblemCode, status: number, detail?: string, errors?: FieldError[]) => ({
-      type: `https://docs.erpsystem.app/problems/${code.replace(/_/g, '-')}`,
+      type: problemTypeUri(code),
       title: titleOf(code),
       status,
       ...(detail ? { detail } : {}),

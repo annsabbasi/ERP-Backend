@@ -1,6 +1,7 @@
 import { assertIfMatch, etagFor, versionFromIfMatch } from '../src/common/etag';
 import { decodeCursor, encodeCursor, toPage } from '../src/common/pagination';
 import { ProblemException } from '../src/common/problem';
+import { problemTypeUri } from '../src/common/problem.filter';
 import { correlationIdFor } from '../src/common/request-context';
 import { parseFlagOverrides } from '../src/modules/flags/feature-flags.service';
 
@@ -65,5 +66,22 @@ describe('correlation id', () => {
     expect(correlationIdFor(req('client-req-0001'))).toBe('client-req-0001');
     expect(correlationIdFor(req('<script>'))).toMatch(/^[0-9a-f-]{36}$/);
     expect(correlationIdFor(req())).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('problem type URIs', () => {
+  afterEach(() => {
+    delete process.env.PROBLEM_TYPE_BASE;
+  });
+
+  it('never point at a real domain until one is configured', () => {
+    expect(problemTypeUri('permission_denied')).toBe(
+      'https://erp.invalid/problems/permission-denied',
+    );
+  });
+
+  it('use PROBLEM_TYPE_BASE when it is set', () => {
+    process.env.PROBLEM_TYPE_BASE = 'https://docs.example.com/problems';
+    expect(problemTypeUri('not_found')).toBe('https://docs.example.com/problems/not-found');
   });
 });

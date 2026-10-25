@@ -42,6 +42,7 @@ describe('problem details (RFC 9457)', () => {
     const response = await request(server()).get('/api/v1/no-such-route').expect(404);
     expect(response.headers['content-type']).toMatch(/^application\/problem\+json/);
     expect(ProblemDetailsSchema.parse(response.body)).toMatchObject({
+      type: 'https://erp.invalid/problems/not-found',
       status: 404,
       code: 'not_found',
       instance: '/api/v1/no-such-route',
