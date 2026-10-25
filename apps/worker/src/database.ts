@@ -7,7 +7,7 @@ import {
 
 // The worker's two database connections (Part 10 §10.5.3).
 
-/** app_ops (OPS_DATABASE_URL): BYPASSRLS, only for cross-tenant jobs such as the outbox. */
+/** app_ops (OPS_DATABASE_URL): BYPASSRLS, granted only what the cross-tenant jobs use (the outbox). */
 export const OPS_DB = Symbol('OPS_DB');
 
 /** app_user (DATABASE_URL): event handlers work inside one tenant, under RLS. */
