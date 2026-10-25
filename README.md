@@ -20,17 +20,18 @@ its old branches are tags under `legacy/`. New code does not come from there unl
 corepack enable
 pnpm install
 git config core.hooksPath .githooks   # commit checks, see docs/adr/0004-direct-commits-to-main.md
-cp .env.example .env        # local settings; never commit .env
-docker compose -f infra/docker-compose.yml up -d
+cp .env.example .env        # local settings only; never commit .env
 ```
 
-If a default port is taken on your machine (5432, 6379, 9000/9001, 1025/8025), set another one in
-`infra/.env` (for example `POSTGRES_PORT=5433`) and use the same port in `.env`.
+Development is local-only until go-live (`docs/adr/0007-local-only-until-go-live.md`); the full
+runbook, with ports and troubleshooting, is `docs/local-dev.md`.
 
 ## Run
 
 ```sh
+pnpm local:up     # Docker services, migrations and seed
 pnpm dev          # api and worker together
+pnpm local:down   # stop the Docker services (data is kept)
 ```
 
 | App                            | Address                                                                      |
