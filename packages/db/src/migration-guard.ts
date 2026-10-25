@@ -1,7 +1,7 @@
 // Prisma commands that can drop data. They may only run against a local
 // database; every other database gets `prisma migrate deploy` only.
 
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+import { hostOf, LOCAL_HOSTS } from './local-only';
 
 const DESTRUCTIVE_COMMANDS: ReadonlyArray<readonly [string, string]> = [
   ['migrate', 'dev'],
@@ -20,20 +20,11 @@ export function destructiveCommand(argv: readonly string[]): string | undefined 
   return undefined;
 }
 
-function hostOf(url: string | undefined): string | undefined {
-  if (!url) return undefined;
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return undefined;
-  }
-}
-
 /** Throws before Prisma connects when a destructive command targets a non-local host. */
 export function assertLocalForDestructive(argv: readonly string[], url: string | undefined): void {
   const command = destructiveCommand(argv);
   if (!command) return;
-  const host = hostOf(url);
+  const host = url ? hostOf(url) : undefined;
   if (host && LOCAL_HOSTS.has(host)) return;
   throw new Error(
     `Refusing "prisma ${command}": the database host is "${host ?? 'unknown'}". ` +

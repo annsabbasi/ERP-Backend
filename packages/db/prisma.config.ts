@@ -1,4 +1,5 @@
 import { defineConfig, env } from 'prisma/config';
+import { assertLocalOnly } from './src/local-only';
 import { assertLocalForDestructive } from './src/migration-guard';
 
 // Prisma does not read .env files itself. In local development the
@@ -12,8 +13,10 @@ try {
 // Migrations use the direct connection; DATABASE_URL may be a pooler.
 const migrationUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
-// Prisma loads this file before every command, so the guard covers direct
-// `prisma …` calls as well as the package scripts.
+// Prisma loads this file before every command, so both guards cover direct
+// `prisma …` calls as well as the package scripts. In local-only mode no Prisma
+// command runs at all, `migrate deploy` included, unless every URL is local.
+assertLocalOnly(process.env, `"prisma ${process.argv.slice(2).join(' ')}"`);
 assertLocalForDestructive(process.argv, migrationUrl);
 
 export default defineConfig({
