@@ -1,6 +1,42 @@
 {
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/flags": {
+      "get": {
+        "operationId": "FlagsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Release flags and whether each is on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "flags": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "required": [
+                    "flags"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "flags"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_check",

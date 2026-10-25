@@ -26,6 +26,7 @@ import { ProblemException } from '../../src/common/problem';
 import { CTX } from '../../src/common/request-context';
 import { ZodValidationPipe } from '../../src/common/zod-validation.pipe';
 import { DatabaseService } from '../../src/modules/database/database.service';
+import { RequireFlag } from '../../src/modules/flags/require-flag';
 
 // Test-only routes that exercise the Stage 1 conventions end to end. Nothing here is part of
 // the API: real routes arrive with their stages, and tenants will come from the access token
@@ -93,6 +94,12 @@ class TestMiscController {
   @Get('boom')
   boom(): never {
     throw new Error('secret internal detail');
+  }
+
+  @Get('hidden')
+  @RequireFlag('test.hidden')
+  hidden() {
+    return { hidden: false };
   }
 }
 

@@ -3,6 +3,7 @@ import { createTenantWithData, prepareTestDatabase, type TenantFixture } from '@
 import { ProblemDetailsSchema, uuidv7 } from '@erp/contracts';
 import pg from 'pg';
 import request from 'supertest';
+import { FeatureFlagsService } from '../src/modules/flags/feature-flags.service';
 import { createTestApp } from './support/test-app';
 
 // Stage 1 API conventions and tenant isolation at the HTTP level (Part 10 §10.5.5,
@@ -157,5 +158,37 @@ describe('ETag and If-Match', () => {
       .send({ name: 'DHA' })
       .expect(412);
     expect(stale.body.code).toBe('conflict');
+  });
+});
+
+describe('feature flags (Part 03 §3.15)', () => {
+  afterEach(() => {
+    delete process.env.FEATURE_FLAGS;
+    app.get(FeatureFlagsService).reset();
+  });
+
+  it('hides an endpoint while its flag is off', async () => {
+    const response = await request(server()).get('/api/v1/test/misc/hidden').expect(404);
+    expect(response.body.code).toBe('not_found');
+  });
+
+  it('shows it when the flag is on in the database', async () => {
+    await owner.query(
+      `INSERT INTO platform.feature_flags (key, description, enabled) VALUES ('test.hidden', 'test', true)
+       ON CONFLICT (key) DO UPDATE SET enabled = true`,
+    );
+    await request(server()).get('/api/v1/test/misc/hidden').expect(200);
+    const flags = await request(server()).get('/api/v1/flags').expect(200);
+    expect(flags.body.flags['test.hidden']).toBe(true);
+    await owner.query(
+      `UPDATE platform.feature_flags SET enabled = false WHERE key = 'test.hidden'`,
+    );
+  });
+
+  it('lets FEATURE_FLAGS override the database', async () => {
+    process.env.FEATURE_FLAGS = 'test.hidden=on,console.v2=off';
+    await request(server()).get('/api/v1/test/misc/hidden').expect(200);
+    const flags = await request(server()).get('/api/v1/flags').expect(200);
+    expect(flags.body.flags).toMatchObject({ 'test.hidden': true, 'console.v2': false });
   });
 });

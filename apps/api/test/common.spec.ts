@@ -2,6 +2,7 @@ import { assertIfMatch, etagFor, versionFromIfMatch } from '../src/common/etag';
 import { decodeCursor, encodeCursor, toPage } from '../src/common/pagination';
 import { ProblemException } from '../src/common/problem';
 import { correlationIdFor } from '../src/common/request-context';
+import { parseFlagOverrides } from '../src/modules/flags/feature-flags.service';
 
 describe('cursor pagination helpers', () => {
   it('round-trips a cursor', () => {
@@ -40,6 +41,19 @@ describe('ETag helpers', () => {
     expect(() => assertIfMatch('W/"1"', 2)).toThrow(expect.objectContaining({ status: 412 }));
     expect(() => assertIfMatch('W/"2"', 2)).not.toThrow();
     expect(() => assertIfMatch('*', 9)).not.toThrow();
+  });
+});
+
+describe('FEATURE_FLAGS', () => {
+  it('reads on and off values', () => {
+    expect(Object.fromEntries(parseFlagOverrides('a=on, b=off,c=true,d=1,e,=on'))).toEqual({
+      a: true,
+      b: false,
+      c: true,
+      d: true,
+      e: false,
+    });
+    expect(parseFlagOverrides(undefined).size).toBe(0);
   });
 });
 
