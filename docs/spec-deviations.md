@@ -27,6 +27,17 @@ permission keys (Stage 1).
 | Release flags are read from `platform.feature_flags` with a 30-second cache, overridden per process by `FEATURE_FLAGS`; a flag that cannot be read counts as off. | §10.2 "flags table + console UI" | Stage 1 QA ruling 5     |
 | The API's tests run on Jest with `--experimental-vm-modules` (the Prisma 7 client uses dynamic import); the packages use Vitest.                                  | §10.2 "Vitest/Jest"              | Stage 1 QA ruling 8     |
 
+## Identity and sessions (Part 05 §5.3–5.4, Part 10 §10.6, Part 11 §11.10.2)
+
+| Difference                                                                                                                                                                                         | Spec                                                   | Record            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------- |
+| Problem codes for sign-in: `invalid_credentials` (401), `mfa_invalid` (401), `step_up_required` (403), `link_invalid` (400); field errors carry a stable `code` (for example `length`).            | §11.9 lists the general codes only                     | Stage 2           |
+| Staff accounts are built in (`platform.staff_*`, same shape as `identity.*`) with mandatory TOTP enrolled at the first sign-in, a 30-minute idle limit and a CLI for the first Platform Owner.     | §10.6 "staff identity provider (OIDC) with WebAuthn"   | D5, gap G6        |
+| A just-rotated refresh token is accepted for 30 seconds and answered with the same successor (an HMAC of the replaced token); after that, or once the successor is used, reuse revokes the family. | §10.6 "reuse of an old token revokes the whole family" | Stage 2 QA ruling |
+| The breached-password check uses a bundled list of the 49,233 most common passwords; the online Have I Been Pwned range check comes at go-live.                                                    | §5.4 "breached and common passwords rejected"          | Go-live list      |
+| The auth module has its own database role, `app_auth`; `app_user` has no access to identity except tenant-owned invitations.                                                                       | §10.5.3 names app_user, app_migrator, app_ops          | ADR 0008, QA F3   |
+| Access tokens are refused at once when their session is revoked (a Redis note per revoked session), not only when they expire after 10 minutes.                                                    | §10.6 "10-minute life"                                 | Stage 2           |
+
 ## Data and tenancy (Part 10 §10.5, Part 11 §11.3–11.4)
 
 | Difference                                                                                                                                                                            | Spec                                             | Record              |
