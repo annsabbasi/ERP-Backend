@@ -1,4 +1,5 @@
 import { uuidv7 } from '@erp/contracts';
+import { createHash } from 'node:crypto';
 import { createTenantWithData, type TenantFixture } from '@erp/db/testing';
 import request from 'supertest';
 import {
@@ -135,9 +136,10 @@ describe('refresh tokens (§10.6)', () => {
       .expect(403);
   });
 
-  it('rotates on every use, and reusing an old token revokes the whole family', async () => {
+  /** A member signed in on the web, and a refresh call with a given cookie value. */
+  async function refreshing(label: string) {
     const addr = from();
-    const address = email('reuse');
+    const address = email(label);
     await createMember(env.owner, address, LONG, [a.tenantId]);
     const first = cookie(await login(addr, address, LONG), 'erp_rt')!;
     const refresh = (token: string) =>
@@ -146,16 +148,48 @@ describe('refresh tokens (§10.6)', () => {
         .set('X-Forwarded-For', addr)
         .set('Origin', WEB)
         .set('Cookie', `erp_rt=${token}`);
+    return { first, refresh };
+  }
+
+  it('rotates on every use and answers a retry within 30 seconds with the same successor', async () => {
+    const { first, refresh } = await refreshing('grace');
+    const second = cookie(await refresh(first).expect(200), 'erp_rt')!;
+    expect(second).not.toBe(first);
+    // The response was lost and the browser tries again with the old cookie: same successor.
+    const retried = await refresh(first).expect(200);
+    expect(cookie(retried, 'erp_rt')).toBe(second);
+    const third = cookie(await refresh(second).expect(200), 'erp_rt')!;
+    expect(third).not.toBe(second);
+  });
+
+  it('gives two requests sent at once with the same token the same successor', async () => {
+    const { first, refresh } = await refreshing('parallel');
+    const [one, two] = await Promise.all([refresh(first), refresh(first)]);
+    expect([one.status, two.status]).toEqual([200, 200]);
+    expect(cookie(one, 'erp_rt')).toBe(cookie(two, 'erp_rt'));
+  });
+
+  it('revokes the whole family when an old token comes back after the grace window', async () => {
+    const { first, refresh } = await refreshing('reuse');
     const rotated = await refresh(first).expect(200);
     const second = cookie(rotated, 'erp_rt')!;
-    expect(second).not.toBe(first);
     const access = rotated.body.access_token as string;
-
-    const reused = await refresh(first);
-    expect(reused.status).toBe(401);
+    await env.owner.query(
+      `UPDATE identity.refresh_tokens SET used_at = now() - interval '31 seconds' WHERE token_hash = $1`,
+      [createHash('sha256').update(first).digest('hex')],
+    );
+    expect((await refresh(first)).status).toBe(401);
     // The family is gone: the newest token and its access token stop working too.
     await refresh(second).expect(401);
     await request(server()).get('/api/v1/me').set('Authorization', `Bearer ${access}`).expect(401);
+  });
+
+  it('revokes the family when an old token comes back after its successor was used', async () => {
+    const { first, refresh } = await refreshing('reuse2');
+    const second = cookie(await refresh(first).expect(200), 'erp_rt')!;
+    const third = cookie(await refresh(second).expect(200), 'erp_rt')!;
+    await refresh(first).expect(401); // within 30 s, but the chain has moved on: reuse
+    await refresh(third).expect(401);
   });
 
   it('gives the desktop its refresh token in the body, never in a cookie', async () => {
