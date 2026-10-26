@@ -8,9 +8,11 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ApiZodResponse } from '../../common/openapi';
+import { Public } from '../auth/auth.guard';
 import { ReadinessService } from './readiness.service';
 
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly readiness: ReadinessService) {}

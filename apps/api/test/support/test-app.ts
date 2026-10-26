@@ -26,6 +26,7 @@ import { ProblemException } from '../../src/common/problem';
 import { CTX } from '../../src/common/request-context';
 import { ZodValidationPipe } from '../../src/common/zod-validation.pipe';
 import { DatabaseService } from '../../src/modules/database/database.service';
+import { Public } from '../../src/modules/auth/auth.guard';
 import { RequireFlag } from '../../src/modules/flags/require-flag';
 
 // Test-only routes that exercise the Stage 1 conventions end to end. Nothing here is part of
@@ -46,6 +47,7 @@ class TestTenantMiddleware implements NestMiddleware {
 
 const RenameSchema = z.object({ name: z.string().min(2).max(80) });
 
+@Public()
 @Controller('test/branches')
 class TestBranchesController {
   constructor(private readonly db: DatabaseService) {}
@@ -89,6 +91,7 @@ class TestBranchesController {
   }
 }
 
+@Public()
 @Controller('test/misc')
 class TestMiscController {
   @Get('boom')

@@ -2,9 +2,11 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { FeatureFlagsResponseSchema, type FeatureFlagsResponse } from '@erp/contracts';
 import { ApiZodResponse } from '../../common/openapi';
+import { Public } from '../auth/auth.guard';
 import { FeatureFlagsService } from './feature-flags.service';
 
 @ApiTags('flags')
+@Public()
 @Controller('flags')
 export class FlagsController {
   constructor(private readonly flags: FeatureFlagsService) {}

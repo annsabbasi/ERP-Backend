@@ -1,4 +1,4 @@
-import { Injectable, type PipeTransform } from '@nestjs/common';
+import { Injectable, type ArgumentMetadata, type PipeTransform } from '@nestjs/common';
 import type { z } from 'zod';
 import { fieldErrors } from './problem.filter';
 import { ProblemException } from './problem';
@@ -14,8 +14,10 @@ import { ProblemException } from './problem';
 export class ZodValidationPipe<T extends z.ZodType> implements PipeTransform<unknown, z.infer<T>> {
   constructor(private readonly schema: T) {}
 
-  transform(value: unknown): z.infer<T> {
-    const result = this.schema.safeParse(value);
+  transform(value: unknown, metadata?: ArgumentMetadata): z.infer<T> {
+    // Express 5 leaves the body undefined when a request sends none; validate it as {}.
+    const input = metadata?.type === 'body' && value === undefined ? {} : value;
+    const result = this.schema.safeParse(input);
     if (!result.success) {
       throw new ProblemException('validation_failed', undefined, {
         errors: fieldErrors(result.error),
