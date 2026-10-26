@@ -5,8 +5,18 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+// Build tools write temporary config bundles beside their configs while they run (tsup:
+// *.bundled_*.mjs, Vite: *.timestamp-*.mjs); a lint running at the same time must skip them.
 const ignores = {
-  ignores: ['**/dist/**', '**/release/**', '**/coverage/**', '**/generated/**', '**/.turbo/**'],
+  ignores: [
+    '**/dist/**',
+    '**/release/**',
+    '**/coverage/**',
+    '**/generated/**',
+    '**/.turbo/**',
+    '**/*.bundled_*.mjs',
+    '**/*.timestamp-*.mjs',
+  ],
 };
 
 /** TypeScript on Node: api, worker, desktop main process, libraries. */
