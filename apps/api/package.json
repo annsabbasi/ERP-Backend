@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "auth:init": "node scripts/auth-init.mjs"
+    "auth:init": "node scripts/auth-init.mjs",
+    "staff:create-owner": "node dist/cli/create-platform-owner.js",
+    "dev:seed-member": "node dist/cli/seed-demo-member.js"
   },
   "dependencies": {
     "@erp/contracts": "workspace:*",
