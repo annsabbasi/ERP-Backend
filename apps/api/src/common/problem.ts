@@ -15,6 +15,10 @@ const TITLES: Record<ProblemCode, string> = {
   approval_required: 'This needs approval first',
   rate_limited: 'Too many requests',
   unauthenticated: 'Sign-in required',
+  invalid_credentials: 'The e-mail or password is not right',
+  mfa_invalid: 'That code did not work',
+  step_up_required: 'Confirm it is you with your authenticator first',
+  link_invalid: 'This link has expired or was already used',
   internal_error: 'Something went wrong on our side',
 };
 
@@ -33,6 +37,10 @@ export const STATUS_OF: Record<ProblemCode, number> = {
   approval_required: 409,
   rate_limited: 429,
   unauthenticated: 401,
+  invalid_credentials: 401,
+  mfa_invalid: 401,
+  step_up_required: 403,
+  link_invalid: 400,
   internal_error: 500,
 };
 

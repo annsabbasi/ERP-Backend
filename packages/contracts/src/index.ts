@@ -7,3 +7,5 @@ export {
 export * from './ids';
 export * from './registry';
 export * from './api';
+export * from './auth';
+export * from './email';

@@ -17,6 +17,10 @@ export const PROBLEM_CODES = [
   'approval_required',
   'rate_limited',
   'unauthenticated',
+  'invalid_credentials',
+  'mfa_invalid',
+  'step_up_required',
+  'link_invalid',
   'internal_error',
 ] as const;
 export type ProblemCode = (typeof PROBLEM_CODES)[number];
@@ -25,6 +29,8 @@ export const FieldErrorSchema = z.object({
   /** Path of the field, for example "lines.2.amount". */
   field: z.string(),
   message: z.string(),
+  /** Stable code of the broken rule when there is one, for example "length". */
+  code: z.string().optional(),
 });
 export type FieldError = z.infer<typeof FieldErrorSchema>;
 
