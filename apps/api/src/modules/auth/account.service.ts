@@ -17,7 +17,7 @@ import {
   verifyPassword,
 } from './passwords';
 import { RateLimitService, LIMITS } from './rate-limit.service';
-import { SessionsService } from './sessions.service';
+import { SessionsService, type ClientMeta } from './sessions.service';
 import { localeOf, normalizeEmail, SignInService } from './sign-in.service';
 import { base32Encode } from './totp';
 
@@ -208,12 +208,14 @@ export class AccountService {
     realm: Realm,
     claims: AccessTokenClaims,
     input: { code?: string; recovery_code?: string },
+    meta: ClientMeta,
   ): Promise<void> {
-    const store = this.authDb.store(realm);
     await this.limits.enforce(LIMITS.stepUpPerSession, claims.sid);
-    const method = await this.mfa.check(store, claims.sub, input);
-    if (!method) throw new ProblemException('mfa_invalid');
-    await store.updateSession(claims.sid, { mfaVerifiedAt: new Date() });
+    // Wrong codes count towards the account's sign-in lock (QA finding F6).
+    await this.signIn.checkSecondFactor(realm, claims.sub, meta, (store) =>
+      this.mfa.check(store, claims.sub, input),
+    );
+    await this.authDb.store(realm).updateSession(claims.sid, { mfaVerifiedAt: new Date() });
   }
 
   // ── Sessions (§5.3.10) ───────────────────────────────────────────────────────────────

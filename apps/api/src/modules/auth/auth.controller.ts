@@ -167,10 +167,11 @@ export class AuthController {
   @HttpCode(200)
   @ApiZodResponse(200, DoneSchema, 'MFA checked again; sensitive actions are open for 10 minutes')
   async stepUp(
+    @Req() request: Request,
     @Auth() claims: AccessTokenClaims,
     @Body(new ZodValidationPipe(StepUpRequestSchema)) body: z.infer<typeof StepUpRequestSchema>,
   ) {
-    await this.account.stepUp('member', claims, body);
+    await this.account.stepUp('member', claims, body, clientMeta(request));
     return { status: 'done' as const };
   }
 

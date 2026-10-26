@@ -192,6 +192,30 @@ describe('audiences (§10.6)', () => {
   });
 });
 
+describe('wrong authenticator codes (F6)', () => {
+  it('lock the staff account after 10 across challenges, even for the right password and code', async () => {
+    const staff = await onboardStaff();
+    const verify = (addr: string, challenge: string, code: string) =>
+      request(server())
+        .post('/api/platform/v1/auth/mfa/verify')
+        .set('X-Forwarded-For', addr)
+        .send({ challenge, code });
+    for (let round = 0; round < 2; round++) {
+      const addr = from();
+      const { challenge } = (await login(addr, staff.email).expect(200)).body;
+      for (let i = 0; i < 5; i++) await verify(addr, challenge, '000000').expect(401);
+    }
+    await login(from(), staff.email).expect(401);
+    await env.owner.query(
+      `UPDATE platform.staff_login_attempts SET at = at - interval '16 minutes' WHERE email_normalized = $1`,
+      [staff.email],
+    );
+    const addr = from();
+    const { challenge } = (await login(addr, staff.email).expect(200)).body;
+    await verify(addr, challenge, codeFor(staff.secret, 1)).expect(200);
+  });
+});
+
 describe('the staff refresh cookie (F5)', () => {
   it('is never handed back as a readable token to a page that adds the desktop header', async () => {
     const staff = await onboardStaff();

@@ -18,9 +18,15 @@ import { base32Encode } from './totp';
 // password, a growing delay after failures, a 15-minute lock after 10 failures in 15 minutes
 // with a "this wasn't me" e-mail, then the second factor. Staff enrol an authenticator at
 // their first sign-in (D5).
+//
+// Wrong second-factor codes (at sign-in and at step-up) count towards the same lock as wrong
+// passwords. Only a completed sign-in ends the count; a password reset ends the count of wrong
+// passwords but not of wrong codes, so neither the right password nor a reset buys an attacker
+// fresh guesses at the authenticator (QA finding F6).
 
 export const LOCK_FAILURES = 10;
 const LOCK_WINDOW_MS = 15 * 60_000;
+const SECOND_FACTOR_FAILURES = ['mfa_failed', 'step_up_failed', 'mfa_locked'];
 const CHALLENGE_SECONDS = 300;
 const CHALLENGE_ATTEMPTS = 5;
 
@@ -85,10 +91,7 @@ export class SignInService {
           : !passwordOk
             ? 'bad_password'
             : 'inactive';
-      await this.record(store, email, meta, false, reason);
-      if (account && !locked && failures + 1 >= LOCK_FAILURES)
-        await this.sendLockedNotice(store, account);
-      await sleep(failureDelay(failures, this.config.failureDelayMs));
+      await this.countFailure(store, account, email, meta, reason, failures);
       // One answer for every case (§5.3.4): nothing tells whether the account exists.
       throw new ProblemException(
         'invalid_credentials',
@@ -102,13 +105,15 @@ export class SignInService {
         data: { hash: await hashPassword(input.password), changedAt: credential.changedAt },
       });
     }
-    await this.record(store, email, meta, true, 'password');
     const loginMeta = { ...meta, deviceId: input.device_id };
 
+    // The password alone ends nothing: the count goes on until the sign-in completes.
     if (await this.mfa.isEnrolled(store, account.id)) {
+      await this.record(store, email, meta, true, 'password');
       return { response: await this.challenge(realm, account.id, 'verify', loginMeta) };
     }
     if (realm === 'staff') {
+      await this.record(store, email, meta, true, 'password');
       const issuer = 'ERP System Console';
       const enrolment = await this.mfa.startEnrolment(store, account.id, account.email, issuer);
       const challenge = await this.newChallenge({
@@ -137,11 +142,15 @@ export class SignInService {
   ): Promise<SignInResult> {
     const { key, challenge } = await this.loadChallenge(realm, input.challenge, 'verify');
     const store = this.authDb.store(realm);
-    const method = await this.mfa.check(store, challenge.userId, input);
-    if (!method) return this.failChallenge(store, key, challenge);
-    await this.redis.client.del(key);
     const account = await store.findById(challenge.userId);
-    if (!account || account.status !== 'active') throw new ProblemException('mfa_invalid');
+    if (!account || account.status !== 'active') {
+      await this.redis.client.del(key);
+      throw new ProblemException('mfa_invalid');
+    }
+    await this.refuseWhileLocked(store, account, challenge.meta, key);
+    const method = await this.mfa.check(store, challenge.userId, input);
+    if (!method) return this.failChallenge(store, key, challenge, account);
+    await this.redis.client.del(key);
     if (method === 'recovery') {
       await this.mailer.send({
         template: 'mfa_changed',
@@ -163,13 +172,15 @@ export class SignInService {
   }): Promise<SignInResult & { recoveryCodes: string[] }> {
     const { key, challenge } = await this.loadChallenge('staff', input.challenge, 'enrol');
     const store = this.authDb.store('staff');
-    const codes = await this.mfa.confirmEnrolment(store, challenge.userId, input.code);
-    if (!codes) {
-      await this.failChallenge(store, key, challenge);
+    const account = await store.findById(challenge.userId);
+    if (!account || account.status !== 'active') {
+      await this.redis.client.del(key);
       throw new ProblemException('mfa_invalid');
     }
+    await this.refuseWhileLocked(store, account, challenge.meta, key);
+    const codes = await this.mfa.confirmEnrolment(store, challenge.userId, input.code);
+    if (!codes) return this.failChallenge(store, key, challenge, account);
     await this.redis.client.del(key);
-    const account = (await store.findById(challenge.userId))!;
     await this.mailer.send({
       template: 'mfa_changed',
       to: account.email,
@@ -192,12 +203,41 @@ export class SignInService {
     );
   }
 
+  /**
+   * A second factor checked outside sign-in (step-up, §10.6): refused while the account is
+   * locked, and a wrong code counts towards the lock.
+   */
+  async checkSecondFactor<T>(
+    realm: Realm,
+    userId: string,
+    meta: ClientMeta,
+    check: (store: AccountStore) => Promise<T | null>,
+  ): Promise<T> {
+    const store = this.authDb.store(realm);
+    const account = await store.findById(userId);
+    if (!account) throw new ProblemException('unauthenticated');
+    await this.refuseWhileLocked(store, account, meta);
+    const result = await check(store);
+    if (result !== null) return result;
+    const failures = await this.recentFailures(store, account.emailNormalized);
+    await this.countFailure(
+      store,
+      account,
+      account.emailNormalized,
+      meta,
+      'step_up_failed',
+      failures,
+    );
+    throw new ProblemException('mfa_invalid');
+  }
+
   private async complete(
     store: AccountStore,
     account: Account,
     meta: ClientMeta,
     amr: string[],
   ): Promise<SignInResult> {
+    await this.record(store, account.emailNormalized, meta, true, 'signed_in');
     const device = meta.deviceId
       ? await store.knownDevice(account.id, sha256(meta.deviceId))
       : null;
@@ -253,11 +293,18 @@ export class SignInService {
     store: AccountStore,
     key: string,
     challenge: Challenge,
+    account: Account,
   ): Promise<never> {
-    const account = await store.findById(challenge.userId);
-    if (account)
-      await this.record(store, account.emailNormalized, challenge.meta, false, 'mfa_failed');
-    if (challenge.attempts + 1 >= CHALLENGE_ATTEMPTS) {
+    const failures = await this.recentFailures(store, account.emailNormalized);
+    const locked = await this.countFailure(
+      store,
+      account,
+      account.emailNormalized,
+      challenge.meta,
+      'mfa_failed',
+      failures,
+    );
+    if (locked || challenge.attempts + 1 >= CHALLENGE_ATTEMPTS) {
       await this.redis.client.del(key);
     } else {
       await this.redis.client.set(
@@ -273,16 +320,73 @@ export class SignInService {
     return this.redis.key('auth', 'challenge', sha256(raw));
   }
 
-  /** Failures for this e-mail in the last 15 minutes, since its last success. */
+  /** While locked, a second factor is not even checked; the challenge ends (QA finding F6). */
+  private async refuseWhileLocked(
+    store: AccountStore,
+    account: Account,
+    meta: ClientMeta,
+    challengeKey?: string,
+  ): Promise<void> {
+    if ((await this.recentFailures(store, account.emailNormalized)) < LOCK_FAILURES) return;
+    await this.record(store, account.emailNormalized, meta, false, 'mfa_locked');
+    if (challengeKey) await this.redis.client.del(challengeKey);
+    throw new ProblemException('mfa_invalid', 'Too many wrong codes; try again in 15 minutes');
+  }
+
+  /**
+   * Records a failure towards the lock, sends the lock notice when it is the tenth, and waits
+   * the growing delay. Returns whether the account is now locked.
+   */
+  private async countFailure(
+    store: AccountStore,
+    account: Account | null,
+    emailNormalized: string,
+    meta: ClientMeta,
+    reason: string,
+    failures: number,
+  ): Promise<boolean> {
+    await this.record(store, emailNormalized, meta, false, reason);
+    if (account && failures + 1 === LOCK_FAILURES) await this.sendLockedNotice(store, account);
+    await sleep(failureDelay(failures, this.config.failureDelayMs));
+    return failures + 1 >= LOCK_FAILURES;
+  }
+
+  /**
+   * Failures for this e-mail in the last 15 minutes. Wrong codes count since the last completed
+   * sign-in; wrong passwords since the last completed sign-in or password reset.
+   */
   private async recentFailures(store: AccountStore, emailNormalized: string): Promise<number> {
     const since = new Date(Date.now() - LOCK_WINDOW_MS);
-    const lastSuccess = await store.t.loginAttempt.findFirst({
-      where: { emailNormalized, success: true, at: { gte: since } },
-      orderBy: { at: 'desc' },
-    });
-    return store.t.loginAttempt.count({
-      where: { emailNormalized, success: false, at: { gt: lastSuccess?.at ?? since } },
-    });
+    const lastOf = async (reasons: string[]) =>
+      (
+        await store.t.loginAttempt.findFirst({
+          where: { emailNormalized, success: true, reason: { in: reasons }, at: { gte: since } },
+          orderBy: { at: 'desc' },
+        })
+      )?.at ?? since;
+    const [signedIn, reset] = await Promise.all([
+      lastOf(['signed_in']),
+      lastOf(['signed_in', 'password_reset']),
+    ]);
+    const [codes, passwords] = await Promise.all([
+      store.t.loginAttempt.count({
+        where: {
+          emailNormalized,
+          success: false,
+          reason: { in: SECOND_FACTOR_FAILURES },
+          at: { gt: signedIn },
+        },
+      }),
+      store.t.loginAttempt.count({
+        where: {
+          emailNormalized,
+          success: false,
+          reason: { notIn: SECOND_FACTOR_FAILURES },
+          at: { gt: reset },
+        },
+      }),
+    ]);
+    return codes + passwords;
   }
 
   private async record(

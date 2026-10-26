@@ -467,6 +467,100 @@ describe('lockout (§5.3.8)', () => {
     await login(addr, address, 'after the lock passphrase').expect(200);
   });
 
+  /** A member with TOTP enrolled; the enrolment used the code of the current step. */
+  async function enrolled(label: string) {
+    const address = email(label);
+    await createMember(env.owner, address, LONG, [a.tenantId]);
+    const auth = `Bearer ${(await login(from(), address, LONG)).body.access_token}`;
+    const start = await request(server())
+      .post('/api/v1/me/mfa/totp')
+      .set('Authorization', auth)
+      .expect(200);
+    const confirm = await request(server())
+      .post('/api/v1/me/mfa/totp/confirm')
+      .set('Authorization', auth)
+      .send({ code: codeFor(start.body.secret) })
+      .expect(200);
+    return {
+      address,
+      auth,
+      secret: start.body.secret as string,
+      recovery: confirm.body.recovery_codes as string[],
+    };
+  }
+
+  const verify = (addr: string, challenge: string, body: object) =>
+    request(server())
+      .post('/api/v1/auth/mfa/verify')
+      .set('X-Forwarded-For', addr)
+      .send({ challenge, ...body });
+
+  it('counts wrong codes across challenges: 10 lock the account, even for the right password and code (F6)', async () => {
+    const member = await enrolled('f6-codes');
+    const right = codeFor(member.secret, 1);
+    // A challenge opened before the guessing starts, to try the right code once locked.
+    const early = (await login(from(), member.address, LONG).expect(200)).body.challenge as string;
+
+    // Three challenges from three addresses, each started with the right password: 4 + 4 + 2.
+    for (const wrongCodes of [4, 4, 2]) {
+      const addr = from();
+      const { challenge } = (await login(addr, member.address, LONG).expect(200)).body;
+      for (let i = 0; i < wrongCodes; i++) {
+        await verify(addr, challenge, { code: '000000' }).expect(401);
+      }
+    }
+
+    const refused = await verify(from(), early, { code: right }).expect(401);
+    expect(refused.body).toMatchObject({
+      code: 'mfa_invalid',
+      detail: expect.stringMatching(/15 minutes/),
+    });
+    const locked = await login(from(), member.address, LONG).expect(401);
+    expect(locked.body.code).toBe('invalid_credentials');
+    const notice = (await emails(env, member.address)).filter(
+      (m) => m.template === 'account_locked',
+    );
+    expect(notice).toHaveLength(1);
+
+    // A password reset ends the count of wrong passwords, not of wrong codes.
+    await request(server())
+      .post('/api/v1/auth/password/reset')
+      .send({ token: tokenFromLink(notice[0]!.data.link!), password: 'after the codes passphrase' })
+      .expect(200);
+    await login(from(), member.address, 'after the codes passphrase').expect(401);
+
+    // Fifteen minutes later the lock is over and the right code signs in.
+    await env.owner.query(
+      `UPDATE identity.login_attempts SET at = at - interval '16 minutes' WHERE email_normalized = $1`,
+      [member.address],
+    );
+    const addr = from();
+    const again = await login(addr, member.address, 'after the codes passphrase').expect(200);
+    await verify(addr, again.body.challenge, { code: right }).expect(200);
+  });
+
+  it('counts wrong step-up codes towards the same lock (F6)', async () => {
+    const member = await enrolled('f6-stepup');
+    const addr = from();
+    const challenge = (await login(addr, member.address, LONG).expect(200)).body.challenge;
+    const second = await verify(addr, challenge, { code: codeFor(member.secret, 1) }).expect(200);
+    const sessions = [member.auth, `Bearer ${second.body.access_token}`];
+    const stepUp = (auth: string, body: object) =>
+      request(server()).post('/api/v1/auth/step-up').set('Authorization', auth).send(body);
+
+    // 5 wrong codes in each of two sessions (each session may try 10 in 10 minutes).
+    for (const auth of sessions) {
+      for (let i = 0; i < 5; i++) await stepUp(auth, { code: '000000' }).expect(401);
+    }
+    const refused = await stepUp(sessions[1]!, { recovery_code: member.recovery[0] }).expect(401);
+    expect(refused.body.detail).toMatch(/15 minutes/);
+    await login(from(), member.address, LONG).expect(401);
+    const notice = (await emails(env, member.address)).filter(
+      (m) => m.template === 'account_locked',
+    );
+    expect(notice).toHaveLength(1);
+  });
+
   it('rate-limits forgotten-password requests per address with Retry-After', async () => {
     const addr = from();
     let last;
