@@ -192,6 +192,45 @@ describe('refresh tokens (§10.6)', () => {
     await refresh(third).expect(401);
   });
 
+  it('never turns the cookie into a readable token for a page that adds the desktop header (F5)', async () => {
+    const { first } = await refreshing('f5-refresh');
+    const response = await request(server())
+      .post('/api/v1/auth/refresh')
+      .set('Origin', WEB)
+      .set('X-ERP-Client', 'desktop')
+      .set('Cookie', `erp_rt=${first}`)
+      .expect(200);
+    expect(response.body.refresh_token).toBeUndefined();
+    expect(cookie(response, 'erp_rt')).toEqual(expect.any(String));
+  });
+
+  it('gives a page that signs in with the desktop header the cookie, not the token (F5)', async () => {
+    const address = email('f5-login');
+    await createMember(env.owner, address, LONG, [a.tenantId]);
+    const response = await login(from(), address, LONG)
+      .set('Origin', WEB)
+      .set('X-ERP-Client', 'desktop')
+      .expect(200);
+    expect(response.body.refresh_token).toBeUndefined();
+    expect(cookie(response, 'erp_rt')).toEqual(expect.any(String));
+    const { rows } = await env.owner.query(
+      `SELECT s.client FROM identity.sessions s JOIN identity.users u ON u.id = s.user_id WHERE u.email_normalized = $1`,
+      [address],
+    );
+    expect(rows).toEqual([{ client: 'web' }]);
+  });
+
+  it('does not let browsers send the desktop header at all: the preflight leaves it out (F5)', async () => {
+    const preflight = await request(server())
+      .options('/api/v1/auth/refresh')
+      .set('Origin', WEB)
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type,x-erp-client');
+    const allowed = String(preflight.headers['access-control-allow-headers'] ?? '').toLowerCase();
+    expect(allowed).toContain('content-type');
+    expect(allowed).not.toContain('x-erp-client');
+  });
+
   it('gives the desktop its refresh token in the body, never in a cookie', async () => {
     const address = email('desktop');
     await createMember(env.owner, address, LONG, [a.tenantId]);

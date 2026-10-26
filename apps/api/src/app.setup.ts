@@ -29,6 +29,9 @@ export function configureApp<T extends INestApplication>(app: T): T {
     origin: origins,
     // The web app's refresh cookie: only these origins may send it.
     credentials: true,
+    // An explicit list: browsers may not send X-ERP-Client, which marks the desktop main
+    // process (QA finding F5).
+    allowedHeaders: ['Accept', 'Authorization', 'Content-Type', 'If-Match', 'X-Correlation-Id'],
     exposedHeaders: [
       'X-Correlation-Id',
       'ETag',

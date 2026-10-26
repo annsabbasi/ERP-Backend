@@ -95,11 +95,19 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     await this.limits.enforce(LIMITS.refreshPerIp, request.ip ?? 'unknown', response);
-    const raw = refreshTokenOf(request, 'app', this.config, body.refresh_token);
-    if (!raw) throw new ProblemException('unauthenticated', 'Sign in again');
+    const presented = refreshTokenOf(request, 'app', this.config, body.refresh_token);
+    if (!presented) throw new ProblemException('unauthenticated', 'Sign in again');
     try {
-      const started = await this.sessions.refresh(this.authDb.store('member'), raw);
-      return deliver(request, response, 'app', this.config, started.body, started.refreshToken);
+      const started = await this.sessions.refresh(this.authDb.store('member'), presented.token);
+      return deliver(
+        request,
+        response,
+        'app',
+        this.config,
+        started.body,
+        started.refreshToken,
+        presented,
+      );
     } catch (error) {
       clearRefreshCookie(response, 'app', this.config);
       throw error;
@@ -122,8 +130,8 @@ export class AuthController {
     if (claims) {
       await this.sessions.revoke(store, { userId: claims.sub, id: claims.sid }, 'signed_out');
     } else {
-      const raw = refreshTokenOf(request, 'app', this.config, body.refresh_token);
-      if (raw) await this.revokeByRefresh(raw);
+      const presented = refreshTokenOf(request, 'app', this.config, body.refresh_token);
+      if (presented) await this.revokeByRefresh(presented.token);
     }
     clearRefreshCookie(response, 'app', this.config);
     return { status: 'done' as const };

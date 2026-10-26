@@ -121,11 +121,19 @@ export class StaffAuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     await this.limits.enforce(LIMITS.refreshPerIp, `staff:${request.ip ?? 'unknown'}`, response);
-    const raw = refreshTokenOf(request, 'console', this.config, body.refresh_token);
-    if (!raw) throw new ProblemException('unauthenticated', 'Sign in again');
+    const presented = refreshTokenOf(request, 'console', this.config, body.refresh_token);
+    if (!presented) throw new ProblemException('unauthenticated', 'Sign in again');
     try {
-      const started = await this.sessions.refresh(this.authDb.store('staff'), raw);
-      return deliver(request, response, 'console', this.config, started.body, started.refreshToken);
+      const started = await this.sessions.refresh(this.authDb.store('staff'), presented.token);
+      return deliver(
+        request,
+        response,
+        'console',
+        this.config,
+        started.body,
+        started.refreshToken,
+        presented,
+      );
     } catch (error) {
       clearRefreshCookie(response, 'console', this.config);
       throw error;
@@ -147,9 +155,9 @@ export class StaffAuthController {
     if (claims) {
       await this.sessions.revoke(store, { userId: claims.sub, id: claims.sid }, 'signed_out');
     } else {
-      const raw = refreshTokenOf(request, 'console', this.config, body.refresh_token);
-      const row = raw
-        ? await store.t.refreshToken.findUnique({ where: { tokenHash: sha256(raw) } })
+      const presented = refreshTokenOf(request, 'console', this.config, body.refresh_token);
+      const row = presented
+        ? await store.t.refreshToken.findUnique({ where: { tokenHash: sha256(presented.token) } })
         : null;
       const session = row ? await store.findSession(row.sessionId) : null;
       if (session)

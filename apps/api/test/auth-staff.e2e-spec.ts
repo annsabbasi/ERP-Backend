@@ -192,6 +192,20 @@ describe('audiences (§10.6)', () => {
   });
 });
 
+describe('the staff refresh cookie (F5)', () => {
+  it('is never handed back as a readable token to a page that adds the desktop header', async () => {
+    const staff = await onboardStaff();
+    const response = await request(server())
+      .post('/api/platform/v1/auth/refresh')
+      .set('Origin', CONSOLE)
+      .set('X-ERP-Client', 'desktop')
+      .set('Cookie', `erp_staff_rt=${cookie(staff.enrolled, 'erp_staff_rt')}`)
+      .expect(200);
+    expect(response.body.refresh_token).toBeUndefined();
+    expect(cookie(response, 'erp_staff_rt')).toEqual(expect.any(String));
+  });
+});
+
 describe('idle timeout (D5)', () => {
   it('refreshes while in use and ends the session after 30 minutes without use', async () => {
     const staff = await onboardStaff();
