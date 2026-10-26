@@ -16,7 +16,21 @@
     "TEST_APP_USER_PASSWORD",
     "TEST_APP_OPS_PASSWORD",
     "TEST_APP_AUTH_PASSWORD",
-    "TEST_REDIS_URL"
+    "TEST_REDIS_URL",
+    "CORS_ORIGINS",
+    "API_URL",
+    "WEB_URL",
+    "CONSOLE_URL",
+    "AUTH_JWKS",
+    "AUTH_ENCRYPTION_KEY",
+    "AUTH_COOKIE_DOMAIN",
+    "AUTH_FAILURE_DELAY_MS",
+    "TRUST_PROXY",
+    "REDIS_KEY_PREFIX",
+    "QUEUE_PREFIX",
+    "MAIL_SMTP_URL",
+    "MAIL_FROM",
+    "TEST_MAILPIT_URL"
   ],
   "tasks": {
     "generate": {

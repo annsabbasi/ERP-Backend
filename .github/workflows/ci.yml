@@ -36,6 +36,12 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      # Mail catcher (D4): the worker's e-mail tests send to it and read the mail back.
+      mailpit:
+        image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+        ports:
+          - 1025:1025
+          - 8025:8025
     # The values of .env.example: throwaway local passwords for the runner's own containers.
     env:
       DATABASE_URL: postgresql://app_user:app_user_local@localhost:5433/erp?schema=platform
@@ -43,6 +49,7 @@ jobs:
       OPS_DATABASE_URL: postgresql://app_ops:app_ops_local@localhost:5433/erp?schema=platform
       AUTH_DATABASE_URL: postgresql://app_auth:app_auth_local@localhost:5433/erp?schema=platform
       REDIS_URL: redis://localhost:6381
+      MAIL_SMTP_URL: smtp://localhost:1025
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
