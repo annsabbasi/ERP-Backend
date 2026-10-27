@@ -2311,6 +2311,26 @@
               ],
               "additionalProperties": false
             }
+          },
+          "limit": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "used": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "key",
+              "used",
+              "limit"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

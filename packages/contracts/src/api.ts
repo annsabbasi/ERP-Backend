@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LimitUsageSchema } from './access';
 
 // API conventions (Part 11 §11.9), shared by the API and its clients.
 
@@ -45,6 +46,8 @@ export const ProblemDetailsSchema = z.object({
   /** Quote this to support (Part 10 §10.15). */
   correlation_id: z.string().optional(),
   errors: z.array(FieldErrorSchema).optional(),
+  /** With limit_reached: which limit, how much is used and the limit (Part 02 §2.11.1). */
+  limit: LimitUsageSchema.optional(),
 });
 export type ProblemDetails = z.infer<typeof ProblemDetailsSchema>;
 
