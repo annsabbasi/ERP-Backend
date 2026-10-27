@@ -24,6 +24,7 @@ import {
 } from '@erp/contracts';
 import type { z } from 'zod';
 import { ApiZodResponse } from '../../common/openapi';
+import { SignedIn } from '../access/access.decorators';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { summary } from './account-store';
 import { AccountService } from './account.service';
@@ -33,6 +34,7 @@ import { Auth } from './auth.guard';
 // The signed-in person's own account (Part 05 §5.3.10, Part 11 §11.10.2), audience `app`.
 
 @ApiTags('me')
+@SignedIn()
 @Controller('me')
 export class MeController {
   constructor(

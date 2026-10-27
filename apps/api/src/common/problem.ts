@@ -1,4 +1,4 @@
-import type { FieldError, ProblemCode } from '@erp/contracts';
+import type { FieldError, LimitUsage, ProblemCode } from '@erp/contracts';
 
 /** Titles per code, shown when the thrower gives none (RFC 9457 `title`). */
 const TITLES: Record<ProblemCode, string> = {
@@ -53,7 +53,13 @@ export class ProblemException extends Error {
   constructor(
     readonly code: ProblemCode,
     readonly detail?: string,
-    readonly options: { status?: number; errors?: FieldError[]; title?: string } = {},
+    readonly options: {
+      status?: number;
+      errors?: FieldError[];
+      title?: string;
+      /** limit_reached: which limit, its usage and the limit (Part 02 §2.11.1). */
+      limit?: LimitUsage;
+    } = {},
   ) {
     super(detail ?? TITLES[code]);
     this.name = 'ProblemException';

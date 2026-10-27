@@ -85,7 +85,11 @@ export class ProblemFilter implements ExceptionFilter {
 
     if (exception instanceof ProblemException) {
       const p = base(exception.code, exception.status, exception.detail, exception.options.errors);
-      return exception.options.title ? { ...p, title: exception.options.title } : p;
+      return {
+        ...p,
+        ...(exception.options.title ? { title: exception.options.title } : {}),
+        ...(exception.options.limit ? { limit: exception.options.limit } : {}),
+      };
     }
     if (exception instanceof ZodError) {
       return base('validation_failed', 400, undefined, fieldErrors(exception));

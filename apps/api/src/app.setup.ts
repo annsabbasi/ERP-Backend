@@ -38,6 +38,7 @@ export function configureApp<T extends INestApplication>(app: T): T {
       'RateLimit-Limit',
       'RateLimit-Remaining',
       'Retry-After',
+      'X-Access-Version',
     ],
   });
   // Registered on the app, not as a provider, so unknown routes get problem details too.

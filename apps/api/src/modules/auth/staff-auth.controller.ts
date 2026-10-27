@@ -18,6 +18,7 @@ import {
 import type { Request, Response } from 'express';
 import type { z } from 'zod';
 import { ApiZodResponse } from '../../common/openapi';
+import { SignedIn } from '../access/access.decorators';
 import { ProblemException } from '../../common/problem';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { AccountService } from './account.service';
@@ -199,6 +200,7 @@ export class StaffAuthController {
 
 @ApiTags('platform me')
 @ForAudience('console')
+@SignedIn()
 @Controller(`${PLATFORM_PREFIX}/me`)
 export class StaffMeController {
   constructor(private readonly account: AccountService) {}

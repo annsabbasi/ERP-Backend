@@ -18,7 +18,7 @@ import { TokenService } from './token.service';
 // marked @Public(); each controller names its audience, so a staff token is refused on company
 // routes and a member token on Platform Console routes.
 
-const PUBLIC = 'erp:public';
+export const PUBLIC = 'erp:public';
 const AUDIENCE = 'erp:audience';
 
 export const Public = () => SetMetadata(PUBLIC, true);

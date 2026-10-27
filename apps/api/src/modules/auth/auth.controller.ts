@@ -19,6 +19,7 @@ import {
 import type { Request, Response } from 'express';
 import type { z } from 'zod';
 import { ApiZodResponse } from '../../common/openapi';
+import { SignedIn } from '../access/access.decorators';
 import { ProblemException } from '../../common/problem';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { AccountService } from './account.service';
@@ -137,6 +138,7 @@ export class AuthController {
     return { status: 'done' as const };
   }
 
+  @SignedIn()
   @Post('logout-all')
   @HttpCode(200)
   @ApiZodResponse(200, DoneSchema, 'Every session of this person ended')
@@ -153,6 +155,7 @@ export class AuthController {
     return { status: 'done' as const };
   }
 
+  @SignedIn()
   @Post('switch')
   @HttpCode(200)
   @ApiZodResponse(200, SignedInSchema, 'An access token for the chosen company')
@@ -163,6 +166,7 @@ export class AuthController {
     return this.sessions.switch(this.authDb.store('member'), claims, body.membership_id);
   }
 
+  @SignedIn()
   @Post('step-up')
   @HttpCode(200)
   @ApiZodResponse(200, DoneSchema, 'MFA checked again; sensitive actions are open for 10 minutes')

@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { uuidv7, type EmailJob } from '@erp/contracts';
 import { prepareTestDatabase, type TestDatabase } from '@erp/db/testing';
@@ -18,7 +18,8 @@ export const WEB = 'http://localhost:5173';
 
 export type AuthEnv = { db: TestDatabase; owner: pg.Client; mail: Queue; app: INestApplication };
 
-export async function startAuthEnv(name: string): Promise<AuthEnv> {
+/** `extra`: test-only modules (probe controllers) that run behind the real global guards. */
+export async function startAuthEnv(name: string, extra: Type[] = []): Promise<AuthEnv> {
   const db = await prepareTestDatabase(name);
   const prefix = `erp-test-${uuidv7()}`;
   Object.assign(process.env, {
@@ -33,7 +34,7 @@ export async function startAuthEnv(name: string): Promise<AuthEnv> {
   const owner = new pg.Client({ connectionString: db.ownerUrl });
   await owner.connect();
   const mail = new Queue('email', { connection: redisConnection(), prefix });
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule, ...extra] }).compile();
   const app = configureApp(moduleRef.createNestApplication());
   await app.init();
   return { db, owner, mail, app };

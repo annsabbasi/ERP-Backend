@@ -2113,6 +2113,237 @@
         ]
       }
     },
+    "/api/v1/me/access": {
+      "get": {
+        "operationId": "AccessController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Features, permissions with scopes, menu and home page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenant": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "provisioning",
+                            "trial",
+                            "trial_expired",
+                            "active",
+                            "past_due",
+                            "suspended_read_only",
+                            "suspended_locked",
+                            "pending_termination",
+                            "terminated"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "membership_id": {
+                      "type": "string"
+                    },
+                    "is_owner": {
+                      "type": "boolean"
+                    },
+                    "pv": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "valid_until": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "features": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "on",
+                              "read_only"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "state"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "permissions": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "scope": {
+                              "type": "string",
+                              "enum": [
+                                "own",
+                                "assigned",
+                                "team",
+                                "department",
+                                "branch",
+                                "legal_entity",
+                                "company"
+                              ]
+                            },
+                            "values": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "thresholds": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": [
+                            "scope",
+                            "values",
+                            "thresholds"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "menu": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "group": {
+                            "type": "string"
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "path": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "feature": {
+                                  "type": "string"
+                                },
+                                "requires": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "path",
+                                "label",
+                                "feature",
+                                "requires"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "group",
+                          "entries"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "home": {
+                      "type": "string"
+                    },
+                    "quick_create": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "feature": {
+                            "type": "string"
+                          },
+                          "requires": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label",
+                          "feature",
+                          "requires"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "tenant",
+                    "membership_id",
+                    "is_owner",
+                    "pv",
+                    "valid_until",
+                    "features",
+                    "permissions",
+                    "menu",
+                    "home",
+                    "quick_create"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_check",

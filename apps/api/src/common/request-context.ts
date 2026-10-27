@@ -11,6 +11,8 @@ export const CORRELATION_HEADER = 'x-correlation-id';
 export const CTX = {
   tenantId: 'tenantId',
   membershipId: 'membershipId',
+  /** The member's effective access (TenantGuard), for ScopeService. */
+  access: 'access',
   tx: 'tx',
 } as const;
 
