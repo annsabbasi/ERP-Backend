@@ -251,7 +251,8 @@ export class SessionsService {
         ? {
             mid: membership.membership_id,
             tid: membership.tenant_id,
-            pv: membership.permissions_version,
+            // The access version (Part 10 §10.7.3): member's plus company's.
+            pv: membership.permissions_version + membership.entitlements_version,
           }
         : {}),
     });

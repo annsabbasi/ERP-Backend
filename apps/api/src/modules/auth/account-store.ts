@@ -1,4 +1,4 @@
-import type { MembershipSummary } from '@erp/contracts';
+import { canEnterTenant, type MembershipSummary, type TenantStatus } from '@erp/contracts';
 import type { PrismaClient } from '@erp/db';
 
 // Where sign-in reads and writes, for members (identity.*) and platform staff
@@ -15,20 +15,12 @@ export type Account = {
   status: string;
 };
 
-/** Companies a person may sign in to: membership active, company not locked or closed. */
-const SIGN_IN_TENANT_STATUSES = new Set([
-  'trial',
-  'trial_expired',
-  'active',
-  'past_due',
-  'suspended_read_only',
-  'pending_termination',
-]);
-
 export type MembershipRow = MembershipSummary & {
   status: string;
   tenant_status: string;
   permissions_version: number;
+  entitlements_version: number;
+  is_owner: boolean;
 };
 
 // The staff tables have the member tables' shape, with `userId` mapped to staff_user_id, so the
@@ -213,10 +205,14 @@ export class AccountStore {
     if (this.realm !== 'member') return [];
     const rows = await this.db.$queryRaw<MembershipRow[]>`
       SELECT membership_id::text, tenant_id::text, tenant_code, tenant_slug, tenant_name,
-             tenant_status, kind, status, display_name, permissions_version
+             tenant_status, kind, status, display_name, permissions_version,
+             entitlements_version, is_owner
       FROM identity.memberships_of_user(${userId}::uuid)`;
+    // Companies the person may enter: membership active, and the company's status lets them in
+    // (a locked or closing company only its Owner, Part 03 §3.7.2). The same rule as the
+    // company guard, so a token is never issued for a company the guard then refuses.
     return rows.filter(
-      (r) => r.status === 'active' && SIGN_IN_TENANT_STATUSES.has(r.tenant_status),
+      (r) => r.status === 'active' && canEnterTenant(r.tenant_status as TenantStatus, r.is_owner),
     );
   }
 
