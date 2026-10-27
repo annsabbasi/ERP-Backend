@@ -24,29 +24,32 @@ datasource db {
 // ─────────────────────────────── platform (control plane, §11.2) ───────────────────────────────
 
 model Tenant {
-  id              String    @id @default(uuid(7)) @db.Uuid
-  code            String    @unique
-  slug            String    @unique
-  displayName     String    @map("display_name")
-  legalName       String    @map("legal_name")
-  country         String    @db.Char(2)
-  baseCurrency    String    @map("base_currency") @db.Char(3)
-  timezone        String
-  locale          String    @default("en")
-  industryKey     String    @map("industry_key")
-  templateKey     String?   @map("template_key")
-  templateVersion String?   @map("template_version")
-  status          String
-  isolationModel  String    @default("pooled") @map("isolation_model")
-  region          String
-  databaseRef     String?   @map("database_ref")
-  ownerUserId     String?   @map("owner_user_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  activatedAt     DateTime? @map("activated_at") @db.Timestamptz(6)
-  suspendedAt     DateTime? @map("suspended_at") @db.Timestamptz(6)
-  terminatedAt    DateTime? @map("terminated_at") @db.Timestamptz(6)
-  version         Int       @default(1)
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  code                String    @unique
+  slug                String    @unique
+  displayName         String    @map("display_name")
+  legalName           String    @map("legal_name")
+  country             String    @db.Char(2)
+  baseCurrency        String    @map("base_currency") @db.Char(3)
+  timezone            String
+  locale              String    @default("en")
+  industryKey         String    @map("industry_key")
+  templateKey         String?   @map("template_key")
+  templateVersion     String?   @map("template_version")
+  status              String
+  isolationModel      String    @default("pooled") @map("isolation_model")
+  region              String
+  databaseRef         String?   @map("database_ref")
+  ownerUserId         String?   @map("owner_user_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activatedAt         DateTime? @map("activated_at") @db.Timestamptz(6)
+  suspendedAt         DateTime? @map("suspended_at") @db.Timestamptz(6)
+  terminatedAt        DateTime? @map("terminated_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+  /// Bumped by triggers whenever the tenant's entitlements, limits or status change; with the
+  /// membership's permissions_version it makes the access token's pv (Part 10 §10.7.3).
+  entitlementsVersion Int       @default(1) @map("entitlements_version")
 
   domains      TenantDomain[]
   entitlements TenantEntitlement[]

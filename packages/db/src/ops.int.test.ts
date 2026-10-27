@@ -15,12 +15,12 @@ const EXPECTED = [
   'app.memberships SELECT (display_name, id, kind, permissions_version, status, tenant_id, user_id)',
   'app.outbox SELECT',
   'app.outbox UPDATE (attempts, dispatched_at)',
-  'app.roles SELECT (id, is_protected, key, tenant_id)',
+  'app.roles SELECT (archived_at, id, is_protected, key, tenant_id)',
   'app.settings SELECT (key, module_key, scope_type, tenant_id, value)',
   'identity.invitations SELECT',
   'platform.platform_audit_log INSERT',
   'platform.platform_audit_log SELECT',
-  'platform.tenants SELECT (code, display_name, id, slug, status)',
+  'platform.tenants SELECT (code, display_name, entitlements_version, id, slug, status)',
 ];
 
 let owner: pg.Client;
