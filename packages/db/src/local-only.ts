@@ -11,6 +11,7 @@ export const GUARDED_URLS = [
   'DIRECT_URL',
   'OPS_DATABASE_URL',
   'AUTH_DATABASE_URL',
+  'PLATFORM_DATABASE_URL',
   'REDIS_URL',
 ] as const;
 

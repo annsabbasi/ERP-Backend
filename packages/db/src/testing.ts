@@ -20,6 +20,8 @@ export type TestDatabase = {
   opsUrl: string;
   /** app_auth: the auth module; sign-in secrets, no tenant data (ADR 0008). */
   authUrl: string;
+  /** app_platform: the Platform Console; control-plane tables only (F4). */
+  platformUrl: string;
 };
 
 const DEFAULT_SERVER = 'postgresql://erp:erp@localhost:5433';
@@ -64,6 +66,12 @@ export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
       process.env.TEST_APP_AUTH_PASSWORD ?? 'app_auth_local',
       name,
     ),
+    platformUrl: urlFor(
+      server,
+      'app_platform',
+      process.env.TEST_APP_PLATFORM_PASSWORD ?? 'app_platform_local',
+      name,
+    ),
   };
 
   const admin = new pg.Client({
@@ -88,6 +96,7 @@ export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
         DATABASE_URL: db.appUrl,
         OPS_DATABASE_URL: db.opsUrl,
         AUTH_DATABASE_URL: db.authUrl,
+        PLATFORM_DATABASE_URL: db.platformUrl,
       },
       db.ownerUrl,
     );
@@ -116,6 +125,7 @@ function migrate(db: TestDatabase): void {
       DIRECT_URL: `${db.ownerUrl}?schema=platform`,
       OPS_DATABASE_URL: db.opsUrl,
       AUTH_DATABASE_URL: db.authUrl,
+      PLATFORM_DATABASE_URL: db.platformUrl,
       REDIS_URL: redis && LOCAL_HOSTS.has(hostOf(redis) ?? '') ? redis : 'redis://localhost:6381',
     },
     encoding: 'utf8',

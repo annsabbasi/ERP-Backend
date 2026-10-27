@@ -80,14 +80,21 @@ model TenantDomain {
 }
 
 model CatalogueModule {
-  key       String    @id
-  name      String
-  category  String
-  groupName String    @map("group_name")
-  status    String
-  sortOrder Int       @map("sort_order")
-  removedAt DateTime? @map("removed_at") @db.Timestamptz(6)
-  syncedAt  DateTime  @map("synced_at") @db.Timestamptz(6)
+  key          String    @id
+  name         String
+  category     String
+  groupName    String    @map("group_name")
+  status       String
+  sortOrder    Int       @map("sort_order")
+  removedAt    DateTime? @map("removed_at") @db.Timestamptz(6)
+  syncedAt     DateTime  @map("synced_at") @db.Timestamptz(6)
+  /// Display fields staff edit in the console (Part 03 §3.11); null = the code's own.
+  displayName  String?   @map("display_name")
+  description  String?
+  icon         String?
+  displayOrder Int?      @map("display_order")
+  updatedAt    DateTime? @map("updated_at") @db.Timestamptz(6)
+  updatedBy    String?   @map("updated_by") @db.Uuid
 
   features CatalogueFeature[]
 
@@ -96,22 +103,33 @@ model CatalogueModule {
 }
 
 model CatalogueFeature {
-  key           String    @id
-  moduleKey     String    @map("module_key")
-  name          String
-  release       String
-  status        String
-  alwaysOn      Boolean   @map("always_on")
-  requires      String[]
-  requiresAnyOf String[]  @map("requires_any_of")
-  recommends    String[]
-  conflicts     String[]
-  limits        String[]
-  scopes        String[]
-  menu          Json
-  sortOrder     Int       @map("sort_order")
-  removedAt     DateTime? @map("removed_at") @db.Timestamptz(6)
-  syncedAt      DateTime  @map("synced_at") @db.Timestamptz(6)
+  key            String    @id
+  moduleKey      String    @map("module_key")
+  name           String
+  release        String
+  status         String
+  alwaysOn       Boolean   @map("always_on")
+  requires       String[]
+  requiresAnyOf  String[]  @map("requires_any_of")
+  recommends     String[]
+  conflicts      String[]
+  limits         String[]
+  scopes         String[]
+  menu           Json
+  sortOrder      Int       @map("sort_order")
+  removedAt      DateTime? @map("removed_at") @db.Timestamptz(6)
+  syncedAt       DateTime  @map("synced_at") @db.Timestamptz(6)
+  /// Display fields staff edit in the console (Part 03 §3.11); null = the code's own.
+  displayName    String?   @map("display_name")
+  description    String?
+  icon           String?
+  displayOrder   Int?      @map("display_order")
+  /// Countries (ISO 3166-1 alpha-2) where the feature is offered; empty = everywhere.
+  countries      String[]  @default([])
+  /// ga / beta / preview / deprecated as staff present it; null = the registry's status.
+  statusOverride String?   @map("status_override")
+  updatedAt      DateTime? @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?   @map("updated_by") @db.Uuid
 
   module CatalogueModule @relation(fields: [moduleKey], references: [key])
 
@@ -136,33 +154,37 @@ model CataloguePermission {
 }
 
 model Plan {
-  key           String   @id
+  key           String    @id
   name          String
   tier          Int
-  limits        Json     @default("{}")
-  featureKeys   String[] @map("feature_keys")
-  prices        Json     @default("{}")
-  visibility    String   @default("public")
-  effectiveFrom DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version       Int      @default(1)
+  limits        Json      @default("{}")
+  featureKeys   String[]  @map("feature_keys")
+  prices        Json      @default("{}")
+  visibility    String    @default("public")
+  effectiveFrom DateTime  @default(now()) @map("effective_from") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy     String?   @map("updated_by") @db.Uuid
+  archivedAt    DateTime? @map("archived_at") @db.Timestamptz(6)
+  version       Int       @default(1)
 
   @@map("plans")
   @@schema("platform")
 }
 
 model Addon {
-  key           String   @id
+  key           String    @id
   name          String
-  limits        Json     @default("{}")
-  featureKeys   String[] @map("feature_keys")
-  prices        Json     @default("{}")
-  visibility    String   @default("public")
-  effectiveFrom DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version       Int      @default(1)
+  limits        Json      @default("{}")
+  featureKeys   String[]  @map("feature_keys")
+  prices        Json      @default("{}")
+  visibility    String    @default("public")
+  effectiveFrom DateTime  @default(now()) @map("effective_from") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy     String?   @map("updated_by") @db.Uuid
+  archivedAt    DateTime? @map("archived_at") @db.Timestamptz(6)
+  version       Int       @default(1)
 
   @@map("addons")
   @@schema("platform")
@@ -176,9 +198,63 @@ model IndustryTemplate {
   publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
   publishedBy String?   @map("published_by") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  /// Optimistic concurrency for drafts (If-Match).
+  revision    Int       @default(1)
 
   @@id([key, version])
   @@map("industry_templates")
+  @@schema("platform")
+}
+
+/// Country rules as versioned data (Part 02 §2.6, Part 03 §3.11): draft → in review →
+/// published → deprecated; old versions stay for recalculating past periods.
+model CountryPack {
+  country       String    @db.Char(2)
+  version       String
+  status        String
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  data          Json
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy     String?   @map("created_by") @db.Uuid
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy     String?   @map("updated_by") @db.Uuid
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
+  publishedBy   String?   @map("published_by") @db.Uuid
+  revision      Int       @default(1)
+
+  @@id([country, version])
+  @@map("country_packs")
+  @@schema("platform")
+}
+
+/// Four-eyes (◐ in Part 03 §3.2.1): an action that runs only after a second eligible staff
+/// member approves it. Nobody approves their own request.
+model StaffApproval {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  action       String
+  targetType   String    @map("target_type")
+  targetId     String    @map("target_id")
+  payload      Json      @default("{}")
+  reason       String
+  status       String    @default("pending")
+  requestedBy  String    @map("requested_by") @db.Uuid
+  requestedAt  DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  decidedBy    String?   @map("decided_by") @db.Uuid
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?   @map("decision_note")
+  executedAt   DateTime? @map("executed_at") @db.Timestamptz(6)
+  result       Json?
+
+  requester StaffUser  @relation("ApprovalRequester", fields: [requestedBy], references: [id])
+  decider   StaffUser? @relation("ApprovalDecider", fields: [decidedBy], references: [id])
+
+  @@index([status, requestedAt])
+  @@index([targetType, targetId])
+  @@map("staff_approvals")
   @@schema("platform")
 }
 
@@ -252,6 +328,8 @@ model StaffUser {
   recoveryCodes StaffRecoveryCode[]
   sessions      StaffSession[]
   setupTokens   StaffSetupToken[]
+  requested     StaffApproval[]       @relation("ApprovalRequester")
+  decided       StaffApproval[]       @relation("ApprovalDecider")
 
   @@map("staff_users")
   @@schema("platform")

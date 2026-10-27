@@ -10,6 +10,7 @@ import { createTenantWithData, type TenantFixture } from './test-support/fixture
 let db: TestDatabase;
 let owner: pg.Client;
 let app: pg.Client;
+let platform: pg.Client;
 let tenant: TenantFixture;
 
 async function append(client: pg.Client | pg.Pool, action: string): Promise<void> {
@@ -30,31 +31,43 @@ beforeAll(async () => {
   db = await prepareTestDatabase('erp_test_audit');
   owner = new pg.Client({ connectionString: db.ownerUrl });
   app = new pg.Client({ connectionString: db.appUrl });
+  platform = new pg.Client({ connectionString: db.platformUrl });
   await owner.connect();
   await app.connect();
+  await platform.connect();
   tenant = await createTenantWithData(owner, 'audit');
 }, 120_000);
 
 afterAll(async () => {
   await app?.end();
+  await platform?.end();
   await owner?.end();
 });
 
 describe('platform audit log', () => {
-  it('is written through append_audit by app_user, never directly', async () => {
-    await append(app, 'tenant.plan_changed');
+  it('is written through append_audit by the console (app_platform), never directly', async () => {
+    await append(platform, 'tenant.plan_changed');
     await expect(
-      app.query(
+      platform.query(
         `INSERT INTO platform.platform_audit_log (id, at, action, hash) VALUES ($1, now(), 'x', '\\x00')`,
         [uuidv7()],
       ),
     ).rejects.toThrow(/permission denied/);
   });
 
-  it('refuses UPDATE as app_user', async () => {
-    await expect(
-      app.query(`UPDATE platform.platform_audit_log SET reason = 'changed'`),
-    ).rejects.toThrow(/permission denied/);
+  it('refuses append_audit to tenant code (app_user), so it cannot pick a staff actor (F4)', async () => {
+    await expect(append(app, 'tenant.forged')).rejects.toMatchObject({
+      code: '42501',
+      message: expect.stringMatching(/permission denied for function append_audit/),
+    });
+  });
+
+  it('refuses UPDATE as app_user and app_platform', async () => {
+    for (const client of [app, platform]) {
+      await expect(
+        client.query(`UPDATE platform.platform_audit_log SET reason = 'changed'`),
+      ).rejects.toThrow(/permission denied/);
+    }
   });
 
   it('refuses UPDATE, DELETE and TRUNCATE even for the owner', async () => {
@@ -71,7 +84,7 @@ describe('platform audit log', () => {
 
   it('keeps one unbroken chain after 100 parallel inserts', async () => {
     const before = await verify(owner);
-    const pool = new pg.Pool({ connectionString: db.appUrl, max: 20 });
+    const pool = new pg.Pool({ connectionString: db.platformUrl, max: 20 });
     try {
       await Promise.all(Array.from({ length: 100 }, (_, i) => append(pool, `parallel.${i}`)));
     } finally {

@@ -48,6 +48,7 @@ jobs:
       DIRECT_URL: postgresql://erp:erp@localhost:5433/erp?schema=platform
       OPS_DATABASE_URL: postgresql://app_ops:app_ops_local@localhost:5433/erp?schema=platform
       AUTH_DATABASE_URL: postgresql://app_auth:app_auth_local@localhost:5433/erp?schema=platform
+      PLATFORM_DATABASE_URL: postgresql://app_platform:app_platform_local@localhost:5433/erp?schema=platform
       REDIS_URL: redis://localhost:6381
       MAIL_SMTP_URL: smtp://localhost:1025
     steps:

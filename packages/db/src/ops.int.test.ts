@@ -78,12 +78,13 @@ describe('app_ops privileges', () => {
   });
 
   it('still owns working audit and invitation functions', async () => {
-    const seq = await app.query(
+    // app_ops's own jobs write the audit log (app_user no longer may, F4).
+    const seq = await ops.query(
       `SELECT platform.append_audit($1, $2, 'tenant.checked', $3, 'tenant', $4, NULL, NULL, 'test', 'corr-ops-0001')`,
       [uuidv7(), uuidv7(), a.tenantId, a.tenantId],
     );
     expect(Number(seq.rows[0].append_audit)).toBeGreaterThan(0);
-    const chain = await app.query('SELECT * FROM platform.verify_audit_chain()');
+    const chain = await ops.query('SELECT * FROM platform.verify_audit_chain()');
     expect(chain.rows[0]).toMatchObject({ first_broken_seq: null });
     const found = await app.query('SELECT tenant_id FROM identity.invitation_by_token_hash($1)', [
       a.invitationTokenHash,

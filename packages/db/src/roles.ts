@@ -6,12 +6,13 @@ export const LOGIN_ROLES = [
   { role: 'app_user', url: 'DATABASE_URL' },
   { role: 'app_ops', url: 'OPS_DATABASE_URL' },
   { role: 'app_auth', url: 'AUTH_DATABASE_URL' },
+  { role: 'app_platform', url: 'PLATFORM_DATABASE_URL' },
 ] as const;
 
 type Env = Readonly<Record<string, string | undefined>>;
 
 /**
- * Local and CI only: lets app_user, app_ops and app_auth sign in, with the passwords written in their
+ * Local and CI only: lets app_user, app_ops, app_auth and app_platform sign in, with the passwords written in their
  * own connection URLs, so each password lives in one place (.env). Hosted databases set
  * these passwords by hand at go-live (ADR 0007); this refuses to run when LOCAL_ONLY is off.
  */
