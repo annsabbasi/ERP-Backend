@@ -94,6 +94,24 @@ Each database test file builds its own `erp_test_*` database from the migrations
 development database `erp` is never touched. The API tests run against `erp_test_api`, and the
 worker tests use their own Redis key prefix.
 
+## Changing the database schema
+
+Generated SQL never touches a database before you have read it:
+
+1. Edit `packages/db/prisma/schema.prisma`.
+2. Write the migration without applying it:
+   `pnpm --filter @erp/db exec prisma migrate dev --create-only --name <what_it_does>`.
+3. Open the new `migration.sql`. Delete every `DROP CONSTRAINT "…_tenant_fk"` that Prisma proposes:
+   those same-tenant keys are written in SQL and Prisma does not know them. Add what Prisma
+   cannot write (grants, policies, triggers, views).
+4. Check it: `pnpm --filter @erp/db exec vitest run src/migrations.test.ts` fails if a migration drops a
+   `*_tenant_fk`.
+5. Only then apply it, as its own step: `pnpm --filter @erp/db db:migrate:deploy`.
+
+Never run `prisma migrate dev` without `--create-only`: it applies what it generates straight
+away. To start again from the committed migrations only, run `pnpm local:down` with its volumes
+(`docker compose -f infra/docker-compose.yml down -v`), then `pnpm local:up`.
+
 ## The LOCAL_ONLY guard
 
 The guard is on unless `LOCAL_ONLY=0` or `NODE_ENV=production` (`.env.example` and CI also set
