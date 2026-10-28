@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { EmailProcessor } from './email.processor';
 import { render, TEMPLATES } from './templates';
 
-// Transactional e-mail (Part 05 §5.9): every template in both languages, and a real delivery
-// to the local mail catcher (Mailpit, D4) read back through its API.
+// Transactional e-mail (Part 05 §5.9): every template, and a real delivery to the local mail
+// catcher (Mailpit, D4) read back through its API.
 
 const MAILPIT = process.env.TEST_MAILPIT_URL ?? 'http://localhost:8025';
 if (!LOCAL_HOSTS.has(hostOf(MAILPIT) ?? '')) throw new Error('TEST_MAILPIT_URL must be local');
@@ -24,23 +24,24 @@ const sample = (template: EmailTemplate) =>
   );
 
 describe('templates', () => {
-  it.each(Object.keys(TEMPLATES) as EmailTemplate[])(
-    '%s renders in English and Urdu',
-    (template) => {
-      for (const locale of ['en', 'ur'] as const) {
-        const mail = render(template, sample(template), locale);
-        expect(mail.subject.length).toBeGreaterThan(5);
-        expect(mail.version).toBe(`${template}@1`);
-        expect(mail.html).toContain(`dir="${locale === 'ur' ? 'rtl' : 'ltr'}"`);
-        for (const key of EMAIL_TEMPLATES[template]) {
-          if (key !== 'change') expect(mail.text).toContain(sample(template)[key]);
-        }
-      }
-    },
-  );
+  it.each(Object.keys(TEMPLATES) as EmailTemplate[])('%s renders with every value', (template) => {
+    const mail = render(template, sample(template));
+    expect(mail.subject.length).toBeGreaterThan(5);
+    expect(mail.version).toBe(`${template}@${TEMPLATES[template].version}`);
+    expect(mail.html).toContain('<html lang="en">');
+    for (const key of EMAIL_TEMPLATES[template]) {
+      if (key !== 'change') expect(mail.text).toContain(sample(template)[key]);
+    }
+  });
+
+  it('tells invited staff of any role about their console account, not only Owners', () => {
+    const mail = render('staff_setup', sample('staff_setup'));
+    expect(mail.text).toContain('A Platform Console account was created for you');
+    expect(mail.text).not.toContain('Platform Owner');
+  });
 
   it('escapes values in the HTML', () => {
-    const mail = render('password_changed', { name: '<script>x</script>' }, 'en');
+    const mail = render('password_changed', { name: '<script>x</script>' });
     expect(mail.html).not.toContain('<script>');
     expect(mail.html).toContain('&lt;script&gt;');
   });
@@ -55,8 +56,7 @@ describe('delivery', () => {
       data: {
         template: 'password_changed',
         to,
-        locale: 'ur',
-        data: { name: 'ثناء' },
+        data: { name: 'Sana' },
       },
     } as unknown as Job);
     let found: { ID: string; Subject: string }[] = [];
@@ -68,7 +68,7 @@ describe('delivery', () => {
       if (found.length === 0) await new Promise((r) => setTimeout(r, 250));
     }
     expect(found).toHaveLength(1);
-    expect(found[0]!.Subject).toBe('آپ کا ERP System پاس ورڈ تبدیل کر دیا گیا');
+    expect(found[0]!.Subject).toBe('Your ERP System password was changed');
     const headers = (await (
       await fetch(`${MAILPIT}/api/v1/message/${found[0]!.ID}/headers`)
     ).json()) as Record<string, string[]>;

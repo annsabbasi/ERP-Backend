@@ -21,14 +21,14 @@ export class EmailProcessor extends WorkerHost {
 
   async process(job: Job): Promise<void> {
     const email = EmailJobSchema.parse(job.data);
-    const { subject, text, html, version } = render(email.template, email.data, email.locale);
+    const { subject, text, html, version } = render(email.template, email.data);
     await this.smtp.sendMail({
       from: process.env.MAIL_FROM ?? 'ERP System <no-reply@erp.invalid>',
       to: email.to,
       subject,
       text,
       html,
-      headers: { 'X-ERP-Template': version, 'Content-Language': email.locale },
+      headers: { 'X-ERP-Template': version, 'Content-Language': 'en' },
     });
     // The address is personal data: the log names the template and job only (§10.15).
     this.logger.log(`sent ${version} (job ${job.id})`);
