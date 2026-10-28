@@ -60,7 +60,6 @@ void finish(db, async () => {
   await new MailerService().send({
     template: 'staff_setup',
     to: email,
-    locale: 'en',
     data: { name, link: `${config.consoleUrl}/setup/${token}`, expires_hours: String(SETUP_HOURS) },
   });
   console.log(

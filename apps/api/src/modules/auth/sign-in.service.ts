@@ -155,7 +155,6 @@ export class SignInService {
       await this.mailer.send({
         template: 'mfa_changed',
         to: account.email,
-        locale: localeOf(account),
         data: { name: account.name, change: 'recovery_code_used' },
       });
     }
@@ -184,7 +183,6 @@ export class SignInService {
     await this.mailer.send({
       template: 'mfa_changed',
       to: account.email,
-      locale: 'en',
       data: { name: account.name, change: 'enabled' },
     });
     const result = await this.complete(store, account, challenge.meta, ['pwd', 'otp']);
@@ -247,7 +245,6 @@ export class SignInService {
       await this.mailer.send({
         template: 'new_sign_in',
         to: account.email,
-        locale: localeOf(account),
         data: {
           name: account.name,
           when: new Date().toISOString(),
@@ -408,12 +405,8 @@ export class SignInService {
     await this.mailer.send({
       template: 'account_locked',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name, link, minutes: '15' },
     });
   }
 }
 
-export function localeOf(account: Account): 'en' | 'ur' {
-  return account.locale === 'ur' ? 'ur' : 'en';
-}

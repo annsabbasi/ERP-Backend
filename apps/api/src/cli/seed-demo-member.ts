@@ -97,7 +97,6 @@ void finish(db, async () => {
   await new MailerService().send({
     template: 'account_setup',
     to: email,
-    locale: 'en',
     data: { name, link: `${config.webUrl}/reset/${token}`, expires_hours: String(SETUP_HOURS) },
   });
   console.log(

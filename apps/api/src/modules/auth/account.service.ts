@@ -18,7 +18,7 @@ import {
 } from './passwords';
 import { RateLimitService, LIMITS } from './rate-limit.service';
 import { SessionsService, type ClientMeta } from './sessions.service';
-import { localeOf, normalizeEmail, SignInService } from './sign-in.service';
+import { normalizeEmail, SignInService } from './sign-in.service';
 import { base32Encode } from './totp';
 
 // Account security self-service (Part 05 §5.3.7, §5.3.9–5.3.11) and the staff setup link (D5).
@@ -75,7 +75,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'password_reset',
       to: account.email,
-      locale: localeOf(account),
       data: {
         name: account.name,
         link: `${this.config.webUrl}/reset/${token}`,
@@ -100,7 +99,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'password_changed',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name },
     });
   }
@@ -126,7 +124,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'password_changed',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name },
     });
   }
@@ -155,7 +152,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'mfa_changed',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name, change: 'enabled' },
     });
     return codes;
@@ -182,7 +178,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'mfa_changed',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name, change: 'disabled' },
     });
   }
@@ -197,7 +192,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'mfa_changed',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name, change: 'recovery_codes_replaced' },
     });
     return codes;
@@ -277,7 +271,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'email_change_confirm',
       to: newEmail.trim(),
-      locale: localeOf(account),
       data: {
         name: account.name,
         link: `${this.config.webUrl}/email/confirm/${raw}`,
@@ -287,7 +280,6 @@ export class AccountService {
     await this.mailer.send({
       template: 'email_change_notice',
       to: account.email,
-      locale: localeOf(account),
       data: { name: account.name, new_email: newEmail.trim() },
     });
   }

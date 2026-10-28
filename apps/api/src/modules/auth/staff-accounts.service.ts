@@ -35,7 +35,6 @@ export class StaffAccountsService {
     await this.mailer.send({
       template: 'staff_setup',
       to: staff.email,
-      locale: 'en',
       data: {
         name: staff.name,
         link: `${this.config.consoleUrl}/setup/${token}`,
