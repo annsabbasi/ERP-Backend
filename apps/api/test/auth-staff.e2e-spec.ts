@@ -213,7 +213,8 @@ describe('wrong authenticator codes (F6)', () => {
     const addr = from();
     const { challenge } = (await login(addr, staff.email).expect(200)).body;
     await verify(addr, challenge, codeFor(staff.secret, 1)).expect(200);
-  });
+    // Onboarding and a dozen Argon2 sign-ins: more than Jest's 5 s while other suites run.
+  }, 30_000);
 });
 
 describe('the staff refresh cookie (F5)', () => {
