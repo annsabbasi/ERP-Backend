@@ -2077,6 +2077,37 @@
         ]
       }
     },
+    "/api/platform/v1/me/step-up": {
+      "post": {
+        "operationId": "StaffMeController_stepUp",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "MFA checked again; sensitive actions are open for 10 minutes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform me"
+        ]
+      }
+    },
     "/api/v1/flags": {
       "get": {
         "operationId": "FlagsController_list",
@@ -2341,6 +2372,4040 @@
         },
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/platform/v1/me/access": {
+      "get": {
+        "operationId": "ConsoleController_meAccess",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Staff roles, permissions, sidebar and badges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "staff_id": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "platform_owner",
+                          "platform_admin",
+                          "onboarding_specialist",
+                          "billing_manager",
+                          "support_agent",
+                          "operations",
+                          "auditor"
+                        ]
+                      }
+                    },
+                    "permissions": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "enum": [
+                          "dashboard.view",
+                          "tenants.view",
+                          "requests.view",
+                          "requests.manage",
+                          "requests.decide",
+                          "tenants.provision",
+                          "tenants.provision_enterprise",
+                          "tenants.update",
+                          "entitlements.manage",
+                          "entitlements.plan_change",
+                          "tenants.lifecycle",
+                          "tenants.terminate",
+                          "billing.view",
+                          "billing.manage",
+                          "billing.refund",
+                          "catalogue.view",
+                          "catalogue.edit",
+                          "catalogue.draft",
+                          "catalogue.publish",
+                          "catalogue.prices",
+                          "country_packs.view",
+                          "country_packs.edit",
+                          "country_packs.publish",
+                          "support.sessions",
+                          "break_glass",
+                          "communications.view",
+                          "communications.manage",
+                          "ops.view",
+                          "ops.manage",
+                          "staff.view",
+                          "staff.manage",
+                          "approvals.view",
+                          "audit.view",
+                          "audit.view_own",
+                          "audit.view_billing",
+                          "audit.view_ops",
+                          "audit.export"
+                        ]
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                          "allow",
+                          "four_eyes"
+                        ]
+                      }
+                    },
+                    "menu": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "group": {
+                            "type": "string"
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "path": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "path",
+                                "label"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "group",
+                          "entries"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "badges": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "mfa_verified_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "staff_id",
+                    "roles",
+                    "permissions",
+                    "menu",
+                    "badges",
+                    "mfa_verified_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform console"
+        ]
+      }
+    },
+    "/api/platform/v1/search": {
+      "get": {
+        "operationId": "ConsoleController_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Tenants and pages matching the text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "slug",
+                          "display_name",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "pages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "tenants",
+                    "pages"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform console"
+        ]
+      }
+    },
+    "/api/platform/v1/staff": {
+      "get": {
+        "operationId": "StaffController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Staff accounts and their roles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "invited",
+                              "active",
+                              "suspended",
+                              "removed"
+                            ]
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "platform_owner",
+                                "platform_admin",
+                                "onboarding_specialist",
+                                "billing_manager",
+                                "support_agent",
+                                "operations",
+                                "auditor"
+                              ]
+                            }
+                          },
+                          "last_sign_in_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "status",
+                          "roles",
+                          "last_sign_in_at",
+                          "created_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform staff"
+        ]
+      },
+      "post": {
+        "operationId": "StaffController_invite",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Invited; a one-time setup link was e-mailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "platform_owner",
+                          "platform_admin",
+                          "onboarding_specialist",
+                          "billing_manager",
+                          "support_agent",
+                          "operations",
+                          "auditor"
+                        ]
+                      }
+                    },
+                    "last_sign_in_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "created_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "name",
+                    "status",
+                    "roles",
+                    "last_sign_in_at",
+                    "created_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform staff"
+        ]
+      }
+    },
+    "/api/platform/v1/staff/{id}/roles": {
+      "put": {
+        "operationId": "StaffController_roles",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Roles replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "platform_owner",
+                          "platform_admin",
+                          "onboarding_specialist",
+                          "billing_manager",
+                          "support_agent",
+                          "operations",
+                          "auditor"
+                        ]
+                      }
+                    },
+                    "last_sign_in_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "created_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "name",
+                    "status",
+                    "roles",
+                    "last_sign_in_at",
+                    "created_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform staff"
+        ]
+      }
+    },
+    "/api/platform/v1/staff/{id}/deactivate": {
+      "post": {
+        "operationId": "StaffController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deactivated; their sessions ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "platform_owner",
+                          "platform_admin",
+                          "onboarding_specialist",
+                          "billing_manager",
+                          "support_agent",
+                          "operations",
+                          "auditor"
+                        ]
+                      }
+                    },
+                    "last_sign_in_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "created_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "name",
+                    "status",
+                    "roles",
+                    "last_sign_in_at",
+                    "created_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform staff"
+        ]
+      }
+    },
+    "/api/platform/v1/staff/{id}/setup-link": {
+      "post": {
+        "operationId": "StaffController_setupLink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A new setup link was e-mailed; older ones stop working",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform staff"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/modules": {
+      "get": {
+        "operationId": "CatalogueController_modules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Modules and features with their display fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "icon": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "display_order": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "category": {
+                            "type": "string"
+                          },
+                          "group": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ga",
+                              "beta",
+                              "preview",
+                              "deprecated"
+                            ]
+                          },
+                          "features": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "display_name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "description": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "icon": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "display_order": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "countries": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "ga",
+                                    "beta",
+                                    "preview",
+                                    "deprecated"
+                                  ]
+                                },
+                                "status_override": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "ga",
+                                        "beta",
+                                        "preview",
+                                        "deprecated"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "release": {
+                                  "type": "string"
+                                },
+                                "always_on": {
+                                  "type": "boolean"
+                                },
+                                "requires": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "permissions": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "name",
+                                "display_name",
+                                "description",
+                                "icon",
+                                "display_order",
+                                "countries",
+                                "status",
+                                "status_override",
+                                "release",
+                                "always_on",
+                                "requires",
+                                "permissions"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name",
+                          "display_name",
+                          "description",
+                          "icon",
+                          "display_order",
+                          "category",
+                          "group",
+                          "status",
+                          "features"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/modules/{key}": {
+      "patch": {
+        "operationId": "CatalogueController_patchModule",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Display fields changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/features/{key}": {
+      "patch": {
+        "operationId": "CatalogueController_patchFeature",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Display fields changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/plans": {
+      "get": {
+        "operationId": "CatalogueController_plans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Plans and add-ons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "plan",
+                              "addon"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "limits": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "feature_keys": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "prices": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            },
+                            "additionalProperties": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string",
+                                "enum": [
+                                  "monthly",
+                                  "quarterly",
+                                  "yearly"
+                                ]
+                              },
+                              "additionalProperties": {
+                                "type": "number",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          "visibility": {
+                            "type": "string",
+                            "enum": [
+                              "public",
+                              "private"
+                            ]
+                          },
+                          "effective_from": {
+                            "type": "string"
+                          },
+                          "archived_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "kind",
+                          "name",
+                          "tier",
+                          "limits",
+                          "feature_keys",
+                          "prices",
+                          "visibility",
+                          "effective_from",
+                          "archived_at",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      },
+      "put": {
+        "operationId": "CatalogueController_upsertPlan",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Created, or updated (If-Match its version)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "plan",
+                        "addon"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "feature_keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "prices": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "enum": [
+                            "monthly",
+                            "quarterly",
+                            "yearly"
+                          ]
+                        },
+                        "additionalProperties": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      }
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "public",
+                        "private"
+                      ]
+                    },
+                    "effective_from": {
+                      "type": "string"
+                    },
+                    "archived_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "kind",
+                    "name",
+                    "tier",
+                    "limits",
+                    "feature_keys",
+                    "prices",
+                    "visibility",
+                    "effective_from",
+                    "archived_at",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/{kind}/{key}/prices": {
+      "post": {
+        "operationId": "CatalogueController_prices",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prices changed, or waiting for a second approver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "done"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "pending"
+                        },
+                        "approval_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "approval_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/{kind}/{key}/archive": {
+      "post": {
+        "operationId": "CatalogueController_archive",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/templates": {
+      "get": {
+        "operationId": "CatalogueController_templates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every version of every template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "in_review",
+                              "published",
+                              "deprecated"
+                            ]
+                          },
+                          "name": {
+                            "type": "object",
+                            "properties": {
+                              "en": {
+                                "type": "string"
+                              },
+                              "ur": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "en",
+                              "ur"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "industry": {
+                            "type": "string"
+                          },
+                          "roles": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "entitlements": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "published_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "published_by": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "version",
+                          "status",
+                          "name",
+                          "industry",
+                          "roles",
+                          "entitlements",
+                          "published_at",
+                          "published_by",
+                          "updated_at",
+                          "revision"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/templates/{key}/diff": {
+      "get": {
+        "operationId": "CatalogueController_diff",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What changed between two versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "entitlements": {
+                      "type": "object",
+                      "properties": {
+                        "added": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "removed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "added",
+                        "removed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "limits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "before": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "after": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "before",
+                          "after"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "roles": {
+                      "type": "object",
+                      "properties": {
+                        "added": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "removed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "changed": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "added": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "removed": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "added",
+                              "removed"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "added",
+                        "removed",
+                        "changed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "terminology": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "settings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "wizard": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "entitlements",
+                    "limits",
+                    "roles",
+                    "terminology",
+                    "settings",
+                    "wizard"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/templates/{key}/{version}": {
+      "get": {
+        "operationId": "CatalogueController_template",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One version, its definition and what stops it from being published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "in_review",
+                        "published",
+                        "deprecated"
+                      ]
+                    },
+                    "name": {
+                      "type": "object",
+                      "properties": {
+                        "en": {
+                          "type": "string"
+                        },
+                        "ur": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "en",
+                        "ur"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "industry": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "entitlements": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "definition": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "version": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        },
+                        "name": {
+                          "type": "object",
+                          "properties": {
+                            "en": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "ur": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "en",
+                            "ur"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "industry": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "entitlements": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "limits": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "enum": [
+                              "users.max",
+                              "branches.max",
+                              "devices.max",
+                              "devices.kiosks.max",
+                              "pos.terminals.max",
+                              "kds.screens.max",
+                              "restaurant.waiter_devices.max",
+                              "school.students.max",
+                              "payroll.employees.max",
+                              "storage.gb",
+                              "messaging.sms.monthly",
+                              "messaging.whatsapp.monthly",
+                              "api.calls.daily"
+                            ]
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "terminology": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "enum": [
+                              "branch",
+                              "customer",
+                              "sales_invoice",
+                              "item",
+                              "employee",
+                              "department",
+                              "appointment"
+                            ]
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "en": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "ur": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "en",
+                              "ur"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9_]*$"
+                              },
+                              "name": {
+                                "type": "object",
+                                "properties": {
+                                  "en": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "ur": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": [
+                                  "en",
+                                  "ur"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "owner": {
+                                "type": "boolean"
+                              },
+                              "grants": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "permission": {
+                                      "type": "string"
+                                    },
+                                    "scope": {
+                                      "type": "string",
+                                      "enum": [
+                                        "own",
+                                        "assigned",
+                                        "team",
+                                        "department",
+                                        "branch",
+                                        "legal_entity",
+                                        "company"
+                                      ]
+                                    },
+                                    "thresholds": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "type": "number"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "permission",
+                                    "scope"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "name",
+                              "description",
+                              "grants"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "settings": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "wizard": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "welcome",
+                              "company_profile",
+                              "localization",
+                              "organization",
+                              "finance_basics",
+                              "industry_setup",
+                              "team",
+                              "review",
+                              "service_modes",
+                              "floors_tables",
+                              "menu",
+                              "kitchen_stations",
+                              "devices_printers",
+                              "taxes_fiscal",
+                              "payment_methods",
+                              "service_charge_tips",
+                              "academic_year",
+                              "grade_levels",
+                              "subjects",
+                              "fee_structure",
+                              "challan_settings",
+                              "admission_settings",
+                              "attendance_mode",
+                              "grading_scale",
+                              "parent_portal"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "version",
+                        "name",
+                        "industry",
+                        "description",
+                        "entitlements",
+                        "limits",
+                        "terminology",
+                        "roles",
+                        "settings",
+                        "wizard"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "version",
+                    "status",
+                    "name",
+                    "industry",
+                    "roles",
+                    "entitlements",
+                    "published_at",
+                    "published_by",
+                    "updated_at",
+                    "revision",
+                    "definition",
+                    "problems"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      },
+      "put": {
+        "operationId": "CatalogueController_updateTemplateDraft",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft saved (If-Match its revision)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "in_review",
+                        "published",
+                        "deprecated"
+                      ]
+                    },
+                    "name": {
+                      "type": "object",
+                      "properties": {
+                        "en": {
+                          "type": "string"
+                        },
+                        "ur": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "en",
+                        "ur"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "industry": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "entitlements": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "definition": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "version": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        },
+                        "name": {
+                          "type": "object",
+                          "properties": {
+                            "en": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "ur": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "en",
+                            "ur"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "industry": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "entitlements": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "limits": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "enum": [
+                              "users.max",
+                              "branches.max",
+                              "devices.max",
+                              "devices.kiosks.max",
+                              "pos.terminals.max",
+                              "kds.screens.max",
+                              "restaurant.waiter_devices.max",
+                              "school.students.max",
+                              "payroll.employees.max",
+                              "storage.gb",
+                              "messaging.sms.monthly",
+                              "messaging.whatsapp.monthly",
+                              "api.calls.daily"
+                            ]
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "terminology": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "enum": [
+                              "branch",
+                              "customer",
+                              "sales_invoice",
+                              "item",
+                              "employee",
+                              "department",
+                              "appointment"
+                            ]
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "en": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "ur": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "en",
+                              "ur"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9_]*$"
+                              },
+                              "name": {
+                                "type": "object",
+                                "properties": {
+                                  "en": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "ur": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": [
+                                  "en",
+                                  "ur"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "owner": {
+                                "type": "boolean"
+                              },
+                              "grants": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "permission": {
+                                      "type": "string"
+                                    },
+                                    "scope": {
+                                      "type": "string",
+                                      "enum": [
+                                        "own",
+                                        "assigned",
+                                        "team",
+                                        "department",
+                                        "branch",
+                                        "legal_entity",
+                                        "company"
+                                      ]
+                                    },
+                                    "thresholds": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "type": "number"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "permission",
+                                    "scope"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "name",
+                              "description",
+                              "grants"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "settings": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "wizard": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "welcome",
+                              "company_profile",
+                              "localization",
+                              "organization",
+                              "finance_basics",
+                              "industry_setup",
+                              "team",
+                              "review",
+                              "service_modes",
+                              "floors_tables",
+                              "menu",
+                              "kitchen_stations",
+                              "devices_printers",
+                              "taxes_fiscal",
+                              "payment_methods",
+                              "service_charge_tips",
+                              "academic_year",
+                              "grade_levels",
+                              "subjects",
+                              "fee_structure",
+                              "challan_settings",
+                              "admission_settings",
+                              "attendance_mode",
+                              "grading_scale",
+                              "parent_portal"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "version",
+                        "name",
+                        "industry",
+                        "description",
+                        "entitlements",
+                        "limits",
+                        "terminology",
+                        "roles",
+                        "settings",
+                        "wizard"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "version",
+                    "status",
+                    "name",
+                    "industry",
+                    "roles",
+                    "entitlements",
+                    "published_at",
+                    "published_by",
+                    "updated_at",
+                    "revision",
+                    "definition",
+                    "problems"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/templates/{key}/drafts": {
+      "post": {
+        "operationId": "CatalogueController_createTemplateDraft",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "A new draft version, copied from an existing one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "in_review",
+                        "published",
+                        "deprecated"
+                      ]
+                    },
+                    "name": {
+                      "type": "object",
+                      "properties": {
+                        "en": {
+                          "type": "string"
+                        },
+                        "ur": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "en",
+                        "ur"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "industry": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "entitlements": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "definition": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "version": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        },
+                        "name": {
+                          "type": "object",
+                          "properties": {
+                            "en": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "ur": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "en",
+                            "ur"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "industry": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "entitlements": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "limits": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "enum": [
+                              "users.max",
+                              "branches.max",
+                              "devices.max",
+                              "devices.kiosks.max",
+                              "pos.terminals.max",
+                              "kds.screens.max",
+                              "restaurant.waiter_devices.max",
+                              "school.students.max",
+                              "payroll.employees.max",
+                              "storage.gb",
+                              "messaging.sms.monthly",
+                              "messaging.whatsapp.monthly",
+                              "api.calls.daily"
+                            ]
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "terminology": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "enum": [
+                              "branch",
+                              "customer",
+                              "sales_invoice",
+                              "item",
+                              "employee",
+                              "department",
+                              "appointment"
+                            ]
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "en": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "ur": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "en",
+                              "ur"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9_]*$"
+                              },
+                              "name": {
+                                "type": "object",
+                                "properties": {
+                                  "en": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "ur": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": [
+                                  "en",
+                                  "ur"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "owner": {
+                                "type": "boolean"
+                              },
+                              "grants": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "permission": {
+                                      "type": "string"
+                                    },
+                                    "scope": {
+                                      "type": "string",
+                                      "enum": [
+                                        "own",
+                                        "assigned",
+                                        "team",
+                                        "department",
+                                        "branch",
+                                        "legal_entity",
+                                        "company"
+                                      ]
+                                    },
+                                    "thresholds": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "type": "number"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "permission",
+                                    "scope"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "name",
+                              "description",
+                              "grants"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "settings": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "wizard": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "welcome",
+                              "company_profile",
+                              "localization",
+                              "organization",
+                              "finance_basics",
+                              "industry_setup",
+                              "team",
+                              "review",
+                              "service_modes",
+                              "floors_tables",
+                              "menu",
+                              "kitchen_stations",
+                              "devices_printers",
+                              "taxes_fiscal",
+                              "payment_methods",
+                              "service_charge_tips",
+                              "academic_year",
+                              "grade_levels",
+                              "subjects",
+                              "fee_structure",
+                              "challan_settings",
+                              "admission_settings",
+                              "attendance_mode",
+                              "grading_scale",
+                              "parent_portal"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "version",
+                        "name",
+                        "industry",
+                        "description",
+                        "entitlements",
+                        "limits",
+                        "terminology",
+                        "roles",
+                        "settings",
+                        "wizard"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "version",
+                    "status",
+                    "name",
+                    "industry",
+                    "roles",
+                    "entitlements",
+                    "published_at",
+                    "published_by",
+                    "updated_at",
+                    "revision",
+                    "definition",
+                    "problems"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/templates/{key}/{version}/publish": {
+      "post": {
+        "operationId": "CatalogueController_publishTemplate",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Waiting for a second approver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "done"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "pending"
+                        },
+                        "approval_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "approval_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/templates/{key}/{version}/deprecate": {
+      "post": {
+        "operationId": "CatalogueController_deprecateTemplate",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deprecated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/country-packs": {
+      "get": {
+        "operationId": "CatalogueController_packs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every version of every country pack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "country": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "in_review",
+                              "published",
+                              "deprecated"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "effective_from": {
+                            "type": "string"
+                          },
+                          "published_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "published_by": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "country",
+                          "version",
+                          "status",
+                          "name",
+                          "effective_from",
+                          "published_at",
+                          "published_by",
+                          "updated_at",
+                          "revision"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/country-packs/{country}/{version}": {
+      "get": {
+        "operationId": "CatalogueController_pack",
+        "parameters": [
+          {
+            "name": "country",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One version and its data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "country": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "in_review",
+                        "published",
+                        "deprecated"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "effective_from": {
+                      "type": "string"
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "fiscal_year_start_month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        "languages": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 2
+                          }
+                        },
+                        "id_formats": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "pattern": "^[a-z_]+$"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "pattern": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "pattern",
+                              "example"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "holidays": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "tentative": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "date",
+                              "name",
+                              "tentative"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "tax": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "currency",
+                        "timezone",
+                        "fiscal_year_start_month",
+                        "languages",
+                        "id_formats",
+                        "holidays",
+                        "tax"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "country",
+                    "version",
+                    "status",
+                    "name",
+                    "effective_from",
+                    "published_at",
+                    "published_by",
+                    "updated_at",
+                    "revision",
+                    "data",
+                    "problems"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      },
+      "put": {
+        "operationId": "CatalogueController_updatePackDraft",
+        "parameters": [
+          {
+            "name": "country",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft saved (If-Match its revision)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "country": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "in_review",
+                        "published",
+                        "deprecated"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "effective_from": {
+                      "type": "string"
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "fiscal_year_start_month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        "languages": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 2
+                          }
+                        },
+                        "id_formats": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "pattern": "^[a-z_]+$"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "pattern": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "pattern",
+                              "example"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "holidays": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "tentative": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "date",
+                              "name",
+                              "tentative"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "tax": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "currency",
+                        "timezone",
+                        "fiscal_year_start_month",
+                        "languages",
+                        "id_formats",
+                        "holidays",
+                        "tax"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "country",
+                    "version",
+                    "status",
+                    "name",
+                    "effective_from",
+                    "published_at",
+                    "published_by",
+                    "updated_at",
+                    "revision",
+                    "data",
+                    "problems"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/country-packs/{country}/drafts": {
+      "post": {
+        "operationId": "CatalogueController_createPackDraft",
+        "parameters": [
+          {
+            "name": "country",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "A new draft version, copied from an existing one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "country": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "in_review",
+                        "published",
+                        "deprecated"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "effective_from": {
+                      "type": "string"
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_by": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "fiscal_year_start_month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        "languages": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 2
+                          }
+                        },
+                        "id_formats": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "pattern": "^[a-z_]+$"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "pattern": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "pattern",
+                              "example"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "holidays": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "tentative": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "date",
+                              "name",
+                              "tentative"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "tax": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "currency",
+                        "timezone",
+                        "fiscal_year_start_month",
+                        "languages",
+                        "id_formats",
+                        "holidays",
+                        "tax"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "country",
+                    "version",
+                    "status",
+                    "name",
+                    "effective_from",
+                    "published_at",
+                    "published_by",
+                    "updated_at",
+                    "revision",
+                    "data",
+                    "problems"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/catalogue/country-packs/{country}/{version}/publish": {
+      "post": {
+        "operationId": "CatalogueController_publishPack",
+        "parameters": [
+          {
+            "name": "country",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Waiting for a second approver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "done"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "pending"
+                        },
+                        "approval_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "approval_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform catalogue"
+        ]
+      }
+    },
+    "/api/platform/v1/approvals": {
+      "get": {
+        "operationId": "GovernanceController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Four-eyes requests, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "template.publish",
+                              "country_pack.publish",
+                              "plan.prices"
+                            ]
+                          },
+                          "target_type": {
+                            "type": "string"
+                          },
+                          "target_id": {
+                            "type": "string"
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "rejected",
+                              "cancelled",
+                              "expired"
+                            ]
+                          },
+                          "requested_by": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "requested_at": {
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "type": "string"
+                          },
+                          "decided_by": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "decided_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "decision_note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "can_decide": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "action",
+                          "target_type",
+                          "target_id",
+                          "payload",
+                          "reason",
+                          "status",
+                          "requested_by",
+                          "requested_at",
+                          "expires_at",
+                          "decided_by",
+                          "decided_at",
+                          "decision_note",
+                          "can_decide"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform governance"
+        ]
+      }
+    },
+    "/api/platform/v1/approvals/{id}/approve": {
+      "post": {
+        "operationId": "GovernanceController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved; the change ran",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform governance"
+        ]
+      }
+    },
+    "/api/platform/v1/approvals/{id}/reject": {
+      "post": {
+        "operationId": "GovernanceController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rejected; the change did not run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform governance"
+        ]
+      }
+    },
+    "/api/platform/v1/approvals/{id}/cancel": {
+      "post": {
+        "operationId": "GovernanceController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawn by the requester",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "done"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform governance"
+        ]
+      }
+    },
+    "/api/platform/v1/audit": {
+      "get": {
+        "operationId": "GovernanceController_auditLog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Platform audit log, newest first, as far as this role may see",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "seq": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "actor": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "target_tenant_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "target_type": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "target_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "before": {
+                            "anyOf": [
+                              {},
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "after": {
+                            "anyOf": [
+                              {},
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "correlation_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "result": {
+                            "type": "string",
+                            "enum": [
+                              "success",
+                              "failure"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "seq",
+                          "id",
+                          "at",
+                          "actor",
+                          "action",
+                          "target_tenant_id",
+                          "target_type",
+                          "target_id",
+                          "before",
+                          "after",
+                          "reason",
+                          "correlation_id",
+                          "result"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "platform governance"
+        ]
+      }
+    },
+    "/api/platform/v1/audit/export": {
+      "get": {
+        "operationId": "GovernanceController_exportAudit",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "platform governance"
         ]
       }
     },

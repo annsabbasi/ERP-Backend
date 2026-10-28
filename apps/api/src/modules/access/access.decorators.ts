@@ -1,5 +1,9 @@
 import { createParamDecorator, SetMetadata, type ExecutionContext } from '@nestjs/common';
-import { CATALOGUE } from '@erp/contracts';
+import {
+  CATALOGUE,
+  STAFF_PERMISSIONS,
+  type StaffPermission as StaffPermissionKey,
+} from '@erp/contracts';
 import type { Request } from 'express';
 import { ProblemException } from '../../common/problem';
 import type { MemberAccess } from './compute-access';
@@ -33,8 +37,15 @@ export function RequireFeature(feature: string) {
 /** Any signed-in person, about their own account (profile, sessions, MFA, /me/access). */
 export const SignedIn = () => SetMetadata(ACCESS_META.signedIn, true);
 
-/** A Platform Console route and the staff permission it needs (Part 03 §3.2.1). */
-export const StaffPermission = (permission: string) => SetMetadata(ACCESS_META.staff, permission);
+/** A Platform Console route and the staff permissions that open it, any of them (Part 03 §3.2.1). */
+export function StaffPermission(...permissions: StaffPermissionKey[]) {
+  for (const p of permissions) {
+    if (!(STAFF_PERMISSIONS as readonly string[]).includes(p)) {
+      throw new Error(`StaffPermission: ${p} is not a staff permission`);
+    }
+  }
+  return SetMetadata(ACCESS_META.staff, permissions);
+}
 
 export type AccessRequest = Request & { access?: MemberAccess };
 

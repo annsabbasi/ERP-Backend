@@ -13,6 +13,7 @@ import {
   StaffMeSchema,
   StaffSetupInfoSchema,
   StaffSetupRequestSchema,
+  StepUpRequestSchema,
   type AccessTokenClaims,
 } from '@erp/contracts';
 import type { Request, Response } from 'express';
@@ -209,5 +210,18 @@ export class StaffMeController {
   @ApiZodResponse(200, StaffMeSchema, 'The signed-in staff member and their roles')
   me(@Auth() claims: AccessTokenClaims) {
     return this.account.staffMe(claims);
+  }
+
+  /** Step-up (Part 03 §3.3.1): MFA again before sensitive actions; valid for 10 minutes. */
+  @Post('step-up')
+  @HttpCode(200)
+  @ApiZodResponse(200, DoneSchema, 'MFA checked again; sensitive actions are open for 10 minutes')
+  async stepUp(
+    @Req() request: Request,
+    @Auth() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(StepUpRequestSchema)) body: z.infer<typeof StepUpRequestSchema>,
+  ) {
+    await this.account.stepUp('staff', claims, body, clientMeta(request));
+    return { status: 'done' as const };
   }
 }

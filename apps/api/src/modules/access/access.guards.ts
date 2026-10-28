@@ -18,9 +18,10 @@ import { readOnlyDetail, refusalOf } from './compute-access';
 
 // The global guards after authentication, in the order of Part 10 §10.7.4:
 // Tenant → Entitlement (gate 1) → Permission (gate 2). Gate 3 (scope) is checked where the
-// records are read, with ScopeService. Platform Console routes use the staff guard instead.
+// records are read, with ScopeService. Platform Console routes use the platform module's
+// StaffPermissionGuard instead.
 
-type Meta = { permission?: string; feature?: string; signedIn?: boolean; staff?: string };
+type Meta = { permission?: string; feature?: string; signedIn?: boolean; staff?: string[] };
 
 function metaOf(reflector: Reflector, context: ExecutionContext): Meta & { public: boolean } {
   const targets = [context.getHandler(), context.getClass()];
@@ -30,7 +31,7 @@ function metaOf(reflector: Reflector, context: ExecutionContext): Meta & { publi
     permission: get<string>(ACCESS_META.permission),
     feature: get<string>(ACCESS_META.feature),
     signedIn: get<boolean>(ACCESS_META.signedIn),
-    staff: get<string>(ACCESS_META.staff),
+    staff: get<string[]>(ACCESS_META.staff),
   };
 }
 
@@ -120,20 +121,5 @@ export class PermissionGuard implements CanActivate {
       throw new ProblemException(refusal.code, refusal.detail);
     }
     return true;
-  }
-}
-
-/**
- * Platform Console routes name a staff permission. The staff permission matrix (Part 03 §3.2.1)
- * arrives with the console's first screens (Stage 4); until then such routes are closed.
- */
-@Injectable()
-export class StaffPermissionGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const { staff } = metaOf(this.reflector, context);
-    if (!staff) return true;
-    throw new ProblemException('permission_denied', 'Staff permissions are not checked yet');
   }
 }

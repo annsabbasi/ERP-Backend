@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { FlagsModule } from './modules/flags/flags.module';
 import { HealthModule } from './modules/health/health.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { RedisModule } from './modules/redis/redis.service';
 
 @Module({
@@ -19,6 +20,7 @@ import { RedisModule } from './modules/redis/redis.service';
     AuthModule,
     FlagsModule,
     AccessModule,
+    PlatformModule,
     HealthModule,
   ],
   providers: [ProblemFilter],

@@ -12,6 +12,7 @@ import { MfaService } from './mfa.service';
 import { RateLimitService } from './rate-limit.service';
 import { SessionsService } from './sessions.service';
 import { SignInService } from './sign-in.service';
+import { StaffAccountsService } from './staff-accounts.service';
 import { StaffAuthController, StaffMeController } from './staff-auth.controller';
 import { TokenService } from './token.service';
 
@@ -31,8 +32,9 @@ import { TokenService } from './token.service';
     RateLimitService,
     SignInService,
     AccountService,
+    StaffAccountsService,
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [TokenService, SessionsService, MailerService],
+  exports: [TokenService, SessionsService, MailerService, StaffAccountsService],
 })
 export class AuthModule {}

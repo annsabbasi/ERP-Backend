@@ -1,12 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AccessController } from './access.controller';
-import {
-  EntitlementGuard,
-  PermissionGuard,
-  StaffPermissionGuard,
-  TenantGuard,
-} from './access.guards';
+import { EntitlementGuard, PermissionGuard, TenantGuard } from './access.guards';
 import { AccessService } from './access.service';
 import { LimitsService } from './limits.service';
 import { ScopeService } from './scope.service';
@@ -21,7 +16,6 @@ import { ScopeService } from './scope.service';
     AccessService,
     ScopeService,
     LimitsService,
-    { provide: APP_GUARD, useClass: StaffPermissionGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: EntitlementGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },

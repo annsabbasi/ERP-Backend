@@ -25,6 +25,7 @@ export async function startAuthEnv(name: string, extra: Type[] = []): Promise<Au
   Object.assign(process.env, {
     DATABASE_URL: db.appUrl,
     AUTH_DATABASE_URL: db.authUrl,
+    PLATFORM_DATABASE_URL: db.platformUrl,
     REDIS_KEY_PREFIX: `${prefix}:`,
     QUEUE_PREFIX: prefix,
     AUTH_FAILURE_DELAY_MS: '0',
