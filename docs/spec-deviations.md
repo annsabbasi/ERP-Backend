@@ -4,6 +4,12 @@ Where the build differs from the ERP System Master Specification v1.0 on purpose
 be updated to match. Each entry was accepted by QA; the decision record named in the last column
 has the reasoning. Newest first within each section.
 
+## Languages (Part 10 §10.18, Part 12 §12.13, Part 03 §3.6)
+
+| Difference                                                                                                                                                                                                                                                                           | Spec                                                                                    | Record                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------- |
+| English is the only language: no Urdu translation, no right-to-left layout, no language switch, e-mails in English only, and no invitation-language choice when a company is provisioned. Screen texts still come from the translation file (§12.7), with English its only language. | §10.18 English and Urdu with right-to-left; §12.13 #14; §3.6 step 6 invitation language | D12, the owner's decision of 29 Oct 2026 |
+
 ## Module, feature and permission registry (Part 10 §10.7.1, Part 11 §11.7)
 
 The registry in `packages/contracts/src/registry` holds 31 modules, 218 features and 462
