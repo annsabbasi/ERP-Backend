@@ -6,7 +6,7 @@ import { role, type RoleSpec } from './define';
 
 export const OWNER: RoleSpec = {
   key: 'owner',
-  name: { en: 'Owner', ur: 'مالک' },
+  name: 'Owner',
   description: 'The company’s owner: everything the company is entitled to (Part 04 §4.1).',
   owner: true,
   specs: [],
@@ -39,7 +39,6 @@ const ADMIN_TOOLS = [
 export const COMPANY_ADMIN = role(
   'company_admin',
   'Company Admin',
-  'کمپنی ایڈمن',
   'Users, roles, organization, workflows, settings, devices and integrations; not billing, ownership or closing the account (Part 04 §4.1).',
   [
     ['core.company', ['view', 'configure'], 'company'],
@@ -73,7 +72,6 @@ export const COMPANY_ADMIN = role(
 export const FINANCE_MANAGER = role(
   'finance_manager',
   'Finance Manager',
-  'فنانس مینیجر',
   'Books, payments and period close; approves and posts payroll prepared by the Payroll Officer.',
   [
     ['finance.journal_entries', '*', 'company'],
@@ -93,7 +91,6 @@ export const FINANCE_MANAGER = role(
 export const ACCOUNTANT = role(
   'accountant',
   'Accountant',
-  'اکاؤنٹنٹ',
   'Day-to-day entries, receipts and payments; submits for approval, does not close periods.',
   [
     ['finance.journal_entries', ['view', 'create', 'update', 'submit', 'export'], 'company'],
@@ -108,7 +105,6 @@ export const ACCOUNTANT = role(
 export const HR_MANAGER = role(
   'hr_manager',
   'HR Manager',
-  'ایچ آر مینیجر',
   'Employees, leave and attendance of their own department(s); no salaries (Part 02 §2.12.3).',
   [
     ['hr.employees', ['view', 'create', 'update', 'export'], 'department'],
@@ -121,7 +117,6 @@ export const HR_MANAGER = role(
 export const HR_OFFICER = role(
   'hr_officer',
   'HR Officer',
-  'ایچ آر آفیسر',
   'Adds and updates employee records and follows leave.',
   [
     ['hr.employees', ['view', 'create', 'update'], 'company'],
@@ -132,7 +127,6 @@ export const HR_OFFICER = role(
 export const PAYROLL_OFFICER = role(
   'payroll_officer',
   'Payroll Officer',
-  'پے رول آفیسر',
   'Prepares payroll runs and bank files; the Finance Manager approves and posts them.',
   [
     ['payroll.runs', ['view', 'create', 'generate', 'bank_file'], 'company'],
@@ -144,7 +138,6 @@ export const PAYROLL_OFFICER = role(
 export const EMPLOYEE = role(
   'employee',
   'Employee (self-service)',
-  'ملازم (سیلف سروس)',
   'Their own leave, tasks, meetings and notifications.',
   [
     ['leave.applications', ['view', 'create', 'cancel'], 'own'],
@@ -157,7 +150,6 @@ export const EMPLOYEE = role(
 export const AUDITOR = role(
   'auditor',
   'Auditor (read-only)',
-  'آڈیٹر (صرف دیکھنا)',
   'Reads the books, reports and the audit log; changes nothing.',
   [
     ['finance.*', ['view', 'export'], 'company'],

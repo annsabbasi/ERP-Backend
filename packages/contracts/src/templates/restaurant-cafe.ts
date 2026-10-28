@@ -15,7 +15,6 @@ const MENU_VIEW: [string, string[], 'branch'][] = [
 const OUTLET_MANAGER = role(
   'outlet_manager',
   'Outlet Manager',
-  'آؤٹ لیٹ مینیجر',
   'Runs one outlet: floor, menu availability, orders, voids, bills, discounts up to 30%, shifts.',
   [
     ['restaurant.floors', ['view', 'create', 'update'], 'branch'],
@@ -66,7 +65,6 @@ const OUTLET_MANAGER = role(
 const CASHIER = role(
   'cashier',
   'Cashier',
-  'کیشیئر',
   'Takes orders and payments at the POS; discounts up to 10%; opens and closes their own shift.',
   [
     ['restaurant.tables', ['view'], 'branch'],
@@ -84,7 +82,6 @@ const CASHIER = role(
 const WAITER = role(
   'waiter',
   'Waiter',
-  'ویٹر',
   'Their own sections’ tables: takes orders, sends them to the kitchen, asks for the bill.',
   [
     ['restaurant.sections', ['view'], 'assigned'],
@@ -98,7 +95,7 @@ const WAITER = role(
   ],
 );
 
-const HOST = role('host', 'Host', 'ہوسٹ', 'Seats guests and keeps the floor moving.', [
+const HOST = role('host', 'Host', 'Seats guests and keeps the floor moving.', [
   ['restaurant.tables', ['view', 'update', 'seat'], 'branch'],
   ['restaurant.sections', ['view'], 'branch'],
   ...MENU_VIEW,
@@ -108,7 +105,6 @@ const HOST = role('host', 'Host', 'ہوسٹ', 'Seats guests and keeps the floor 
 const CHEF = role(
   'chef',
   'Chef / Kitchen Manager',
-  'شیف / کچن مینیجر',
   'All stations’ tickets, items sold out (86), recipes and wastage for the outlet.',
   [
     ['restaurant.menu_items', ['view', 'mark_unavailable'], 'branch'],
@@ -125,7 +121,6 @@ const CHEF = role(
 const KITCHEN_STAFF = role(
   'kitchen_staff',
   'Kitchen Staff',
-  'کچن اسٹاف',
   'Their station’s ticket board: start and bump; marks items sold out.',
   [
     ['restaurant.menu_items', ['view', 'mark_unavailable'], 'branch'],
@@ -137,7 +132,6 @@ const KITCHEN_STAFF = role(
 const STORE_KEEPER = role(
   'store_keeper',
   'Store Keeper',
-  'اسٹور کیپر',
   'Receives and issues stock for the outlet’s kitchen store.',
   [
     ...MENU_VIEW,
@@ -150,7 +144,6 @@ const STORE_KEEPER = role(
 const DELIVERY_DISPATCHER = role(
   'delivery_dispatcher',
   'Delivery Dispatcher',
-  'ڈیلیوری ڈسپیچر',
   'Phone and takeaway orders for delivery; the Delivery feature (Release 2) adds riders and zones.',
   [
     ...MENU_VIEW,
@@ -163,7 +156,7 @@ const DELIVERY_DISPATCHER = role(
 export const RESTAURANT_CAFE = buildTemplate({
   key: 'restaurant_cafe',
   version: '1.0.0',
-  name: { en: 'Restaurant & Café', ur: 'ریسٹورنٹ اور کیفے' },
+  name: 'Restaurant & Café',
   industry: 'restaurant',
   description:
     'Floor and tables, menu, waiter app, kitchen display, cashier and takeaway, recipes and stock, with people and payroll.',
@@ -194,12 +187,12 @@ export const RESTAURANT_CAFE = buildTemplate({
     'users.max': 15,
   },
   terminology: {
-    branch: { en: 'Outlet', ur: 'آؤٹ لیٹ' },
-    customer: { en: 'Guest', ur: 'مہمان' },
-    sales_invoice: { en: 'Bill', ur: 'بل' },
-    item: { en: 'Menu item', ur: 'مینو آئٹم' },
-    employee: { en: 'Staff', ur: 'عملہ' },
-    appointment: { en: 'Reservation', ur: 'ریزرویشن' },
+    branch: 'Outlet',
+    customer: 'Guest',
+    sales_invoice: 'Bill',
+    item: 'Menu item',
+    employee: 'Staff',
+    appointment: 'Reservation',
   },
   roles: [
     ...COMPANY_ROLES,

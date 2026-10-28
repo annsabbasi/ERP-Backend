@@ -178,7 +178,7 @@ describe('templateProblems refuses what cannot be published', () => {
       });
     t.roles.push({
       key: 'owner',
-      name: { en: 'Owner 2', ur: 'مالک' },
+      name: 'Owner 2',
       description: '',
       owner: true,
       grants: [],

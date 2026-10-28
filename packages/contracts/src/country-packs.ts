@@ -67,7 +67,7 @@ export const PAKISTAN_1_0: {
     currency: 'PKR',
     timezone: 'Asia/Karachi',
     fiscal_year_start_month: 7,
-    languages: ['en', 'ur'],
+    languages: ['en'],
     id_formats: {
       cnic: { label: 'CNIC', pattern: '^\\d{5}-\\d{7}-\\d$', example: '35202-1234567-1' },
       ntn: { label: 'NTN', pattern: '^\\d{7}-\\d$', example: '1234567-8' },

@@ -78,7 +78,7 @@ describe('e-mail jobs', () => {
     };
     expect(EmailJobSchema.safeParse(job).success).toBe(false);
     expect(
-      EmailJobSchema.parse({ ...job, data: { ...job.data, expires_minutes: '30' } }).locale,
-    ).toBe('en');
+      EmailJobSchema.safeParse({ ...job, data: { ...job.data, expires_minutes: '30' } }).success,
+    ).toBe(true);
   });
 });

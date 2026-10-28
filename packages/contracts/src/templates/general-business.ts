@@ -17,7 +17,7 @@ const COMMON_WIZARD = [
 export const GENERAL_BUSINESS = buildTemplate({
   key: 'general_business',
   version: '1.0.0',
-  name: { en: 'General Business', ur: 'جنرل بزنس' },
+  name: 'General Business',
   industry: 'general',
   description:
     'Finance, sales, purchasing, inventory and people for trading and service companies.',

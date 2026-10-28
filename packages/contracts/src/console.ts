@@ -127,7 +127,7 @@ export const TemplateSummarySchema = z.object({
   key: z.string(),
   version: z.string(),
   status: z.enum(TEMPLATE_STATUSES),
-  name: z.object({ en: z.string(), ur: z.string() }),
+  name: z.string(),
   industry: z.string(),
   roles: z.number().int(),
   entitlements: z.number().int(),

@@ -1,11 +1,9 @@
 import { z } from 'zod';
 
 // Transactional e-mail (Part 10 §10.2, Part 05 §5.9): the API puts a job on the worker's
-// `email` queue; the worker renders the template in the person's language and sends it.
+// `email` queue; the worker renders the template (English, D12) and sends it.
 
 export const EMAIL_QUEUE = 'email';
-
-export const EMAIL_LOCALES = ['en', 'ur'] as const;
 
 /** Every template and the values it needs. Links are full URLs built by the API. */
 export const EMAIL_TEMPLATES = {
@@ -26,7 +24,6 @@ export const EmailJobSchema = z
   .object({
     template: z.enum(Object.keys(EMAIL_TEMPLATES) as [EmailTemplate, ...EmailTemplate[]]),
     to: z.email(),
-    locale: z.enum(EMAIL_LOCALES).default('en'),
     data: z.record(z.string(), z.string()),
   })
   .superRefine((job, ctx) => {

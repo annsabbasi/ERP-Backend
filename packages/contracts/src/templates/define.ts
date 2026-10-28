@@ -49,13 +49,13 @@ export const WIZARD_STEPS = [
 export const TEMPLATE_STATUSES = ['draft', 'in_review', 'published', 'deprecated'] as const;
 export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
-const Localized = z.object({ en: z.string().min(1), ur: z.string().min(1) });
+const Name = z.string().min(1);
 const KEY = /^[a-z][a-z0-9_]*$/;
 export const SEMVER = /^\d+\.\d+\.\d+$/;
 
 export const RoleTemplateSchema = z.object({
   key: z.string().regex(KEY),
-  name: Localized,
+  name: Name,
   description: z.string(),
   /** The protected Owner role: holds everything the company is entitled to, no grants listed. */
   owner: z.boolean().optional(),
@@ -72,12 +72,12 @@ export type RoleTemplate = z.infer<typeof RoleTemplateSchema>;
 export const TemplateDefinitionSchema = z.object({
   key: z.string().regex(KEY),
   version: z.string().regex(SEMVER),
-  name: Localized,
+  name: Name,
   industry: z.string().regex(KEY),
   description: z.string(),
   entitlements: z.array(z.string()),
   limits: z.partialRecord(z.enum(LIMIT_KEYS), z.number().int().min(0)),
-  terminology: z.partialRecord(z.enum(TERM_CONCEPTS), Localized),
+  terminology: z.partialRecord(z.enum(TERM_CONCEPTS), Name),
   roles: z.array(RoleTemplateSchema),
   settings: z.record(z.string(), z.unknown()),
   wizard: z.array(z.enum(WIZARD_STEPS)),
@@ -157,12 +157,11 @@ export type RoleSpec = Omit<RoleTemplate, 'grants'> & { specs: readonly GrantSpe
 
 export function role(
   key: string,
-  en: string,
-  ur: string,
+  name: string,
   description: string,
   specs: readonly GrantSpec[],
 ): RoleSpec {
-  return { key, name: { en, ur }, description, specs };
+  return { key, name, description, specs };
 }
 
 /**

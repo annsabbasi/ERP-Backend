@@ -19,7 +19,6 @@ const academics = (actions: string[], scope: 'branch' | 'assigned'): GrantSpec[]
 const PRINCIPAL = role(
   'principal',
   'Principal',
-  'پرنسپل',
   'Runs the campus: structure, students, approves concessions and publishes results.',
   [
     ...academics(['view', 'create', 'update'], 'branch'),
@@ -46,7 +45,6 @@ const PRINCIPAL = role(
 const ADMISSIONS_OFFICER = role(
   'admissions_officer',
   'Admissions Officer',
-  'داخلہ آفیسر',
   'Enquiries to enrollment: applications, tests, merit lists and offers.',
   [
     ...academics(['view'], 'branch'),
@@ -65,7 +63,6 @@ const ADMISSIONS_OFFICER = role(
 const FEE_OFFICER = role(
   'fee_officer',
   'Fee Officer',
-  'فیس آفیسر',
   'Fee structures, challans, collection and reconciliation; concessions go to the Principal.',
   [
     ...academics(['view'], 'branch'),
@@ -86,7 +83,6 @@ const FEE_OFFICER = role(
 const TEACHER = role(
   'teacher',
   'Teacher',
-  'استاد',
   'Their own classes: attendance, marks, test marks for admissions, messages to their sections.',
   [
     ['school.sections', ['view'], 'assigned'],
@@ -105,7 +101,6 @@ const TEACHER = role(
 const CLASS_TEACHER = role(
   'class_teacher',
   'Class Teacher',
-  'کلاس ٹیچر',
   'Their homeroom section: attendance and leave, remarks, fee status, guardians’ messages.',
   [
     ['school.sections', ['view'], 'assigned'],
@@ -124,7 +119,6 @@ const CLASS_TEACHER = role(
 const EXAM_CONTROLLER = role(
   'exam_controller',
   'Exam Controller',
-  'امتحانی کنٹرولر',
   'Exam schedule, marks completion, locking and publishing results and report cards.',
   [
     ...academics(['view'], 'branch'),
@@ -143,7 +137,6 @@ const EXAM_CONTROLLER = role(
 const FRONT_DESK = role(
   'front_desk',
   'Front Desk',
-  'فرنٹ ڈیسک',
   'Walk-in enquiries, basic student look-up and fee payments at the counter.',
   [
     ...academics(['view'], 'branch'),
@@ -157,7 +150,7 @@ const FRONT_DESK = role(
 export const SCHOOL_K12 = buildTemplate({
   key: 'school_k12',
   version: '1.0.0',
-  name: { en: 'School (K-12)', ur: 'اسکول (K-12)' },
+  name: 'School (K-12)',
   industry: 'school',
   description:
     'Academic structure, students, admissions, attendance, fees and challans, exams and report cards, parent portal, with people and payroll.',
@@ -183,13 +176,13 @@ export const SCHOOL_K12 = buildTemplate({
   ],
   limits: { 'users.max': 50, 'branches.max': 1, 'school.students.max': 500 },
   terminology: {
-    branch: { en: 'Campus', ur: 'کیمپس' },
-    customer: { en: 'Student and Guardian', ur: 'طالب علم اور سرپرست' },
-    sales_invoice: { en: 'Fee Challan', ur: 'فیس چالان' },
-    item: { en: 'Fee head', ur: 'فیس ہیڈ' },
-    employee: { en: 'Faculty & Staff', ur: 'اساتذہ و عملہ' },
-    department: { en: 'Department / Wing', ur: 'شعبہ / ونگ' },
-    appointment: { en: 'Parent-Teacher Meeting', ur: 'والدین اساتذہ میٹنگ' },
+    branch: 'Campus',
+    customer: 'Student and Guardian',
+    sales_invoice: 'Fee Challan',
+    item: 'Fee head',
+    employee: 'Faculty & Staff',
+    department: 'Department / Wing',
+    appointment: 'Parent-Teacher Meeting',
   },
   roles: [
     ...COMPANY_ROLES,

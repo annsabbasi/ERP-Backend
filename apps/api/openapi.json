@@ -3666,20 +3666,7 @@
                             ]
                           },
                           "name": {
-                            "type": "object",
-                            "properties": {
-                              "en": {
-                                "type": "string"
-                              },
-                              "ur": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "en",
-                              "ur"
-                            ],
-                            "additionalProperties": false
+                            "type": "string"
                           },
                           "industry": {
                             "type": "string"
@@ -3975,20 +3962,7 @@
                       ]
                     },
                     "name": {
-                      "type": "object",
-                      "properties": {
-                        "en": {
-                          "type": "string"
-                        },
-                        "ur": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "en",
-                        "ur"
-                      ],
-                      "additionalProperties": false
+                      "type": "string"
                     },
                     "industry": {
                       "type": "string"
@@ -4052,22 +4026,8 @@
                           "pattern": "^\\d+\\.\\d+\\.\\d+$"
                         },
                         "name": {
-                          "type": "object",
-                          "properties": {
-                            "en": {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            "ur": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "en",
-                            "ur"
-                          ],
-                          "additionalProperties": false
+                          "type": "string",
+                          "minLength": 1
                         },
                         "industry": {
                           "type": "string",
@@ -4123,22 +4083,8 @@
                             ]
                           },
                           "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "en": {
-                                "type": "string",
-                                "minLength": 1
-                              },
-                              "ur": {
-                                "type": "string",
-                                "minLength": 1
-                              }
-                            },
-                            "required": [
-                              "en",
-                              "ur"
-                            ],
-                            "additionalProperties": false
+                            "type": "string",
+                            "minLength": 1
                           }
                         },
                         "roles": {
@@ -4151,22 +4097,8 @@
                                 "pattern": "^[a-z][a-z0-9_]*$"
                               },
                               "name": {
-                                "type": "object",
-                                "properties": {
-                                  "en": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  },
-                                  "ur": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  }
-                                },
-                                "required": [
-                                  "en",
-                                  "ur"
-                                ],
-                                "additionalProperties": false
+                                "type": "string",
+                                "minLength": 1
                               },
                               "description": {
                                 "type": "string"
@@ -4353,20 +4285,7 @@
                       ]
                     },
                     "name": {
-                      "type": "object",
-                      "properties": {
-                        "en": {
-                          "type": "string"
-                        },
-                        "ur": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "en",
-                        "ur"
-                      ],
-                      "additionalProperties": false
+                      "type": "string"
                     },
                     "industry": {
                       "type": "string"
@@ -4430,22 +4349,8 @@
                           "pattern": "^\\d+\\.\\d+\\.\\d+$"
                         },
                         "name": {
-                          "type": "object",
-                          "properties": {
-                            "en": {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            "ur": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "en",
-                            "ur"
-                          ],
-                          "additionalProperties": false
+                          "type": "string",
+                          "minLength": 1
                         },
                         "industry": {
                           "type": "string",
@@ -4501,22 +4406,8 @@
                             ]
                           },
                           "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "en": {
-                                "type": "string",
-                                "minLength": 1
-                              },
-                              "ur": {
-                                "type": "string",
-                                "minLength": 1
-                              }
-                            },
-                            "required": [
-                              "en",
-                              "ur"
-                            ],
-                            "additionalProperties": false
+                            "type": "string",
+                            "minLength": 1
                           }
                         },
                         "roles": {
@@ -4529,22 +4420,8 @@
                                 "pattern": "^[a-z][a-z0-9_]*$"
                               },
                               "name": {
-                                "type": "object",
-                                "properties": {
-                                  "en": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  },
-                                  "ur": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  }
-                                },
-                                "required": [
-                                  "en",
-                                  "ur"
-                                ],
-                                "additionalProperties": false
+                                "type": "string",
+                                "minLength": 1
                               },
                               "description": {
                                 "type": "string"
@@ -4725,20 +4602,7 @@
                       ]
                     },
                     "name": {
-                      "type": "object",
-                      "properties": {
-                        "en": {
-                          "type": "string"
-                        },
-                        "ur": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "en",
-                        "ur"
-                      ],
-                      "additionalProperties": false
+                      "type": "string"
                     },
                     "industry": {
                       "type": "string"
@@ -4802,22 +4666,8 @@
                           "pattern": "^\\d+\\.\\d+\\.\\d+$"
                         },
                         "name": {
-                          "type": "object",
-                          "properties": {
-                            "en": {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            "ur": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "en",
-                            "ur"
-                          ],
-                          "additionalProperties": false
+                          "type": "string",
+                          "minLength": 1
                         },
                         "industry": {
                           "type": "string",
@@ -4873,22 +4723,8 @@
                             ]
                           },
                           "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "en": {
-                                "type": "string",
-                                "minLength": 1
-                              },
-                              "ur": {
-                                "type": "string",
-                                "minLength": 1
-                              }
-                            },
-                            "required": [
-                              "en",
-                              "ur"
-                            ],
-                            "additionalProperties": false
+                            "type": "string",
+                            "minLength": 1
                           }
                         },
                         "roles": {
@@ -4901,22 +4737,8 @@
                                 "pattern": "^[a-z][a-z0-9_]*$"
                               },
                               "name": {
-                                "type": "object",
-                                "properties": {
-                                  "en": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  },
-                                  "ur": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  }
-                                },
-                                "required": [
-                                  "en",
-                                  "ur"
-                                ],
-                                "additionalProperties": false
+                                "type": "string",
+                                "minLength": 1
                               },
                               "description": {
                                 "type": "string"
