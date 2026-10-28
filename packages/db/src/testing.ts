@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,8 +9,9 @@ import { LOCAL_HOSTS, hostOf } from './local-only';
 import { enableLocalLoginRoles } from './roles';
 
 // Test databases for the integration and isolation tests. Each test suite gets its own
-// database, rebuilt from the migrations on every run, on the local Docker Postgres (or the CI
-// service container). Nothing here may touch any other host.
+// database on the local Docker Postgres (or the CI service container), copied from a template
+// that every migration was applied to; the template is rebuilt whenever a migration file
+// changes. Nothing here may touch any other host.
 
 export type TestDatabase = {
   name: string;
@@ -35,7 +38,7 @@ function urlFor(server: string, user: string, password: string, database: string
 }
 
 /**
- * Drops and recreates `name`, applies every migration and enables the login roles.
+ * Drops and recreates `name` as a copy of the migrated template, and enables the login roles.
  * TEST_PG_SERVER (default postgresql://erp:erp@localhost:5433) must be a local superuser.
  */
 export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
@@ -45,7 +48,49 @@ export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
   if (!LOCAL_HOSTS.has(hostOf(server) ?? ''))
     throw new Error(`TEST_PG_SERVER must be local: ${hostOf(server)}`);
   const owner = new URL(server);
-  const db: TestDatabase = {
+  const db = testDatabase(server, name);
+
+  const admin = new pg.Client({
+    connectionString: urlFor(
+      server,
+      decodeURIComponent(owner.username),
+      decodeURIComponent(owner.password),
+      'postgres',
+    ),
+  });
+  await admin.connect();
+  // Roles are shared by the whole server, and suites prepare their databases in parallel:
+  // one at a time, or CREATE/ALTER ROLE collide ("tuple concurrently updated").
+  await admin.query('SELECT pg_advisory_lock($1)', [PREPARE_LOCK]);
+  try {
+    await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+    await ensureTemplate(admin, server);
+    // A copy is a file copy: a second, where applying every migration again took ten or more,
+    // and suites waiting their turn hit the 120-second hook limit.
+    await admin.query(`CREATE DATABASE "${name}" TEMPLATE "${TEMPLATE}"`);
+    await enableLocalLoginRoles(
+      {
+        LOCAL_ONLY: '1',
+        DATABASE_URL: db.appUrl,
+        OPS_DATABASE_URL: db.opsUrl,
+        AUTH_DATABASE_URL: db.authUrl,
+        PLATFORM_DATABASE_URL: db.platformUrl,
+      },
+      db.ownerUrl,
+    );
+  } finally {
+    await admin.query('SELECT pg_advisory_unlock($1)', [PREPARE_LOCK]);
+    await admin.end();
+  }
+  return db;
+}
+
+const PREPARE_LOCK = 727_001;
+const TEMPLATE = 'erp_test_template';
+
+function testDatabase(server: string, name: string): TestDatabase {
+  const owner = new URL(server);
+  return {
     name,
     ownerUrl: urlFor(
       server,
@@ -73,45 +118,37 @@ export async function prepareTestDatabase(name: string): Promise<TestDatabase> {
       name,
     ),
   };
-
-  const admin = new pg.Client({
-    connectionString: urlFor(
-      server,
-      decodeURIComponent(owner.username),
-      decodeURIComponent(owner.password),
-      'postgres',
-    ),
-  });
-  await admin.connect();
-  // Roles are shared by the whole server, and suites prepare their databases in parallel:
-  // one at a time, or CREATE/ALTER ROLE collide ("tuple concurrently updated").
-  await admin.query('SELECT pg_advisory_lock($1)', [PREPARE_LOCK]);
-  try {
-    await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
-    await admin.query(`CREATE DATABASE "${name}"`);
-    migrate(db);
-    await enableLocalLoginRoles(
-      {
-        LOCAL_ONLY: '1',
-        DATABASE_URL: db.appUrl,
-        OPS_DATABASE_URL: db.opsUrl,
-        AUTH_DATABASE_URL: db.authUrl,
-        PLATFORM_DATABASE_URL: db.platformUrl,
-      },
-      db.ownerUrl,
-    );
-  } finally {
-    await admin.query('SELECT pg_advisory_unlock($1)', [PREPARE_LOCK]);
-    await admin.end();
-  }
-  return db;
 }
 
-const PREPARE_LOCK = 727_001;
+// This file runs from src/ (tests) or dist/ (built); either way the package is one level up.
+const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Every migration file, hashed: the template is current when its comment holds this. */
+function migrationsFingerprint(): string {
+  const dir = resolve(packageDir, 'prisma', 'migrations');
+  const hash = createHash('sha256');
+  for (const entry of readdirSync(dir).sort()) {
+    const file = resolve(dir, entry, 'migration.sql');
+    if (existsSync(file)) hash.update(entry).update(readFileSync(file));
+  }
+  return hash.digest('hex').slice(0, 32);
+}
+
+/** Builds the template from the migrations unless it already matches them. Call under the lock. */
+async function ensureTemplate(admin: pg.Client, server: string): Promise<void> {
+  const fingerprint = migrationsFingerprint();
+  const { rows } = await admin.query<{ note: string | null }>(
+    `SELECT shobj_description(oid, 'pg_database') AS note FROM pg_database WHERE datname = $1`,
+    [TEMPLATE],
+  );
+  if (rows[0]?.note === fingerprint) return;
+  await admin.query(`DROP DATABASE IF EXISTS "${TEMPLATE}" WITH (FORCE)`);
+  await admin.query(`CREATE DATABASE "${TEMPLATE}"`);
+  migrate(testDatabase(server, TEMPLATE));
+  await admin.query(`COMMENT ON DATABASE "${TEMPLATE}" IS '${fingerprint}'`);
+}
 
 function migrate(db: TestDatabase): void {
-  // This file runs from src/ (tests) or dist/ (built); either way the package is one level up.
-  const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const prismaCli = createRequire(resolve(packageDir, 'package.json')).resolve(
     'prisma/build/index.js',
   );
