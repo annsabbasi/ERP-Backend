@@ -283,3 +283,10 @@ export const ConsoleSearchSchema = z.object({
   ),
   pages: z.array(z.object({ path: z.string(), label: z.string() })),
 });
+
+/** A console change either ran, or waits for a second approver (◐). */
+export const ChangeResultSchema = z.union([
+  z.object({ status: z.literal('done') }),
+  z.object({ status: z.literal('pending'), approval_id: z.string() }),
+]);
+export type ChangeResult = z.infer<typeof ChangeResultSchema>;

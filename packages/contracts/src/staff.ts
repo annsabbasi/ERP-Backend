@@ -197,7 +197,7 @@ export const CONSOLE_MENU: readonly {
 export const StaffAccessSchema = z.object({
   staff_id: z.string(),
   roles: z.array(z.enum(STAFF_ROLES)),
-  permissions: z.record(z.enum(STAFF_PERMISSIONS), z.enum(['allow', 'four_eyes'])),
+  permissions: z.partialRecord(z.enum(STAFF_PERMISSIONS), z.enum(['allow', 'four_eyes'])),
   menu: z.array(
     z.object({
       group: z.string(),
