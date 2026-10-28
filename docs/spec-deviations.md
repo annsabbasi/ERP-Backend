@@ -51,8 +51,21 @@ permission keys (Stage 1).
 | An allow exception saved without a scope type counts as `own` scope.                                                                                                                                  | §4.9.8 "with scope and mandatory end date"                           | Stage 3  |
 | The limit in force: a manual override when there is one, otherwise the larger of the plan's and the template's value plus every add-on.                                                               | §2.11.1 does not say how sources combine                             | Stage 3  |
 | `/me/access` answers `home: "home"` and no quick-create items until role home pages exist.                                                                                                            | §10.7.5 "home page, quick-create items"                              | Stage 7  |
-| Routes with `@StaffPermission` are refused until the staff permission matrix arrives.                                                                                                                 | Part 03 §3.2.1                                                       | Stage 4  |
 | The "Request access" button on the no-access page needs the admins' notification.                                                                                                                     | §5.5.7                                                               | Stage 7  |
+
+## Platform Console (Part 03 §3.2–3.3, §3.11)
+
+| Difference                                                                                                                                                                      | Spec                                          | Record     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------- |
+| Publishing a template or a country pack always needs a second approver, the Platform Owner's included.                                                                          | §3.2.1 table shows the Owner with a full tick | ADR 0010   |
+| Audit visibility is split: Owner, Platform Admin and Auditor see every entry; Onboarding and Support their own; Billing the billing entries; Operations the operations entries. | §3.2.1 one "Audit log" row                    | ADR 0010   |
+| The three shipped templates, Pakistan 1.0 and four plans are release data, inserted by `db:seed` when absent and audited as `release.*`, without a second approver.             | §3.11 "Publishing requires a second approver" | ADR 0010   |
+| The shipped plans (starter, business, premium, enterprise) are private, with placeholder limits and no prices until the business sets them.                                     | §2.11 plan table                              | Stage 4    |
+| The Islamic holidays in Pakistan 1.0 are marked tentative (moon sighting); a new pack version fixes them when the dates are announced.                                          | §2.6 country pack holidays                    | Stage 4    |
+| A template draft can be saved with validation problems; a publish request and an approval are refused while any remain.                                                         | §3.11 "validation"                            | ADR 0010   |
+| Deactivating a staff member sets their status to `suspended` and ends their sessions at once.                                                                                   | §3.2 "deactivate"                             | ADR 0010   |
+| Four-eyes covers template publish, country-pack publish and price changes so far; the other ◐ actions gain it in the stages that build them.                                    | §3.2.1 ◐ cells                                | Stages 5–9 |
+| Roles in the shipped templates are built from the registry's permission keys; rights in the Parts 07–08 role descriptions that have no key yet come with their modules.         | §8.2.18, §8.3.17 role lists                   | Stage 4    |
 
 ## Data and tenancy (Part 10 §10.5, Part 11 §11.3–11.4)
 
