@@ -1,7 +1,9 @@
 // Seed for the local stack, run by `pnpm local:up` after `migrate deploy` and
-// `db:local-roles`. Each stage adds what its screens need (the Platform Owner in Stage 2,
-// demo companies through provisioning in Stage 5).
+// `db:local-roles`. Each stage adds what its screens need (the Platform Owner in Stage 2, the
+// shipped templates, country pack and plans in Stage 4, demo companies through provisioning in
+// Stage 5).
 import { syncCatalogue } from './catalogue-sync';
+import { seedConsoleData } from './console-seed';
 import { createPrismaClient } from './client';
 import { assertLocalOnly } from './local-only';
 
@@ -23,6 +25,11 @@ async function main(): Promise<void> {
       `seed: catalogue synced (${result.modules} modules, ${result.features} features, ` +
         `${result.permissions} permissions; marked removed: ${result.removed.features} features, ` +
         `${result.removed.permissions} permissions)`,
+    );
+    const shipped = await seedConsoleData(prisma);
+    console.log(
+      `seed: shipped catalogue data added (templates: ${shipped.templates.join(', ') || 'none new'}; ` +
+        `country packs: ${shipped.countryPacks.join(', ') || 'none new'}; plans: ${shipped.plans.join(', ') || 'none new'})`,
     );
   } finally {
     await prisma.$disconnect();
